@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Roadster · 个人财富驾驶舱</title>
+<link rel="icon" type="image/svg+xml" href="roadster-icon.svg">
+<link rel="apple-touch-icon" href="roadster-icon.svg">
+
+<!-- ── Third-party libs ── -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+
+<!-- ── Firebase SDK (ES modules via CDN) ── -->
+<script type="importmap">
+{
+  "imports": {
+    "firebase/app":       "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js",
+    "firebase/auth":      "https://www.gstatic.com/firebasejs/11.9.0/firebase-auth.js",
+    "firebase/firestore": "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js"
+  }
+}
+</script>
+
+<!-- ── Modular stylesheets (dev mode — build.js inlines these for prod) ── -->
+<link rel="stylesheet" href="src/css/tokens.css">
+<link rel="stylesheet" href="src/css/layout.css">
+<link rel="stylesheet" href="src/css/components.css">
+<link rel="stylesheet" href="src/css/charts.css">
+<link rel="stylesheet" href="src/css/animations.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ═══════ TOP BAR (desktop ≥860px) ═══════ -->
+  <header class="topbar glass-bar">
+    <div class="topbar-inner">
+      <a href="#overview" class="brand" data-page="overview">
+        <div class="brand-mark">R</div>
+        <div class="brand-copy">
+          <span class="brand-name">Roadster</span>
+          <span class="brand-sub" data-i18n="brandSub">PERSONAL FINANCE COPILOT</span>
+        </div>
+      </a>
+      <nav class="topnav">
+        <button class="topnav-item active" data-page="overview"><span>🏠</span><span data-i18n="navOverview">概览</span></button>
+        <button class="topnav-item" data-page="transactions"><span>🧾</span><span data-i18n="navTransactions">记账</span></button>
+        <button class="topnav-item" data-page="assets"><span>🏦</span><span data-i18n="navAssets">资产</span></button>
+        <button class="topnav-item" data-page="analysis"><span>🧭</span><span data-i18n="navAnalysis">分析</span></button>
+      </nav>
+      <div class="topbar-controls">
+        <div class="theme-toggle">
+          <button class="theme-btn" data-theme-opt="light" title="浅色模式">☀️</button>
+          <button class="theme-btn" data-theme-opt="dark" title="深色模式">🌙</button>
+        </div>
+        <button class="lang-btn" data-lang-btn>EN</button>
+        <div id="authBtnDesktop"></div>
+        <button class="btn btn-primary btn-sm" id="topAddBtn">＋ <span data-i18n="addBtn">新增</span></button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══════ MOBILE SETTINGS BAR (<860px) ═══════ -->
+  <div class="mobile-bar">
+    <div class="theme-toggle">
+      <button class="theme-btn" data-theme-opt="light" title="浅色模式">☀️</button>
+      <button class="theme-btn" data-theme-opt="dark" title="深色模式">🌙</button>
+    </div>
+    <button class="lang-btn" data-lang-btn>EN</button>
+    <div id="authBtnMobile"></div>
+  </div>
+
+  <!-- ═══════ MAIN CONTENT ═══════ -->
+  <main class="main" id="mainContent">
+
+    <!-- ════════════════ PAGE: OVERVIEW ════════════════ -->
+    <section class="page active" id="page-overview">
+      <div class="page-title-block">
+        <div class="flex-row gap-10">
+          <span style="font-size:26px">👋</span>
+          <div>
+            <div class="page-title" id="greetingText">早上好</div>
+            <div class="page-subtitle" data-i18n="overviewSubtitle">这是你的财务总览</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex-between" style="margin-bottom:14px">
+        <div class="segmented" id="periodSeg">
+          <button class="seg-pill active" data-period="month" data-i18n="periodMonth">本月</button>
+          <button class="seg-pill" data-period="quarter" data-i18n="periodQuarter">本季</button>
+          <button class="seg-pill" data-period="year" data-i18n="periodYear">今年</button>
+          <button class="seg-pill" data-period="all" data-i18n="periodAll">全部</button>
+        </div>
+      </div>
+
+      <div class="hero-card hero-card--rose">
+        <div class="hero-label" data-i18n="netBalance">净结余 · NET BALANCE</div>
+        <div class="hero-value" id="netAmount">¥0</div>
+        <div class="hero-sub" id="netSub">暂无数据</div>
+        <div class="hero-stats">
+          <div class="hero-stat">
+            <div class="hero-stat-label" data-i18n="totalIncome">收入</div>
+            <div class="hero-stat-value" id="heroIncome">¥0</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat-label" data-i18n="totalExpense">支出</div>
+            <div class="hero-stat-value" id="heroExpense">¥0</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat-label" data-i18n="savingsRate">储蓄率</div>
+            <div class="hero-stat-value" id="heroSaveRate">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sh"><div class="sh-title">收支走势</div></div>
+      <div class="card glass card-glow card-glow--blue">
+        <div id="trendEmpty" class="empty-state" style="display:none">
+          <div class="empty-icon">📊</div><div class="empty-text">导入数据后显示趋势图</div>
+        </div>
+        <div class="chart-trend"><canvas id="trendChart"></canvas></div>
+      </div>
+
+      <div id="pieSection" style="display:none;margin-top:14px">
+        <div class="grid-2">
+          <div class="card glass">
+            <div class="chart-title">支出分类</div><div class="chart-sub">各类别占比</div>
+            <div class="chart-pie"><canvas id="expensePieChart"></canvas></div>
+            <div class="legend-flow" id="expenseLegend"></div>
+          </div>
+          <div class="card glass">
+            <div class="chart-title">收入分类</div><div class="chart-sub">各类别占比</div>
+            <div class="chart-pie"><canvas id="incomePieChart"></canvas></div>
+            <div class="legend-flow" id="incomeLegend"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sh">
+        <div class="sh-title">最近交易</div>
+        <button class="sh-action" data-page="transactions">查看全部 ›</button>
+      </div>
+      <div class="card glass">
+        <div class="tx-list" id="recentTxList">
+          <div class="empty-state"><div class="empty-icon">📋</div>
+            <div class="empty-text">还没有交易记录<br>点击右下角「＋」开始记录</div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════ PAGE: TRANSACTIONS ════════════════ -->
+    <section class="page" id="page-transactions">
+      <div class="page-title-block">
+        <div class="flex-between">
+          <div>
+            <div class="page-title" data-i18n="txTitle">记账明细</div>
+            <div class="page-subtitle" data-i18n="txSubtitle">每一笔收支，一目了然</div>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="dataCleanupBtn" data-i18n="txDataMgmt">🧹 数据管理</button>
+        </div>
+      </div>
+
+      <div class="flex-row gap-10" style="margin-bottom:16px;flex-wrap:wrap">
+        <input class="field-input" style="flex:1;min-width:140px;padding:10px 14px;font-size:14px"
+               placeholder="🔍 搜索备注 / 类别…" id="txSearch" data-i18n-ph="txSearch">
+        <div class="segmented" id="txTypeSeg">
+          <button class="seg-pill active" data-tf="" data-i18n="txAll">全部</button>
+          <button class="seg-pill" data-tf="收入" data-i18n="txIncome">收入</button>
+          <button class="seg-pill" data-tf="支出" data-i18n="txExpense">支出</button>
+        </div>
+      </div>
+
+      <div class="card glass">
+        <div class="tx-list" id="fullTxList">
+          <div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">还没有交易记录</div></div>
+        </div>
+      </div>
+
+      <div class="sh" data-i18n="importTitle"><div class="sh-title">导入数据</div></div>
+
+      <div class="segmented" style="margin-bottom:14px">
+        <button class="seg-pill active" id="importTabTx" data-i18n="importTxTab">🧾 记账数据</button>
+        <button class="seg-pill" id="importTabAsset" data-i18n="importAssetTab">🏦 资产数据</button>
+      </div>
+
+      <!-- TX import panel -->
+      <div id="importPanelTx">
+        <div class="card glass">
+          <div class="chart-title" data-i18n="importTxTitle">📂 上传记账 CSV</div>
+          <div class="chart-sub" data-i18n="importTxDesc">表头：时间 / 收支 / 类别 / 金额 / 备注（顺序任意，自动识别）</div>
+          <label class="card-flat" for="csvInput" style="display:block;border:1.5px dashed var(--color-sep-strong);text-align:center;padding:22px;cursor:pointer;border-radius:var(--r-md)">
+            <div style="font-size:28px;margin-bottom:6px">📁</div>
+            <div style="font-size:14px;font-weight:700;margin-bottom:2px">点击或拖拽上传</div>
+            <div style="font-size:12px;color:var(--color-label-4)">.csv 或 .txt</div>
+          </label>
+          <input type="file" id="csvInput" accept=".csv,.txt" style="display:none">
+          <div class="banner" id="dedupBanner"></div>
+        </div>
+        <div class="card glass" style="margin-top:12px">
+          <div class="chart-title" data-i18n="pasteTitle">✏️ 手动粘贴记账数据</div>
+          <div class="chart-sub" data-i18n="pasteDesc">从 Numbers 复制后粘贴，首行为表头自动识别</div>
+          <textarea class="field-textarea" id="pasteData" placeholder="粘贴数据到这里…"></textarea>
+          <div class="banner" id="dedupBanner2"></div>
+          <div class="flex-row gap-10" style="margin-top:12px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" id="parsePasteBtn" data-i18n="parsePaste">解析并导入</button>
+            <button class="btn btn-secondary btn-sm" id="loadSampleBtn" data-i18n="loadSample">载入示例数据</button>
+            <button class="btn btn-danger btn-sm" id="clearDataBtn" data-i18n="clearData">清空记账数据</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ASSET import panel -->
+      <div id="importPanelAsset" style="display:none">
+        <div class="card glass">
+          <div class="chart-title" data-i18n="importAssetTitle">📂 上传资产 CSV</div>
+          <div class="chart-sub" style="margin-bottom:12px" data-i18n="importAssetDesc">首行表头：时间, 资产名称1, 资产名称2, …</div>
+          <div style="background:var(--color-surface-2);border-radius:var(--r-xs);padding:10px 14px;font-size:12px;color:var(--color-label-3);margin-bottom:12px;font-family:var(--font-mono);line-height:1.8">
+            时间, 招商存款, 沪深300基金<br>2026-01-01, 50000, 30000<br>2026-02-01, 52000, 28500
+          </div>
+          <label class="card-flat" for="assetCsvInput" style="display:block;border:1.5px dashed var(--color-sep-strong);text-align:center;padding:22px;cursor:pointer;border-radius:var(--r-md)">
+            <div style="font-size:28px;margin-bottom:6px">📁</div>
+            <div style="font-size:14px;font-weight:700">点击或拖拽上传资产 CSV</div>
+          </label>
+          <input type="file" id="assetCsvInput" accept=".csv" style="display:none">
+          <div class="banner" id="assetImportBanner"></div>
+        </div>
+      </div>
+
+      <div class="sh" data-i18n="exportTitle"><div class="sh-title">导出数据</div></div>
+      <div class="card glass" style="margin-bottom:12px;border:1px solid rgba(255,159,10,0.2)">
+        <div class="flex-row gap-12" style="align-items:flex-start">
+          <span style="font-size:20px;flex-shrink:0">💾</span>
+          <div style="font-size:12px;color:var(--color-label-3);line-height:1.65;font-weight:500">
+            <span data-i18n="storageWarn">数据保存在本设备浏览器缓存中</span>。
+            <span data-i18n="storageWarnDesc">清除浏览器数据、更换设备会导致本地数据丢失。建议定期导出备份。已登录用户数据已自动同步。</span>
+          </div>
+        </div>
+      </div>
+      <div class="card glass">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div class="export-option" data-export="tx">
+            <div class="export-icon" style="background:linear-gradient(135deg,rgba(0,122,255,.15),rgba(88,86,214,.15))">🧾</div>
+            <div style="flex:1"><div style="font-size:14px;font-weight:700" data-i18n="exportTxCsv">导出记账数据 CSV</div>
+              <div style="font-size:11.5px;color:var(--color-label-4)" data-i18n="exportTxCsvDesc">所有收支记录</div></div>
+            <span style="color:var(--color-label-4)">›</span>
+          </div>
+          <div class="export-option" data-export="asset">
+            <div class="export-icon" style="background:linear-gradient(135deg,rgba(52,199,89,.15),rgba(0,199,190,.15))">🏦</div>
+            <div style="flex:1"><div style="font-size:14px;font-weight:700" data-i18n="exportAssetCsv">导出资产明细 CSV</div>
+              <div style="font-size:11.5px;color:var(--color-label-4)" data-i18n="exportAssetCsvDesc">当前资产明细</div></div>
+            <span style="color:var(--color-label-4)">›</span>
+          </div>
+          <div class="export-option" data-export="asset-history">
+            <div class="export-icon" style="background:linear-gradient(135deg,rgba(175,82,222,.15),rgba(88,86,214,.15))">📈</div>
+            <div style="flex:1"><div style="font-size:14px;font-weight:700" data-i18n="exportHistoryCsv">导出资产走势 CSV</div>
+              <div style="font-size:11.5px;color:var(--color-label-4)" data-i18n="exportHistoryDesc">所有历史快照</div></div>
+            <span style="color:var(--color-label-4)">›</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════ PAGE: ASSETS ════════════════ -->
+    <section class="page" id="page-assets">
+      <div class="page-title-block">
+        <div class="page-title" data-i18n="assetTitle">资产管理</div>
+        <div class="page-subtitle" data-i18n="assetSubtitle">追踪你的财富版图</div>
+      </div>
+
+      <div class="networth-hero">
+        <div class="networth-glow"></div><div class="networth-grid"></div>
+        <div class="networth-content">
+          <div class="flex-between" style="align-items:flex-start">
+            <div>
+              <div class="hero-label" style="opacity:.55" data-i18n="netWorth">总净资产 · NET WORTH</div>
+              <div class="hero-value" id="totalAssetVal" style="font-size:44px">¥0</div>
+            </div>
+            <div class="networth-badge">💎</div>
+          </div>
+          <div class="hero-sub" id="totalAssetSub" style="opacity:.55">手动更新各资产以计算总值</div>
+          <div class="hero-stats" id="networthStats"></div>
+        </div>
+      </div>
+
+      <div class="sh">
+        <div class="sh-title" data-i18n="assetTimeline">总资产走势</div>
+        <div class="segmented" id="timelineSeg">
+          <button class="seg-pill active" data-range="90">3月</button>
+          <button class="seg-pill" data-range="180">6月</button>
+          <button class="seg-pill" data-range="365">1年</button>
+          <button class="seg-pill" data-range="0">全部</button>
+        </div>
+      </div>
+      <div class="card glass card-glow card-glow--green">
+        <div id="timelineEmpty" class="empty-state" style="padding:30px 0">
+          <div class="empty-icon">📈</div><div class="empty-text">更新资产后将自动记录走势</div>
+        </div>
+        <div class="chart-trend" id="assetTimelineWrap" style="display:none"><canvas id="assetTimelineChart"></canvas></div>
+      </div>
+
+      <div class="sh"><div class="sh-title" data-i18n="assetBreakdown">各资产明细走势</div></div>
+      <div class="card glass" id="breakdownCard" style="display:none">
+        <div class="chart-trend"><canvas id="assetBreakdownChart"></canvas></div>
+        <div class="legend-flow" id="timelineLegend"></div>
+      </div>
+      <div class="card glass empty-state" id="breakdownEmpty" style="padding:24px 0">
+        <div class="empty-icon">🧩</div><div class="empty-text">需要 2 项及以上资产才能显示明细走势对比</div>
+      </div>
+
+      <div class="grid-2" style="margin-top:14px">
+        <div class="card glass">
+          <div class="chart-title" data-i18n="assetDist">资产分布</div>
+          <div class="chart-pie"><canvas id="assetPieChart"></canvas></div>
+          <div class="legend-flow" id="assetLegend"></div>
+        </div>
+        <div class="card glass">
+          <div class="chart-title" data-i18n="assetStruct">资产结构</div>
+          <div class="chart-bar"><canvas id="assetBarChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="sh">
+        <div class="sh-title" data-i18n="assetDetail">资产明细</div>
+        <button class="sh-action" id="addAssetBtn" data-i18n="addAsset">＋ 添加</button>
+      </div>
+      <div id="assetGrid">
+        <div class="empty-state"><div class="empty-icon">🏦</div><div class="empty-text">点击「＋ 添加」开始记录资产</div></div>
+      </div>
+    </section>
+
+    <!-- ════════════════ PAGE: ANALYSIS ════════════════ -->
+    <section class="page" id="page-analysis">
+      <div class="page-title-block">
+        <div class="page-title" data-i18n="analysisTitle">财务分析</div>
+        <div class="page-subtitle" data-i18n="analysisSubtitle">读懂财务健康，预见未来</div>
+      </div>
+
+      <div class="hero-card hero-card--brand" style="text-align:center;padding:30px 24px">
+        <div class="hero-label" style="text-align:center" data-i18n="healthScore">财务健康评分</div>
+        <div style="font-size:56px;font-weight:800;letter-spacing:-2px;position:relative;z-index:1" id="healthScore">—</div>
+        <div class="hero-sub" id="healthScoreLabel" style="text-align:center">导入数据后开始评分</div>
+        <div style="display:flex;justify-content:center;gap:6px;margin-top:14px;position:relative;z-index:1" id="healthScoreBar"></div>
+      </div>
+
+      <div class="sh"><div class="sh-title" data-i18n="scoreDetail">评分细则</div></div>
+      <div class="card glass"><div id="scoreBreakdownList"></div></div>
+
+      <div class="sh"><div class="sh-title" data-i18n="fortune">🔮 财运速览</div></div>
+      <div class="card glass" id="fortuneCard"></div>
+
+      <div class="sh"><div class="sh-title" data-i18n="suggestions">💡 智能建议</div></div>
+      <div id="suggestionsList"></div>
+
+      <div class="sh"><div class="sh-title" data-i18n="prediction">📡 未来预测</div></div>
+      <div class="card glass">
+        <div id="predictionEmpty" class="empty-state" style="padding:24px 0">
+          <div class="empty-icon">📡</div><div class="empty-text">至少需要 2 个月数据进行预测</div>
+        </div>
+        <div class="chart-trend" id="predictionWrap" style="display:none"><canvas id="predictionChart"></canvas></div>
+        <div id="predictionSummary" style="display:none;margin-top:14px"></div>
+      </div>
+
+      <div class="sh"><div class="sh-title" data-i18n="rhythm">📅 消费节奏</div></div>
+      <div class="card glass">
+        <div class="chart-compact" style="height:200px"><canvas id="weekdayChart"></canvas></div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═══════ BOTTOM TAB BAR (mobile) ═══════ -->
+  <nav class="tabbar glass">
+    <button class="tab-item active" data-page="overview"><span class="tab-icon">🏠</span><span class="tab-label" data-i18n="navOverview">概览</span></button>
+    <button class="tab-item" data-page="transactions"><span class="tab-icon">🧾</span><span class="tab-label" data-i18n="navTransactions">记账</span></button>
+    <div class="tab-fab-slot"><button class="fab-tab" id="fabTab" aria-label="新增">＋</button></div>
+    <button class="tab-item" data-page="assets"><span class="tab-icon">🏦</span><span class="tab-label" data-i18n="navAssets">资产</span></button>
+    <button class="tab-item" data-page="analysis"><span class="tab-icon">🧭</span><span class="tab-label" data-i18n="navAnalysis">分析</span></button>
+  </nav>
+  <button class="fab" id="fabDesktop" aria-label="新增">＋</button>
+
+</div><!-- /app-shell -->
+
+<!-- ═══════════════ MODALS / SHEETS ═══════════════ -->
+
+<div class="sheet-overlay" id="choiceModal">
+  <div class="sheet glass">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" data-i18n="addRecord">新增记录</div>
+    <div class="choice-grid">
+      <div class="choice-card" id="choiceTx">
+        <div class="choice-icon" style="background:linear-gradient(135deg,rgba(0,122,255,.18),rgba(88,86,214,.18))">🧾</div>
+        <div class="choice-label" data-i18n="addTx">🧾 记账数据</div>
+        <div class="choice-sub" data-i18n="addTxSub">一笔收入或支出</div>
+      </div>
+      <div class="choice-card" id="choiceAsset">
+        <div class="choice-icon" style="background:linear-gradient(135deg,rgba(52,199,89,.18),rgba(0,199,190,.18))">🏦</div>
+        <div class="choice-label" data-i18n="addAssetModal">🏦 资产数据</div>
+        <div class="choice-sub" data-i18n="addAssetSub">更新资产金额</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="txModal">
+  <div class="sheet glass">
+    <div class="sheet-handle"></div>
+    <div class="segmented" style="width:100%;margin-bottom:18px">
+      <button class="seg-pill active" style="flex:1" id="segExpense" data-i18n="typeExpense">支出</button>
+      <button class="seg-pill" style="flex:1" id="segIncome" data-i18n="typeIncome">收入</button>
+    </div>
+    <div class="amount-display"><span class="amount-currency">¥</span><span id="amountText">0</span><span class="amount-cursor">|</span></div>
+    <div class="keypad">
+      <button class="keypad-btn" data-key="1">1</button><button class="keypad-btn" data-key="2">2</button><button class="keypad-btn" data-key="3">3</button>
+      <button class="keypad-btn" data-key="4">4</button><button class="keypad-btn" data-key="5">5</button><button class="keypad-btn" data-key="6">6</button>
+      <button class="keypad-btn" data-key="7">7</button><button class="keypad-btn" data-key="8">8</button><button class="keypad-btn" data-key="9">9</button>
+      <button class="keypad-btn" data-key=".">.</button><button class="keypad-btn" data-key="0">0</button>
+      <button class="keypad-btn keypad-del" id="keypadDel">⌫</button>
+    </div>
+    <div class="field-label" style="margin-top:4px" data-i18n="categoryLabel">类别</div>
+    <div class="cat-grid" id="catGrid"></div>
+    <input class="field-input cat-custom-input" id="txCategoryCustom" placeholder="输入自定义类别名称">
+    <div class="grid-2" style="margin-top:14px;gap:10px">
+      <div class="field" style="margin-bottom:0"><label class="field-label" data-i18n="dateLabel">时间</label>
+        <input class="field-input" id="txDate" type="datetime-local" step="1"></div>
+      <div class="field" style="margin-bottom:0"><label class="field-label" data-i18n="noteLabel">备注（可选）</label>
+        <input class="field-input" id="txNote" placeholder="补充说明" data-i18n-ph="notePlaceholder"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="txModalCancel" data-i18n="cancel">取消</button>
+      <button class="btn btn-primary" id="txModalSave" data-i18n="save">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="txDetailModal">
+  <div class="sheet glass"><div class="sheet-handle"></div><div id="txDetailContent"></div></div>
+</div>
+
+<div class="sheet-overlay" id="assetModal">
+  <div class="sheet glass">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="assetModalTitle">添加资产</div>
+    <div class="field"><label class="field-label">资产名称</label><input class="field-input" id="assetName" placeholder="如：招商银行储蓄卡"></div>
+    <div class="field"><label class="field-label">资产类别</label>
+      <select class="field-select" id="assetCategory">
+        <option>现金/储蓄</option><option>基金/股票</option><option>房产</option>
+        <option>车辆</option><option>加密货币</option><option>固定资产</option><option>其他投资</option>
+      </select></div>
+    <div class="field"><label class="field-label">当前金额（元）</label><input class="field-input" id="assetValue" type="number" placeholder="0.00"></div>
+    <div class="field"><label class="field-label">备注（可选）</label><input class="field-input" id="assetNote" placeholder="如：工行定期"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="assetModalCancel" data-i18n="cancel">取消</button>
+      <button class="btn btn-primary" id="assetModalSave">保存并记录快照</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="authModal">
+  <div class="sheet glass">
+    <div class="sheet-handle"></div>
+    <div class="auth-logo">
+      <div class="brand-mark" style="width:48px;height:48px;border-radius:16px;font-size:22px;margin:0 auto">R</div>
+      <div style="margin-top:10px;font-size:19px;font-weight:800">Roadster</div>
+      <div class="auth-mode-desc" id="authModeDesc">登录后数据安全同步到云端</div>
+    </div>
+    <div class="segmented" style="width:100%;margin-bottom:20px" id="authTabBar">
+      <button class="seg-pill active" style="flex:1" id="tabLogin" data-i18n="authLogin">登录</button>
+      <button class="seg-pill" style="flex:1" id="tabRegister" data-i18n="authRegister">注册</button>
+    </div>
+    <div class="field" id="authNameField" style="display:none">
+      <label class="field-label" data-i18n="authName">昵称（可选）</label>
+      <input class="field-input" id="authName" placeholder="你的名字" autocomplete="name">
+    </div>
+    <div class="field"><label class="field-label" data-i18n="authEmail">邮箱</label>
+      <input class="field-input" id="authEmail" type="email" placeholder="your@email.com" autocomplete="email"></div>
+    <div class="field" id="authPasswordField">
+      <label class="field-label" data-i18n="authPassword">密码</label>
+      <div style="position:relative">
+        <input class="field-input" id="authPassword" type="password" placeholder="至少 6 位" autocomplete="current-password" style="padding-right:48px">
+        <button id="pwdEyeBtn" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px">👁️</button>
+      </div>
+    </div>
+    <div id="authError" class="auth-error"></div>
+    <button class="btn btn-primary btn-block" id="authSubmitBtn" style="margin-top:4px"><span data-i18n="authLogin">登录</span></button>
+    <button class="auth-link" id="forgotPwdBtn" data-i18n="authForgot">忘记密码？</button>
+    <div id="resetSection" style="display:none">
+      <div class="divider" style="margin:16px 0"></div>
+      <div class="field"><label class="field-label">输入注册邮箱，我们会发送重置链接</label>
+        <input class="field-input" id="resetEmail" type="email" placeholder="your@email.com"></div>
+      <button class="btn btn-secondary btn-block" id="sendResetBtn" data-i18n="authSendReset">发送重置邮件</button>
+      <button class="auth-link" id="authBackLoginBtn" data-i18n="authBackLogin">← 返回登录</button>
+    </div>
+    <div id="loggedInSection" style="display:none">
+      <div class="auth-user-card" id="authUserCard"></div>
+      <div class="sync-status-row flex-between" id="syncStatusRow" style="padding:10px 14px;background:var(--color-surface-2);border-radius:var(--r-xs);font-size:12.5px;font-weight:600"></div>
+      <button class="btn btn-primary btn-block" id="manualSyncBtn" style="margin-top:12px" data-i18n="authSyncNow">☁️ 立即同步到云端</button>
+      <button class="btn btn-secondary btn-block" id="signOutBtn" style="margin-top:10px" data-i18n="authLogout">退出登录</button>
+    </div>
+  </div>
+</div>
+
+<div id="syncBanner" class="sync-banner"></div>
+<div class="toast" id="toast"></div>
+
+<!-- ── App entry point (ES module) ── -->
+<script type="module" src="src/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "roadster",
+  "version": "2.0.0",
+  "description": "Personal Finance Copilot — iOS 26 Liquid Glass design, Firebase-synced",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "npx serve . -l 5500"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.5"
+  }
+}

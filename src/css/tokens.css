@@ -1,0 +1,183 @@
+/* ═══════════════════════════════════════════════════════
+   ROADSTER v2.0 · Design Tokens
+   Single source of truth for all visual variables.
+   Import order: tokens → layout → components → charts → animations
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Typography ── */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+               "PingFang SC", "Helvetica Neue", sans-serif;
+  --font-mono: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+
+  /* ── Radii ── */
+  --r-xs:   8px;
+  --r-sm:  12px;
+  --r-md:  18px;
+  --r-lg:  24px;
+  --r-xl:  32px;
+  --r-2xl: 40px;
+  --r-pill: 999px;
+
+  /* ── Blur ── */
+  --blur-sm:  12px;
+  --blur-md:  24px;
+  --blur-lg:  36px;
+
+  /* ── Motion ── */
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out:    cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast:  120ms;
+  --dur-base:  220ms;
+  --dur-slow:  380ms;
+
+  /* ── Z-index scale ── */
+  --z-base:    0;
+  --z-card:   10;
+  --z-fab:    50;
+  --z-nav:   100;
+  --z-modal: 200;
+  --z-toast: 300;
+
+  /* ── Light mode surface stack ── */
+  --color-canvas:     #f0efe9;
+  --color-surface-1:  rgba(255, 255, 255, 0.75);
+  --color-surface-2:  rgba(255, 255, 255, 0.50);
+  --color-surface-3:  rgba(255, 255, 255, 0.30);
+  --color-surface-solid: #ffffff;
+
+  /* ── Light mode glass bar (nav/tab) ── */
+  --color-glass:        rgba(255, 255, 255, 0.65);
+  --color-glass-border: rgba(255, 255, 255, 0.55);
+
+  /* ── Light mode text ── */
+  --color-label-1: #1c1c1e;
+  --color-label-2: #3a3a3c;
+  --color-label-3: #6b6b6f;
+  --color-label-4: #98989d;
+
+  /* ── Light mode separators ── */
+  --color-sep:        rgba(60, 60, 67, 0.12);
+  --color-sep-strong: rgba(60, 60, 67, 0.22);
+
+  /* ── Light mode shadows ── */
+  --shadow-xs: 0 1px 2px rgba(28,28,30,0.04);
+  --shadow-sm: 0 2px 8px rgba(28,28,30,0.06), 0 1px 2px rgba(28,28,30,0.04);
+  --shadow-md: 0 4px 16px rgba(28,28,30,0.08), 0 2px 4px rgba(28,28,30,0.04);
+  --shadow-lg: 0 12px 36px rgba(28,28,30,0.12), 0 4px 12px rgba(28,28,30,0.06);
+  --shadow-xl: 0 24px 64px rgba(28,28,30,0.16), 0 8px 24px rgba(28,28,30,0.08);
+
+  /* ── Apple HIG System Colors (light) ── */
+  --color-blue:   #007aff;
+  --color-green:  #34c759;
+  --color-red:    #ff3b30;
+  --color-orange: #ff9500;
+  --color-yellow: #ffcc00;
+  --color-purple: #af52de;
+  --color-pink:   #ff2d55;
+  --color-teal:   #5ac8fa;
+  --color-indigo: #5856d6;
+  --color-mint:   #00c7be;
+
+  /* ── Semantic colors ── */
+  --color-income:  var(--color-green);
+  --color-expense: var(--color-red);
+  --color-warning: var(--color-orange);
+  --color-info:    var(--color-blue);
+
+  /* ── Brand gradients ── */
+  --grad-brand:   linear-gradient(135deg, #5e7ce6 0%, #af52de 52%, #ff2d55 100%);
+  --grad-income:  linear-gradient(135deg, #30d988 0%, #00c7be 100%);
+  --grad-expense: linear-gradient(135deg, #ff6961 0%, #ff3b30 100%);
+  --grad-asset:   linear-gradient(135deg, #5e7ce6 0%, #007aff 100%);
+  --grad-dark:    linear-gradient(150deg, #0d0d10 0%, #1c1c22 45%, #2a2a35 100%);
+
+  /* ── Glow shadows ── */
+  --glow-blue:   0 8px 24px rgba(0, 122, 255, 0.32);
+  --glow-green:  0 8px 24px rgba(52, 199, 89, 0.28);
+  --glow-brand:  0 8px 28px rgba(94, 124, 230, 0.38);
+}
+
+/* ── Dark Mode ──
+   Manually toggled via [data-theme="dark"] OR follows system when no
+   data-theme attribute is set. Light is forced with [data-theme="light"]. */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) { --_dark: 1; }
+}
+:root[data-theme="dark"]  { --_dark: 1; }
+
+/* Applies when --_dark is defined (either system or manual) */
+:root:where([data-theme="dark"]),
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --color-canvas:       #000000;
+    --color-surface-1:    rgba(28, 28, 30, 0.70);
+    --color-surface-2:    rgba(44, 44, 46, 0.55);
+    --color-surface-3:    rgba(58, 58, 60, 0.40);
+    --color-surface-solid: #1c1c1e;
+    --color-glass:         rgba(20, 20, 22, 0.62);
+    --color-glass-border:  rgba(255, 255, 255, 0.08);
+    --color-label-1: #f5f5f7;
+    --color-label-2: #d1d1d6;
+    --color-label-3: #9b9ba1;
+    --color-label-4: #6e6e73;
+    --color-sep:        rgba(255, 255, 255, 0.10);
+    --color-sep-strong: rgba(255, 255, 255, 0.18);
+    --shadow-xs: 0 1px 2px rgba(0,0,0,0.20);
+    --shadow-sm: 0 2px 8px rgba(0,0,0,0.28);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.36);
+    --shadow-lg: 0 12px 36px rgba(0,0,0,0.44);
+    --shadow-xl: 0 24px 64px rgba(0,0,0,0.52);
+    /* Apple HIG: dark-mode system colors are brighter / more saturated */
+    --color-blue:   #0a84ff;
+    --color-green:  #30d158;
+    --color-red:    #ff453a;
+    --color-orange: #ff9f0a;
+    --color-yellow: #ffd60a;
+    --color-purple: #bf5af2;
+    --color-pink:   #ff375f;
+    --color-teal:   #64d2ff;
+    --color-indigo: #5e5ce6;
+    --color-mint:   #66d4cf;
+    --glow-blue:  0 8px 24px rgba(10, 132, 255, 0.40);
+    --glow-green: 0 8px 24px rgba(48, 209, 88, 0.34);
+    --glow-brand: 0 8px 28px rgba(94, 124, 230, 0.44);
+  }
+}
+
+/* Manual light override — must re-declare ALL tokens so switching
+   dark→light doesn't leave stale dark values via CSS inheritance */
+:root[data-theme="light"] {
+  --color-canvas:       #f0efe9;
+  --color-surface-1:    rgba(255, 255, 255, 0.75);
+  --color-surface-2:    rgba(255, 255, 255, 0.50);
+  --color-surface-3:    rgba(255, 255, 255, 0.30);
+  --color-surface-solid: #ffffff;
+  --color-glass:         rgba(255, 255, 255, 0.65);
+  --color-glass-border:  rgba(255, 255, 255, 0.55);
+  --color-label-1: #1c1c1e;
+  --color-label-2: #3a3a3c;
+  --color-label-3: #6b6b6f;
+  --color-label-4: #98989d;
+  --color-sep:        rgba(60, 60, 67, 0.12);
+  --color-sep-strong: rgba(60, 60, 67, 0.22);
+  --shadow-xs: 0 1px 2px rgba(28,28,30,0.04);
+  --shadow-sm: 0 2px 8px rgba(28,28,30,0.06), 0 1px 2px rgba(28,28,30,0.04);
+  --shadow-md: 0 4px 16px rgba(28,28,30,0.08), 0 2px 4px rgba(28,28,30,0.04);
+  --shadow-lg: 0 12px 36px rgba(28,28,30,0.12), 0 4px 12px rgba(28,28,30,0.06);
+  --shadow-xl: 0 24px 64px rgba(28,28,30,0.16), 0 8px 24px rgba(28,28,30,0.08);
+  --color-blue:   #007aff;
+  --color-green:  #34c759;
+  --color-red:    #ff3b30;
+  --color-orange: #ff9500;
+  --color-yellow: #ffcc00;
+  --color-purple: #af52de;
+  --color-pink:   #ff2d55;
+  --color-teal:   #5ac8fa;
+  --color-indigo: #5856d6;
+  --color-mint:   #00c7be;
+  --glow-blue:  0 8px 24px rgba(0, 122, 255, 0.32);
+  --glow-green: 0 8px 24px rgba(52, 199, 89, 0.28);
+  --glow-brand: 0 8px 28px rgba(94, 124, 230, 0.38);
+}

@@ -1,0 +1,113 @@
+// ═══════════════════════════════════════════════════════
+//  ROADSTER v2.0 · config.js
+//  Firebase project config + app-wide constants.
+//  All other modules import from here — never repeat these values.
+// ═══════════════════════════════════════════════════════
+
+// ── Firebase ──────────────────────────────────────────
+export const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyCFCnb-K042ZmU-W-CozLCA8PhznNLZ-MA",
+  authDomain:        "roadster988.firebaseapp.com",
+  projectId:         "roadster988",
+  storageBucket:     "roadster988.firebasestorage.app",
+  messagingSenderId: "447138926799",
+  appId:             "1:447138926799:web:585c60bd99dd53f807a7ba",
+  measurementId:     "G-0BML53ZJCJ",
+};
+
+// ── Firestore paths ───────────────────────────────────
+/** Returns the single finance document ref for a given user. */
+export const userDocPath = (uid) => `users/${uid}/data/finance`;
+
+// ── localStorage keys ─────────────────────────────────
+export const LS = {
+  TX:           'rdstr_tx',
+  ASSETS:       'rdstr_assets',
+  ASSET_HISTORY:'rdstr_asset_history',
+  THEME:        'rdstr_theme',
+  LANG:         'rdstr_lang',
+};
+
+// ── Chart.js palette ──────────────────────────────────
+export const PALETTE = [
+  '#5e7ce2','#34c759','#ff9500','#ff3b30',
+  '#af52de','#5ac8fa','#ff2d55','#30b0c7',
+  '#ffd60a','#32ade6','#30d158','#bf5af2',
+];
+
+// ── Built-in expense categories ───────────────────────
+export const EXPENSE_CATS = [
+  { v:'Food',    icon:'🍜', label:'Food 餐饮' },
+  { v:'Shop',    icon:'🛍️', label:'Shop 购物' },
+  { v:'Parents', icon:'👨‍👩‍👧', label:'Parents 父母' },
+  { v:'Car',     icon:'🚗', label:'Car 交通' },
+  { v:'Health',  icon:'🏥', label:'Health 健康' },
+  { v:'Home',    icon:'🏠', label:'Home 居家' },
+  { v:'Fun',     icon:'🎮', label:'Fun 娱乐' },
+  { v:'Travel',  icon:'✈️', label:'Travel 旅行' },
+];
+
+// ── Built-in income categories ────────────────────────
+export const INCOME_CATS = [
+  { v:'Wage',  icon:'💼', label:'Wage 工资' },
+  { v:'兼职',  icon:'🖥️', label:'兼职' },
+  { v:'红包',  icon:'🧧', label:'红包' },
+  { v:'理财',  icon:'📈', label:'理财（可为负）' },
+];
+
+// ── All canonical category values ─────────────────────
+export const ALL_CATS = [
+  ...EXPENSE_CATS.map(c => c.v),
+  ...INCOME_CATS.map(c => c.v),
+  '其他',
+];
+
+// ── Category → icon map ───────────────────────────────
+export const CAT_ICONS = {
+  Food:'🍜', Shop:'🛍️', Parents:'👨‍👩‍👧', Car:'🚗',
+  Health:'🏥', Home:'🏠', Fun:'🎮', Travel:'✈️',
+  Wage:'💼', '兼职':'🖥️', '红包':'🧧', '理财':'📈', '其他':'📌',
+  // Legacy / common aliases
+  '餐饮':'🍜', '购物':'🛍️', '交通':'🚗', '娱乐':'🎮',
+  '医疗':'🏥', '教育':'📖', '工资':'💼', '投资':'📈',
+  Food_legacy:'☕', Groceries:'🍜',
+};
+
+// ── Asset category → gradient map ─────────────────────
+export const ASSET_GRADIENTS = {
+  '现金/储蓄': 'linear-gradient(135deg,#2563eb 0%,#1e40af 55%,#172554 100%)',
+  '基金/股票': 'linear-gradient(135deg,#059669 0%,#047857 55%,#064e3b 100%)',
+  '房产':      'linear-gradient(135deg,#d97706 0%,#b45309 55%,#78350f 100%)',
+  '车辆':      'linear-gradient(135deg,#475569 0%,#334155 55%,#1e293b 100%)',
+  '加密货币':  'linear-gradient(135deg,#f59e0b 0%,#ea580c 55%,#7c2d12 100%)',
+  '固定资产':  'linear-gradient(135deg,#7c3aed 0%,#6d28d9 55%,#4c1d95 100%)',
+  '其他投资':  'linear-gradient(135deg,#db2777 0%,#be185d 55%,#831843 100%)',
+};
+export const ASSET_GRADIENT_DEFAULT = 'linear-gradient(135deg,#64748b 0%,#475569 55%,#1e293b 100%)';
+
+// ── Asset category → icon ─────────────────────────────
+export const ASSET_ICONS = {
+  '现金/储蓄':'🏦', '基金/股票':'📈', '房产':'🏠',
+  '车辆':'🚗', '加密货币':'₿', '固定资产':'🏗️', '其他投资':'💼',
+};
+
+// ── Category keyword mapping (for smart normalisation) ─
+export const CAT_KEYWORD_MAP = [
+  { canon:'Food',    kw:/food|meal|eat|餐|饭|菜|吃|饿|午餐|晚餐|早餐|外卖|咖啡|coffee|drink|饮料|奶茶|小吃|零食|泡|面|肉|鱼|蔬|果|食物|饮食|groceries|grocery|supermarket|便利|零|糕|糖|饼|粮|牛奶|milk|snack|lunch|dinner|breakfast/i },
+  { canon:'Shop',    kw:/shop|shopping|购物|买|超市|商场|mall|淘宝|京东|拼多多|服装|衣|鞋|包|美妆|化妆|amazon/i },
+  { canon:'Parents', kw:/parent|家人|父母|妈|爸|老人|家庭|亲戚|孝顺|子女|孩|儿|女儿/i },
+  { canon:'Car',     kw:/car|vehicle|汽车|车|油|加油|停车|地铁|公交|交通|出行|滴滴|uber|taxi|骑行|单车|共享/i },
+  { canon:'Health',  kw:/health|医|药|病|诊|检|体检|牙|眼|护|养生|健身|运动|gym/i },
+  { canon:'Home',    kw:/home|house|房|租|水电|物业|宽带|网费|煤气|燃气|家居|装修|家具|家电|清洁|电话|话费|通讯|telecom|phone|mobile|手机/i },
+  { canon:'Fun',     kw:/fun|entertain|娱乐|游戏|game|电影|影|音乐|ktv|演出|票|玩|书|读|课|教育|学习/i },
+  { canon:'Travel',  kw:/travel|旅游|旅行|酒店|hotel|机票|flight|火车|高铁|景区|出境|境外/i },
+  { canon:'Wage',    kw:/wage|salary|工资|薪|月薪|年薪|奖金|bonus|绩效/i },
+  { canon:'兼职',    kw:/兼职|freelance|副业|外包|接单|稿费|讲课/i },
+  { canon:'红包',    kw:/红包|gift|礼金|压岁|礼物/i },
+  { canon:'理财',    kw:/理财|invest|投资|基金|股票|fund|stock|分红|dividend|利息|interest|crypto|btc|eth/i },
+  // Insurance special case — goes under Parents (common usage for family insurance)
+  { canon:'Parents', kw:/保险|insurance/i },
+];
+
+// ── App version ───────────────────────────────────────
+export const APP_VERSION = '2.0.0';
