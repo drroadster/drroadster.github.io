@@ -252,12 +252,18 @@ body::after {
   .main { padding: 18px 16px 120px; }
 }
 
-/* Version badge */
+/* Version badge — subtle but always legible on both themes */
 .version-badge {
-  position: fixed; bottom: 6px; right: 10px;
-  font-size: 10px; color: var(--color-label-4);
-  opacity: 0.35; z-index: 999; pointer-events: none;
-  font-weight: 600; letter-spacing: 0.04em;
+  position: fixed; bottom: 8px; right: 12px;
+  font-size: 10.5px;
+  color: var(--color-label-3);
+  opacity: 0.55;
+  z-index: 99999;
+  pointer-events: none;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  user-select: none;
 }
 
 /* Flex helpers */

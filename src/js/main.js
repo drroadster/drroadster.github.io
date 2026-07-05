@@ -128,15 +128,11 @@ document.getElementById('authModal')?.addEventListener('click', (e) => {
   if (e.target.id === 'authModal') closeAuthModal();
 });
 
-// Use event delegation on auth button containers to
-// ensure clicks work even when buttons are dynamically
-// replaced (fixes PC desktop login button issue where
-// inline onclick or direct binding may fail)
-document.getElementById('authBtnDesktop')?.addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-auth-trigger]');
-  if (btn) openAuthModal();
-});
-document.getElementById('authBtnMobile')?.addEventListener('click', (e) => {
+// Global event delegation for all [data-auth-trigger] buttons.
+// Using document-level delegation ensures clicks always work
+// regardless of dynamic innerHTML replacements, z-index stacking,
+// or any container-level event interference.
+document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-auth-trigger]');
   if (btn) openAuthModal();
 });
