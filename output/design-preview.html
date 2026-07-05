@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nebula Glass — Design Preview v2.2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════
+   NEBULA GLASS v2.2 · Design Preview (Standalone)
+   All tokens + components inlined for direct preview
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+  --ls-tight: -0.02em; --ls-label: 0.06em;
+  --r-xs:8px; --r-sm:12px; --r-md:16px; --r-lg:20px; --r-xl:28px; --r-2xl:36px; --r-pill:999px;
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast:180ms; --dur-base:280ms; --dur-slow:450ms;
+  --blur-subtle:6px; --blur-md:14px; --blur-lg:24px; --blur-xl:36px;
+
+  --color-canvas:#020617;
+  --color-surface-1:rgba(15,23,42,0.68);
+  --color-surface-2:rgba(30,41,59,0.58);
+  --color-surface-3:rgba(51,65,85,0.48);
+  --color-surface-elevated:rgba(15,23,42,0.88);
+  --color-surface-solid:#0f172a;
+  --color-label-1:#f1f5f9; --color-label-2:#cbd5e1; --color-label-3:#94a3b8; --color-label-4:#64748b;
+  --color-sep:rgba(148,163,184,0.07); --color-sep-strong:rgba(148,163,184,0.12);
+  --color-blue:#818cf8; --color-green:#34d399; --color-red:#fb7185; --color-orange:#fbbf24;
+  --color-purple:#a78bfa; --color-pink:#f472b6; --color-teal:#22d3ee; --color-indigo:#818cf8;
+  --shadow-xs:0 1px 2px rgba(0,0,0,0.25);
+  --shadow-sm:0 2px 8px rgba(0,0,0,0.30);
+  --shadow-md:0 6px 16px rgba(0,0,0,0.35);
+  --shadow-lg:0 12px 28px rgba(0,0,0,0.40);
+  --shadow-xl:0 24px 48px rgba(0,0,0,0.50);
+  --glow-blue:0 6px 24px rgba(129,140,248,0.25);
+  --glow-green:0 6px 24px rgba(52,211,153,0.20);
+  --glow-brand:0 8px 32px rgba(129,140,248,0.30);
+  --glow-purple:0 8px 28px rgba(167,139,250,0.26);
+
+  --grad-brand:linear-gradient(135deg,#6366f1 0%,#8b5cf6 50%,#a855f7 100%);
+  --grad-income:linear-gradient(135deg,#10b981 0%,#06b6d4 100%);
+  --grad-expense:linear-gradient(135deg,#f43f5e 0%,#fb7185 100%);
+  --grad-hero:linear-gradient(150deg,#0f172a 0%,#1e293b 45%,#334155 100%);
+
+  --glass-card:rgba(15,23,42,0.62);
+  --glass-card-hover:rgba(15,23,42,0.78);
+  --glass-bar:rgba(15,23,42,0.55);
+  --glass-sheet:rgba(15,23,42,0.92);
+  --glass-input:rgba(30,41,59,0.55);
+  --glass-border:rgba(99,102,241,0.10);
+  --glass-border-subtle:rgba(148,163,184,0.08);
+}
+
+[data-theme="light"] {
+  --color-canvas:#f0f4ff;
+  --color-surface-1:rgba(255,255,255,0.72);
+  --color-surface-2:rgba(241,245,249,0.64);
+  --color-surface-3:rgba(226,232,240,0.55);
+  --color-surface-elevated:rgba(255,255,255,0.88);
+  --color-surface-solid:#ffffff;
+  --color-label-1:#0f172a; --color-label-2:#334155; --color-label-3:#64748b; --color-label-4:#94a3b8;
+  --color-sep:rgba(15,23,42,0.06); --color-sep-strong:rgba(15,23,42,0.10);
+  --color-blue:#6366f1; --color-green:#10b981; --color-red:#f43f5e; --color-orange:#f59e0b;
+  --color-purple:#8b5cf6; --color-indigo:#6366f1;
+  --shadow-xs:0 1px 2px rgba(15,23,42,0.03);
+  --shadow-sm:0 2px 8px rgba(15,23,42,0.04),0 1px 2px rgba(15,23,42,0.03);
+  --shadow-md:0 6px 16px rgba(15,23,42,0.05),0 2px 4px rgba(15,23,42,0.03);
+  --shadow-lg:0 12px 28px rgba(15,23,42,0.06),0 4px 8px rgba(15,23,42,0.03);
+  --shadow-xl:0 24px 48px rgba(15,23,42,0.08),0 8px 16px rgba(15,23,42,0.03);
+  --glow-blue:0 4px 20px rgba(99,102,241,0.20);
+  --glow-brand:0 6px 28px rgba(99,102,241,0.28);
+  --glass-card:rgba(255,255,255,0.64);
+  --glass-card-hover:rgba(255,255,255,0.80);
+  --glass-bar:rgba(255,255,255,0.58);
+  --glass-sheet:rgba(255,255,255,0.90);
+  --glass-input:rgba(241,245,249,0.55);
+  --glass-border:rgba(255,255,255,0.45);
+  --glass-border-subtle:rgba(15,23,42,0.06);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-family:var(--font-sans)}
+body{
+  background:var(--color-canvas);color:var(--color-label-1);min-height:100dvh;
+  -webkit-font-smoothing:antialiased;font-feature-settings:"cv02","cv03","cv04","cv09";
+}
+body::before{
+  content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(ellipse 70vw 50vh at 15% -10%,rgba(99,102,241,0.22),transparent 55%),
+             radial-gradient(ellipse 55vw 55vh at 88% 12%,rgba(139,92,246,0.16),transparent 50%),
+             radial-gradient(ellipse 90vw 70vh at 50% 105%,rgba(6,182,212,0.10),transparent 55%);
+}
+[data-theme="light"] body::before{
+  background:radial-gradient(ellipse 70vw 50vh at 15% -10%,rgba(99,102,241,0.14),transparent 55%),
+             radial-gradient(ellipse 55vw 55vh at 88% 12%,rgba(139,92,246,0.10),transparent 50%),
+             radial-gradient(ellipse 90vw 70vh at 50% 105%,rgba(6,182,212,0.06),transparent 55%);
+}
+
+/* Layout */
+.container{max-width:1200px;margin:0 auto;padding:32px 28px 80px}
+
+/* Theme toggle */
+.preview-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 28px;position:sticky;top:0;z-index:100;
+  background:var(--glass-bar);
+  backdrop-filter:blur(var(--blur-lg)) saturate(180%);
+  -webkit-backdrop-filter:blur(var(--blur-lg)) saturate(180%);
+  border-bottom:1px solid var(--glass-border-subtle);
+}
+.preview-title{font-size:18px;font-weight:800;letter-spacing:var(--ls-tight);display:flex;align-items:center;gap:10px}
+.preview-badge{
+  font-size:10px;font-weight:700;padding:3px 10px;border-radius:var(--r-pill);
+  background:var(--grad-brand);color:#fff;letter-spacing:0.06em;text-transform:uppercase;
+}
+.theme-toggle{display:flex;padding:3px;border-radius:var(--r-pill);background:var(--glass-input);border:1px solid var(--glass-border-subtle);gap:2px}
+.theme-btn{width:32px;height:32px;border-radius:50%;border:none;background:transparent;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;color:var(--color-label-3);transition:all var(--dur-fast)}
+.theme-btn.active{background:var(--glass-card);color:var(--color-label-1);box-shadow:var(--shadow-xs)}
+
+/* Section */
+.section{margin-bottom:52px}
+.section-title{font-size:22px;font-weight:800;margin-bottom:8px;color:var(--color-label-1)}
+.section-desc{font-size:13.5px;color:var(--color-label-3);margin-bottom:24px;line-height:1.6}
+
+/* Cards */
+.card{
+  border-radius:var(--r-xl);padding:22px;
+  background:var(--glass-card);
+  backdrop-filter:blur(var(--blur-md)) saturate(160%);
+  -webkit-backdrop-filter:blur(var(--blur-md)) saturate(160%);
+  border:1px solid var(--glass-border-subtle);
+  box-shadow:var(--shadow-sm);
+  transition:box-shadow var(--dur-base),transform var(--dur-base),background var(--dur-base);
+}
+.card:hover{box-shadow:var(--shadow-md);background:var(--glass-card-hover);transform:translateY(-1px)}
+.card-flat{
+  background:var(--glass-input);
+  backdrop-filter:blur(var(--blur-subtle));
+  -webkit-backdrop-filter:blur(var(--blur-subtle));
+  border-radius:var(--r-md);padding:16px;border:1px solid var(--glass-border-subtle);
+}
+
+/* Hero */
+.hero-card{
+  border-radius:var(--r-xl);padding:32px 30px;position:relative;overflow:hidden;color:#fff;
+  box-shadow:var(--shadow-xl);isolation:isolate;
+  background:linear-gradient(145deg,#1e1b4b 0%,#312e81 35%,#4c1d95 65%,#5b21b6 100%);
+}
+.hero-card::before{
+  content:'';position:absolute;inset:1px;border-radius:calc(var(--r-xl)-1px);z-index:0;pointer-events:none;
+  backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+}
+.hero-card::after{
+  content:'';position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse at 80% 0%,rgba(255,255,255,0.12),transparent 50%);
+}
+.hero-label{font-size:11px;opacity:.65;font-weight:700;margin-bottom:10px;letter-spacing:0.08em;text-transform:uppercase;position:relative;z-index:1}
+.hero-value{font-size:48px;font-weight:800;letter-spacing:-0.03em;position:relative;z-index:1}
+.hero-sub{font-size:14px;opacity:.6;margin-top:6px;font-weight:500;position:relative;z-index:1}
+
+/* Stat cards */
+.stat-card{
+  border-radius:var(--r-md);padding:20px 22px;position:relative;overflow:hidden;
+  background:var(--glass-card);
+  backdrop-filter:blur(var(--blur-md)) saturate(160%);
+  -webkit-backdrop-filter:blur(var(--blur-md)) saturate(160%);
+  border:1px solid var(--glass-border-subtle);
+}
+.stat-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:19px;margin-bottom:14px}
+.stat-label{font-size:12.5px;color:var(--color-label-3);font-weight:600;margin-bottom:5px}
+.stat-value{font-size:26px;font-weight:800;letter-spacing:-0.02em;font-variant-numeric:tabular-nums}
+.stat-delta{font-size:12.5px;font-weight:600;margin-top:6px;display:flex;align-items:center;gap:4px}
+.stat-delta.up{color:var(--color-green)}.stat-delta.down{color:var(--color-red)}
+
+/* Grids */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:13px 22px;border-radius:var(--r-sm);font-size:14px;font-weight:700;cursor:pointer;border:none;transition:all var(--dur-fast) var(--ease-spring);white-space:nowrap;letter-spacing:0.01em}
+.btn:active{transform:scale(0.97)}
+.btn-primary{background:var(--grad-brand);color:#fff;box-shadow:var(--glow-brand)}
+.btn-primary:hover{box-shadow:0 6px 28px rgba(99,102,241,0.45);transform:translateY(-1px)}
+.btn-secondary{background:var(--glass-card);backdrop-filter:blur(var(--blur-subtle));-webkit-backdrop-filter:blur(var(--blur-subtle));color:var(--color-label-2);border:1px solid var(--glass-border-subtle)}
+.btn-secondary:hover{background:var(--glass-card-hover)}
+.btn-danger{background:rgba(244,63,94,0.10);color:var(--color-red);border:1px solid rgba(244,63,94,0.2)}
+.btn-ghost{background:transparent;color:var(--color-blue)}
+.btn-sm{padding:9px 16px;font-size:13px;border-radius:var(--r-xs)}
+.btn-xs{padding:5px 12px;font-size:12px;border-radius:var(--r-xs)}
+.btn-block{width:100%}
+.btn-row{display:flex;gap:12px;margin-top:20px}
+
+/* Icon btn */
+.icon-btn{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--glass-card);backdrop-filter:blur(var(--blur-subtle));-webkit-backdrop-filter:blur(var(--blur-subtle));border:1px solid var(--glass-border-subtle);cursor:pointer;font-size:17px;color:var(--color-label-1);transition:all var(--dur-fast)}
+.icon-btn:hover{background:var(--glass-card-hover);box-shadow:var(--shadow-sm)}
+
+/* Forms */
+.field{margin-bottom:16px}
+.field-label{font-size:12px;color:var(--color-label-3);margin-bottom:7px;display:block;font-weight:600;letter-spacing:0.04em;text-transform:uppercase}
+.field-input{width:100%;padding:13px 16px;border-radius:var(--r-sm);border:1.5px solid var(--glass-border-subtle);font-size:14px;background:var(--glass-input);backdrop-filter:blur(var(--blur-subtle));-webkit-backdrop-filter:blur(var(--blur-subtle));color:var(--color-label-1);transition:all var(--dur-fast);-webkit-appearance:none}
+.field-input:focus{outline:none;border-color:var(--color-blue);box-shadow:0 0 0 4px rgba(99,102,241,0.10)}
+
+/* Transaction rows */
+.tx-row{display:flex;align-items:center;gap:14px;padding:15px 10px;border-radius:var(--r-sm);transition:background var(--dur-fast);cursor:pointer;border-bottom:1px solid var(--color-sep)}
+.tx-row:last-child{border-bottom:none}
+.tx-row:hover{background:var(--glass-card)}
+.tx-icon{width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0;background:var(--glass-card);backdrop-filter:blur(var(--blur-subtle));-webkit-backdrop-filter:blur(var(--blur-subtle));border:1px solid var(--glass-border-subtle)}
+.tx-info{flex:1;min-width:0}
+.tx-name{font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx-meta{font-size:12px;color:var(--color-label-4);margin-top:2px;font-weight:500}
+.tx-amount{font-size:15px;font-weight:700;flex-shrink:0;letter-spacing:-0.01em;font-variant-numeric:tabular-nums}
+.tx-amount.income{color:var(--color-green)}.tx-amount.loss{color:var(--color-red)}
+
+/* Sheet mock */
+.sheet-mock{
+  border-radius:var(--r-xl);padding:24px 26px;
+  background:var(--glass-sheet);
+  backdrop-filter:blur(var(--blur-xl)) saturate(180%);
+  -webkit-backdrop-filter:blur(var(--blur-xl)) saturate(180%);
+  border:1px solid var(--glass-border);
+  box-shadow:var(--shadow-xl);
+}
+.sheet-handle-mock{width:40px;height:4px;border-radius:4px;background:var(--color-sep-strong);margin:0 auto 18px;opacity:.5}
+.sheet-title-mock{font-size:19px;font-weight:800;margin-bottom:20px;letter-spacing:-0.01em}
+
+/* Tab bar mock */
+.tabbar-mock{
+  width:100%;max-width:420px;margin:0 auto;
+  border-radius:var(--r-2xl);padding:8px 8px;
+  display:flex;align-items:center;justify-content:space-around;
+  box-shadow:var(--shadow-xl);
+  background:var(--glass-sheet);
+  backdrop-filter:blur(var(--blur-xl)) saturate(180%);
+  -webkit-backdrop-filter:blur(var(--blur-xl)) saturate(180%);
+  border:1px solid var(--glass-border);
+}
+.tab-item-mock{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 4px 9px;border-radius:var(--r-lg);border:none;background:transparent;color:var(--color-label-4);cursor:default;position:relative;font-size:10px;font-weight:700}
+.tab-item-mock.active{color:var(--color-label-1)}
+.tab-item-mock.active::before{content:'';position:absolute;inset:2px;border-radius:var(--r-md);background:var(--glass-card);z-index:-1}
+.tab-icon-mock{font-size:22px;line-height:1}
+.tab-fab-slot{flex:1.2;display:flex;align-items:center;justify-content:center}
+.fab-tab-mock{width:52px;height:52px;border-radius:50%;background:var(--grad-brand);color:#fff;border:none;font-size:28px;font-weight:300;display:flex;align-items:center;justify-content:center;box-shadow:var(--glow-brand),0 8px 24px rgba(99,102,241,0.35);margin-top:-26px}
+
+/* Bank card mock */
+.bank-card-mock{
+  position:relative;border-radius:22px;padding:22px 22px 18px;
+  color:#fff;overflow:hidden;min-height:156px;
+  display:flex;flex-direction:column;justify-content:space-between;
+  box-shadow:0 10px 28px rgba(0,0,0,0.25),inset 0 1px 0 rgba(255,255,255,0.12);
+  transition:transform var(--dur-base) var(--ease-spring);
+  cursor:default;
+  background:linear-gradient(135deg,#1e293b 0%,#334155 50%,#475569 100%);
+}
+.bank-card-mock:hover{transform:translateY(-3px) scale(1.01)}
+.bank-card-mock::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 110% -10%,rgba(255,255,255,0.20),transparent 50%)}
+.bank-card-mock-texture{position:absolute;inset:0;pointer-events:none;background-image:repeating-linear-gradient(115deg,rgba(255,255,255,0.05) 0,rgba(255,255,255,0.05) 1px,transparent 1px,transparent 40px)}
+.bank-mock-top{display:flex;justify-content:space-between;align-items:flex-start;position:relative;z-index:1}
+.bank-mock-mono{width:32px;height:32px;border-radius:9px;background:rgba(255,255,255,0.14);border:1px solid rgba(255,255,255,0.20);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;backdrop-filter:blur(8px)}
+.bank-mock-mid{position:relative;z-index:1;margin-top:16px}
+.bank-mock-name{font-size:17px;font-weight:800;letter-spacing:-0.01em;margin-bottom:5px}
+.bank-mock-value{font-size:24px;font-weight:800;letter-spacing:-0.02em}
+.bank-mock-bottom{display:flex;justify-content:space-between;align-items:flex-end;position:relative;z-index:1;margin-top:14px}
+.bank-mock-note{font-size:10.5px;opacity:.6;font-weight:500}
+
+/* Skeleton */
+.skeleton{background:linear-gradient(100deg,var(--color-surface-2) 30%,var(--color-surface-3) 45%,var(--color-surface-2) 70%);background-size:300% 100%;animation:shimmer 1.8s ease-in-out infinite;border-radius:var(--r-sm)}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.sk-row{display:flex;align-items:center;gap:14px;padding:14px 10px}
+.sk-line{height:14px;border-radius:7px}
+.sk-circle{width:44px;height:44px;border-radius:13px;flex-shrink:0}
+.sk-body{flex:1;display:flex;flex-direction:column;gap:9px}
+.sk-amount{width:65px;height:16px;flex-shrink:0}
+
+/* Toast mock */
+.toast-mock{padding:14px 20px;border-radius:var(--r-pill);font-size:13.5px;font-weight:700;color:#fff;text-align:center;box-shadow:var(--shadow-lg);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);max-width:400px;margin:0 auto}
+.toast-ok{background:linear-gradient(135deg,rgba(5,150,105,0.90),rgba(16,185,129,0.85));border:1px solid rgba(16,185,129,0.3)}
+.toast-error{background:linear-gradient(135deg,rgba(225,29,72,0.90),rgba(244,63,94,0.85));border:1px solid rgba(244,63,94,0.3)}
+.toast-warn{background:linear-gradient(135deg,rgba(217,119,6,0.90),rgba(245,158,11,0.85));color:#0f172a;border:1px solid rgba(245,158,11,0.3)}
+.toast-info{background:linear-gradient(135deg,rgba(79,70,229,0.90),rgba(99,102,241,0.85));border:1px solid rgba(99,102,241,0.3)}
+
+/* Segmented */
+.segmented{display:inline-flex;padding:4px;border-radius:var(--r-pill);background:var(--glass-input);backdrop-filter:blur(var(--blur-subtle));-webkit-backdrop-filter:blur(var(--blur-subtle));gap:2px;border:1px solid var(--glass-border-subtle)}
+.seg-pill{padding:8px 18px;border-radius:var(--r-pill);border:none;background:transparent;font-size:13px;font-weight:600;color:var(--color-label-3);cursor:default;transition:all var(--dur-base);white-space:nowrap}
+.seg-pill.active{background:var(--glass-card);color:var(--color-label-1);box-shadow:var(--shadow-sm)}
+
+/* Color swatches */
+.swatches{display:flex;flex-wrap:wrap;gap:10px}
+.swatch{width:48px;height:48px;border-radius:var(--r-sm);border:1px solid var(--glass-border-subtle)}
+
+/* Typography scale */
+.type-scale{display:flex;flex-direction:column;gap:8px}
+.type-row{display:flex;align-items:baseline;gap:14px;padding:8px 0}
+.type-label{font-size:11px;color:var(--color-label-4);width:80px;flex-shrink:0;font-weight:600;text-transform:uppercase;letter-spacing:0.04em}
+
+/* Spacing table */
+.space-table{width:100%;border-collapse:collapse}
+.space-table td{padding:10px 14px;border-bottom:1px solid var(--color-sep);font-size:13px}
+.space-table td:first-child{font-weight:600;color:var(--color-label-2);width:140px}
+.space-table td:last-child{color:var(--color-label-4);font-family:var(--font-mono);font-size:12px}
+
+/* Footer */
+.footer-note{text-align:center;padding:40px 0;color:var(--color-label-4);font-size:13px;font-weight:500}
+
+/* Responsive */
+@media(max-width:860px){
+  .grid-2,.grid-3,.grid-4{grid-template-columns:1fr 1fr}
+  .container{padding:20px 16px 80px}
+  .preview-header{padding:12px 16px}
+}
+@media(max-width:480px){
+  .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<header class="preview-header">
+  <div class="preview-title">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="6" fill="url(#g)"/><defs><linearGradient id="g" x1="0" y1="0" x2="24" y2="24"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#a855f7"/></linearGradient></defs></svg>
+    Nebula Glass
+    <span class="preview-badge">v2.2</span>
+  </div>
+  <div class="theme-toggle" id="themeToggle">
+    <button class="theme-btn" data-theme="light" title="Light">&#9728;</button>
+    <button class="theme-btn active" data-theme="dark" title="Dark">&#9790;</button>
+  </div>
+</header>
+
+<main class="container">
+
+<!-- ═══════ 1. HERO ═══════ -->
+<section class="section">
+  <h2 class="section-title">1. Net Worth Hero Card</h2>
+  <p class="section-desc">Deep gradient background with ambient glow, glass micro-layer, and inline stat chips with backdrop-filter.</p>
+  <div class="hero-card">
+    <div class="hero-label">Total Net Worth</div>
+    <div class="hero-value">$284,659</div>
+    <div class="hero-sub">+12.4% from last month · All accounts</div>
+    <div style="display:flex;gap:12px;margin-top:24px;position:relative;z-index:1">
+      <div style="flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:var(--r-sm);padding:12px 16px;backdrop-filter:blur(12px)">
+        <div style="font-size:10.5px;opacity:.55;font-weight:700;margin-bottom:3px">ASSETS</div>
+        <div style="font-size:18px;font-weight:800">$312,400</div>
+      </div>
+      <div style="flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:var(--r-sm);padding:12px 16px;backdrop-filter:blur(12px)">
+        <div style="font-size:10.5px;opacity:.55;font-weight:700;margin-bottom:3px">LIABILITIES</div>
+        <div style="font-size:18px;font-weight:800;color:#fca5a5">-$27,741</div>
+      </div>
+      <div style="flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:var(--r-sm);padding:12px 16px;backdrop-filter:blur(12px)">
+        <div style="font-size:10.5px;opacity:.55;font-weight:700;margin-bottom:3px">CHANGE</div>
+        <div style="font-size:18px;font-weight:800;color:#6ee7b7">+12.4%</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ 2. STAT CARDS ═══════ -->
+<section class="section">
+  <h2 class="section-title">2. Glass Stat Cards</h2>
+  <p class="section-desc">Frosted glass background with backdrop-filter, subtle border, and smooth hover lift effect.</p>
+  <div class="grid-3">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(99,102,241,0.12)">&#128176;</div>
+      <div class="stat-label">Monthly Income</div>
+      <div class="stat-value">$12,450</div>
+      <div class="stat-delta up">&#8593; 8.2% vs last month</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(244,63,94,0.12)">&#128184;</div>
+      <div class="stat-label">Monthly Expense</div>
+      <div class="stat-value">$8,230</div>
+      <div class="stat-delta down">&#8593; 3.1% vs last month</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(16,185,129,0.12)">&#128200;</div>
+      <div class="stat-label">Savings Rate</div>
+      <div class="stat-value">33.9%</div>
+      <div class="stat-delta up">&#8593; 2.4% vs target</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ 3. GLASS CARD GALLERY ═══════ -->
+<section class="section">
+  <h2 class="section-title">3. Glass Card Depth Levels</h2>
+  <p class="section-desc">Cards with increasing backdrop-filter blur — demonstrating visual hierarchy through glass opacity.</p>
+  <div class="grid-3">
+    <div class="card" style="backdrop-filter:blur(6px) saturate(140%);-webkit-backdrop-filter:blur(6px) saturate(140%);background:rgba(15,23,42,0.50)">
+      <div style="font-weight:700;margin-bottom:4px">Subtle Glass</div>
+      <div style="font-size:12px;color:var(--color-label-4)">blur(6px) · opacity 0.50</div>
+      <div style="margin-top:12px;font-size:13px;color:var(--color-label-3)">Minimal frost — ideal for secondary surfaces that should recede visually.</div>
+    </div>
+    <div class="card">
+      <div style="font-weight:700;margin-bottom:4px">Standard Glass</div>
+      <div style="font-size:12px;color:var(--color-label-4)">blur(14px) · opacity 0.62</div>
+      <div style="margin-top:12px;font-size:13px;color:var(--color-label-3)">Default card glass — balanced between readability and depth. Used for most content cards.</div>
+    </div>
+    <div class="card" style="backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);background:rgba(15,23,42,0.80)">
+      <div style="font-weight:700;margin-bottom:4px">Deep Glass</div>
+      <div style="font-size:12px;color:var(--color-label-4)">blur(24px) · opacity 0.80</div>
+      <div style="margin-top:12px;font-size:13px;color:var(--color-label-3)">Maximum frost — for sheets, modals, and elevated surfaces that need strong separation.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ 4. TRANSACTION LIST ═══════ -->
+<section class="section">
+  <h2 class="section-title">4. Transaction List</h2>
+  <p class="section-desc">Glass icon circles with frosted row backgrounds on hover.</p>
+  <div class="card" style="padding:8px">
+    <div class="tx-row">
+      <div class="tx-icon">&#127829;</div>
+      <div class="tx-info"><div class="tx-name">Domino's Pizza</div><div class="tx-meta">Jul 4, 2026 · Food &amp; Dining</div></div>
+      <div class="tx-amount loss">-$24.50</div>
+    </div>
+    <div class="tx-row">
+      <div class="tx-icon">&#128187;</div>
+      <div class="tx-info"><div class="tx-name">Freelance Project — Acme Corp</div><div class="tx-meta">Jul 3, 2026 · Income</div></div>
+      <div class="tx-amount income">+$3,200</div>
+    </div>
+    <div class="tx-row">
+      <div class="tx-icon">&#127981;</div>
+      <div class="tx-info"><div class="tx-name">Apartment Rent</div><div class="tx-meta">Jul 1, 2026 · Housing</div></div>
+      <div class="tx-amount loss">-$1,850</div>
+    </div>
+    <div class="tx-row">
+      <div class="tx-icon">&#9889;</div>
+      <div class="tx-info"><div class="tx-name">Electricity Bill</div><div class="tx-meta">Jun 29, 2026 · Utilities</div></div>
+      <div class="tx-amount loss">-$128.40</div>
+    </div>
+    <div class="tx-row">
+      <div class="tx-icon">&#127758;</div>
+      <div class="tx-info"><div class="tx-name">ETF Dividend — VOO</div><div class="tx-meta">Jun 28, 2026 · Investment</div></div>
+      <div class="tx-amount income">+$156.80</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ 5. SHEET / MODAL ═══════ -->
+<section class="section">
+  <h2 class="section-title">5. Sheet / Modal</h2>
+  <p class="section-desc">Maximum glass opacity with handle indicator. Used for bottom sheets (mobile) and centered modals (desktop).</p>
+  <div class="sheet-mock" style="max-width:500px">
+    <div class="sheet-handle-mock"></div>
+    <div class="sheet-title-mock">Add Transaction</div>
+    <div class="field">
+      <label class="field-label">Amount</label>
+      <input class="field-input" type="text" value="$0.00" readonly style="font-size:28px;font-weight:800;text-align:center;letter-spacing:-0.02em">
+    </div>
+    <div class="field">
+      <label class="field-label">Category</label>
+      <input class="field-input" type="text" placeholder="Select category...">
+    </div>
+    <div class="field">
+      <label class="field-label">Note</label>
+      <input class="field-input" type="text" placeholder="Add a note (optional)">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" style="flex:1">Cancel</button>
+      <button class="btn btn-primary" style="flex:1">Save</button>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ 6. BANK CARDS ═══════ -->
+<section class="section">
+  <h2 class="section-title">6. Asset Bank Cards</h2>
+  <p class="section-desc">Physical card aesthetic with subtle texture overlay, radial light reflection, and micro glass elements.</p>
+  <div class="grid-2">
+    <div class="bank-card-mock" style="background:linear-gradient(135deg,#1e293b 0%,#334155 50%,#475569 100%)">
+      <div class="bank-card-mock-texture"></div>
+      <div class="bank-mock-top">
+        <div class="bank-mock-mono">C</div>
+      </div>
+      <div class="bank-mock-mid">
+        <div class="bank-mock-name">Checking Account</div>
+        <div class="bank-mock-value">$24,850</div>
+      </div>
+      <div class="bank-mock-bottom">
+        <div class="bank-mock-note">Chase · ****4832</div>
+        <div style="font-size:11px;font-weight:700;color:#6ee7b7">+3.2%</div>
+      </div>
+    </div>
+    <div class="bank-card-mock" style="background:linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#4c1d95 100%)">
+      <div class="bank-card-mock-texture"></div>
+      <div class="bank-mock-top">
+        <div class="bank-mock-mono">S</div>
+      </div>
+      <div class="bank-mock-mid">
+        <div class="bank-mock-name">Savings Account</div>
+        <div class="bank-mock-value">$112,300</div>
+      </div>
+      <div class="bank-mock-bottom">
+        <div class="bank-mock-note">Marcus · ****7291</div>
+        <div style="font-size:11px;font-weight:700;color:#6ee7b7">+5.8%</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ 7. FORM INPUTS & BUTTONS ═══════ -->
+<section class="section">
+  <h2 class="section-title">7. Form Inputs &amp; Buttons</h2>
+  <p class="section-desc">Glass input fields with subtle blur, focus ring glow, and all button variants.</p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px">
+    <div class="card">
+      <div style="font-weight:700;margin-bottom:16px;font-size:15px">Form Fields</div>
+      <div class="field">
+        <label class="field-label">Full Name</label>
+        <input class="field-input" type="text" placeholder="Enter your name">
+      </div>
+      <div class="field">
+        <label class="field-label">Email</label>
+        <input class="field-input" type="email" placeholder="you@example.com">
+      </div>
+      <div class="field">
+        <label class="field-label">Note</label>
+        <textarea class="field-input" style="min-height:80px;resize:vertical;font-family:var(--font-mono);font-size:13px" placeholder="Write something..."></textarea>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:700;margin-bottom:16px;font-size:15px">Button Variants</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <button class="btn btn-primary btn-block">Primary Action</button>
+        <button class="btn btn-secondary btn-block">Secondary</button>
+        <button class="btn btn-danger btn-block">Danger</button>
+        <button class="btn btn-ghost btn-block">Ghost</button>
+        <div style="display:flex;gap:10px;margin-top:8px">
+          <button class="btn btn-primary btn-sm">Small</button>
+          <button class="btn btn-secondary btn-sm">Small</button>
+          <button class="btn btn-danger btn-xs">XS</button>
+        </div>
+        <div class="segmented" style="margin-top:8px">
+          <span class="seg-pill active">Week</span>
+          <span class="seg-pill">Month</span>
+          <span class="seg-pill">Year</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ 8. TAB BAR ═══════ -->
+<section class="section">
+  <h2 class="section-title">8. Mobile Tab Bar (Glass Pill)</h2>
+  <p class="section-desc">Floating glass pill with center FAB, used on mobile. Maximum blur for strong separation from background.</p>
+  <div class="tabbar-mock">
+    <div class="tab-item-mock"><span class="tab-icon-mock">&#127968;</span>Home</div>
+    <div class="tab-item-mock active"><span class="tab-icon-mock">&#128202;</span>Stats</div>
+    <div class="tab-fab-slot"><div class="fab-tab-mock">+</div></div>
+    <div class="tab-item-mock"><span class="tab-icon-mock">&#128176;</span>Assets</div>
+    <div class="tab-item-mock"><span class="tab-icon-mock">&#9881;</span>Settings</div>
+  </div>
+</section>
+
+<!-- ═══════ 9. TOASTS ═══════ -->
+<section class="section">
+  <h2 class="section-title">9. Toast Notifications</h2>
+  <p class="section-desc">Glass pill notifications with semi-transparent gradient backgrounds and backdrop-filter.</p>
+  <div style="display:flex;flex-direction:column;gap:10px;align-items:center">
+    <div class="toast-mock toast-ok">Transaction saved successfully</div>
+    <div class="toast-mock toast-error">Failed to sync — check connection</div>
+    <div class="toast-mock toast-warn">Budget limit reached for this month</div>
+    <div class="toast-mock toast-info">New update available — v2.3</div>
+  </div>
+</section>
+
+<!-- ═══════ 10. SKELETON LOADING ═══════ -->
+<section class="section">
+  <h2 class="section-title">10. Skeleton Loading</h2>
+  <p class="section-desc">Shimmer animation over glass-surface placeholders for perceived performance.</p>
+  <div class="card" style="padding:8px">
+    <div class="sk-row"><div class="skeleton sk-circle"></div><div class="sk-body"><div class="skeleton sk-line" style="width:65%"></div><div class="skeleton sk-line" style="width:40%"></div></div><div class="skeleton sk-amount"></div></div>
+    <div class="sk-row"><div class="skeleton sk-circle"></div><div class="sk-body"><div class="skeleton sk-line" style="width:55%"></div><div class="skeleton sk-line" style="width:35%"></div></div><div class="skeleton sk-amount"></div></div>
+    <div class="sk-row"><div class="skeleton sk-circle"></div><div class="sk-body"><div class="skeleton sk-line" style="width:70%"></div><div class="skeleton sk-line" style="width:30%"></div></div><div class="skeleton sk-amount"></div></div>
+  </div>
+</section>
+
+<!-- ═══════ 11. DESIGN TOKENS ═══════ -->
+<section class="section">
+  <h2 class="section-title">11. Design Tokens &amp; Color Palette</h2>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px">
+    <div class="card">
+      <div style="font-weight:700;margin-bottom:14px;font-size:15px">Accent Palette</div>
+      <div class="swatches">
+        <div class="swatch" style="background:var(--color-blue)"></div>
+        <div class="swatch" style="background:var(--color-green)"></div>
+        <div class="swatch" style="background:var(--color-red)"></div>
+        <div class="swatch" style="background:var(--color-orange)"></div>
+        <div class="swatch" style="background:var(--color-purple)"></div>
+        <div class="swatch" style="background:var(--color-pink)"></div>
+        <div class="swatch" style="background:var(--color-teal)"></div>
+        <div class="swatch" style="background:var(--color-indigo)"></div>
+      </div>
+      <div style="margin-top:18px;font-weight:700;margin-bottom:8px;font-size:13px;color:var(--color-label-2)">Surface Opacity Scale</div>
+      <div style="display:flex;gap:6px">
+        <div style="width:36px;height:36px;border-radius:8px;background:rgba(15,23,42,0.50);border:1px solid var(--glass-border-subtle)"></div>
+        <div style="width:36px;height:36px;border-radius:8px;background:rgba(15,23,42,0.62);border:1px solid var(--glass-border-subtle)"></div>
+        <div style="width:36px;height:36px;border-radius:8px;background:rgba(15,23,42,0.78);border:1px solid var(--glass-border-subtle)"></div>
+        <div style="width:36px;height:36px;border-radius:8px;background:rgba(15,23,42,0.92);border:1px solid var(--glass-border-subtle)"></div>
+        <div style="width:36px;height:36px;border-radius:8px;background:rgba(14,116,144,0.30);border:1px solid rgba(6,182,212,0.2)"></div>
+        <div style="width:36px;height:36px;border-radius:8px;background:rgba(99,102,241,0.14);border:1px solid rgba(99,102,241,0.2)"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:700;margin-bottom:14px;font-size:15px">Blur &amp; Spacing Tokens</div>
+      <table class="space-table">
+        <tr><td>blur-subtle</td><td>6px</td><td style="color:var(--color-label-3);font-size:12px">Input fields, subtle surfaces</td></tr>
+        <tr><td>blur-md</td><td>14px</td><td style="color:var(--color-label-3);font-size:12px">Default cards, stat cards</td></tr>
+        <tr><td>blur-lg</td><td>24px</td><td style="color:var(--color-label-3);font-size:12px">Top bar, deep cards</td></tr>
+        <tr><td>blur-xl</td><td>36px</td><td style="color:var(--color-label-3);font-size:12px">Sheet, modal, tab bar</td></tr>
+        <tr><td>--r-xs</td><td>8px</td><td></td></tr>
+        <tr><td>--r-sm</td><td>12px</td><td></td></tr>
+        <tr><td>--r-md</td><td>16px</td><td></td></tr>
+        <tr><td>--r-xl</td><td>28px</td><td></td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ 12. TYPOGRAPHY ═══════ -->
+<section class="section">
+  <h2 class="section-title">12. Typography Scale</h2>
+  <p class="section-desc">Inter variable font with display/body/mono hierarchy and refined letter-spacing.</p>
+  <div class="card">
+    <div class="type-scale">
+      <div class="type-row"><span class="type-label">Display</span><span style="font-size:36px;font-weight:800;letter-spacing:-0.03em">Net Worth $284k</span></div>
+      <div class="type-row"><span class="type-label">H1</span><span style="font-size:28px;font-weight:800;letter-spacing:-0.02em">Dashboard Overview</span></div>
+      <div class="type-row"><span class="type-label">H2</span><span style="font-size:20px;font-weight:800;letter-spacing:-0.01em">Recent Transactions</span></div>
+      <div class="type-row"><span class="type-label">Body</span><span style="font-size:14px;font-weight:500;color:var(--color-label-2)">Your monthly spending is 12% lower than last month. Great job keeping the budget on track.</span></div>
+      <div class="type-row"><span class="type-label">Caption</span><span style="font-size:12px;font-weight:600;color:var(--color-label-4);letter-spacing:0.04em">LAST UPDATED 2 MIN AGO</span></div>
+      <div class="type-row"><span class="type-label">Mono</span><span style="font-size:13px;font-family:var(--font-mono);color:var(--color-label-3)">total_assets = 312400.00</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ 13. EMPTY STATES ═══════ -->
+<section class="section">
+  <h2 class="section-title">13. Empty States &amp; Banners</h2>
+  <div class="grid-2">
+    <div class="card" style="text-align:center;padding:44px 28px">
+      <div style="width:72px;height:72px;border-radius:20px;background:var(--glass-card);backdrop-filter:blur(var(--blur-subtle));margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:30px;border:1px solid var(--glass-border-subtle)">&#128228;</div>
+      <div style="font-size:15px;font-weight:700;margin-bottom:4px">No Transactions Yet</div>
+      <div style="font-size:13px;color:var(--color-label-4);line-height:1.6">Start by adding your first income or expense to see it here.</div>
+      <button class="btn btn-primary btn-sm" style="margin-top:16px">Add Transaction</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="border-radius:var(--r-sm);padding:12px 16px;font-size:13.5px;font-weight:600;background:rgba(16,185,129,0.08);color:var(--color-green);border:1px solid rgba(16,185,129,0.18)">&#10003; Sync completed — all data up to date</div>
+      <div style="border-radius:var(--r-sm);padding:12px 16px;font-size:13.5px;font-weight:600;background:rgba(245,158,11,0.08);color:var(--color-orange);border:1px solid rgba(245,158,11,0.18)">&#9888; Budget alert: 92% of dining budget used</div>
+      <div style="border-radius:var(--r-sm);padding:12px 16px;font-size:13.5px;font-weight:600;background:rgba(244,63,94,0.08);color:var(--color-red);border:1px solid rgba(244,63,94,0.18)">&#10007; Sync failed — check your connection</div>
+    </div>
+  </div>
+</section>
+
+<div class="footer-note">
+  Nebula Glass v2.2 · Design System Preview · Built with Inter + CSS Glassmorphism
+</div>
+
+</main>
+
+<script>
+const toggle = document.getElementById('themeToggle');
+toggle.addEventListener('click', e => {
+  const btn = e.target.closest('.theme-btn');
+  if (!btn) return;
+  const theme = btn.dataset.theme;
+  document.documentElement.setAttribute('data-theme', theme);
+  toggle.querySelectorAll('.theme-btn').forEach(b => b.classList.toggle('active', b === btn));
+});
+</script>
+
+</body>
+</html>
