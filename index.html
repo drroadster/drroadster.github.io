@@ -3494,7 +3494,15 @@ function _openTimePopover(pillEl) {
   pillEl.classList.add("editing");
   pillEl.closest(".tx-row")?.classList.add("time-editing");
   const input = document.getElementById("timePopoverInput");
-  if (input) input.value = tx.date.length === 16 ? tx.date + ":00" : tx.date;
+  if (input) {
+    let dateVal = tx.date || "";
+    if (dateVal.length === 10) {
+      dateVal += "T00:00";
+    } else if (dateVal.length === 16) {
+      dateVal += ":00";
+    }
+    input.value = dateVal;
+  }
   const popover = document.getElementById("timePopover");
   if (!popover) return;
   const rect = pillEl.getBoundingClientRect();

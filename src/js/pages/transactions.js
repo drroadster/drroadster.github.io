@@ -255,9 +255,19 @@ function _openTimePopover(pillEl) {
   pillEl.classList.add('editing');
   pillEl.closest('.tx-row')?.classList.add('time-editing');
 
-  // Set the input value
+  // Set the input value — pre-fill with existing date/time
   const input = document.getElementById('timePopoverInput');
-  if (input) input.value = tx.date.length === 16 ? tx.date + ':00' : tx.date;
+  if (input) {
+    let dateVal = tx.date || '';
+    if (dateVal.length === 10) {
+      // Date only (CSV import): "2026-07-06" → "2026-07-06T00:00"
+      dateVal += 'T00:00';
+    } else if (dateVal.length === 16) {
+      // Missing seconds: "2026-07-06T14:30" → "2026-07-06T14:30:00"
+      dateVal += ':00';
+    }
+    input.value = dateVal;
+  }
 
   // Position the popover
   const popover = document.getElementById('timePopover');
