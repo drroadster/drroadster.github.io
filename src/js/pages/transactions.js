@@ -25,18 +25,52 @@ let _keypadVal  = '0';
 let _selectedCat = '';
 let _isCustomCat = false;
 
+// Calendar view state
+let _currentView = 'list';          // 'list' | 'calendar'
+let _calYear, _calMonth;           // current year/month for calendar nav
+let _selectedCalDay = null;        // 'YYYY-MM-DD' selected day
+let _editingTxId = null;           // tx id currently editing time
+
 // ── Public init ──────────────────────────────────────
 export function initTransactionsPage() {
   _wireListControls();
   _wireQuickAddModal();
   _wireImportExport();
+  _initTimePopover();
+  _initCalendarNav();
+  _initViewToggle();
   window.__rdstr_openTxModal = openTxModal; // FAB hook (router.js)
   onNavigate(page => { if (page === 'transactions') render(); });
 }
 
 export function render() {
+  // Toggle visibility based on current view
+  const listCard = document.getElementById('listViewCard');
+  const calView  = document.getElementById('calendarView');
+  const calDetail = document.getElementById('calDayDetail');
+  if (listCard) listCard.style.display = _currentView === 'list' ? '' : 'none';
+  if (calView)  calView.style.display  = _currentView === 'calendar' ? '' : 'none';
+
   const q = (document.getElementById('txSearch')?.value || '').toLowerCase();
   let txs = getTransactions();
+
+  if (_currentView === 'calendar') {
+    // Init calendar to latest transaction month if not set
+    if (!_calYear) {
+      if (txs.length) {
+        const d = new Date(txs[0].date);
+        _calYear = d.getFullYear();
+        _calMonth = d.getMonth() + 1;
+      } else {
+        const now = new Date();
+        _calYear = now.getFullYear();
+        _calMonth = now.getMonth() + 1;
+      }
+    }
+    _renderCalendar(txs);
+    return;
+  }
+
   if (_filterType) txs = txs.filter(t => t.type === _filterType);
   if (q) txs = txs.filter(t => `${t.category}${t.note}`.toLowerCase().includes(q));
 
@@ -101,7 +135,8 @@ export function render() {
 function _wireRowClicks(container) {
   container.querySelectorAll('[data-tx-id]').forEach(row => {
     row.addEventListener('click', (e) => {
-      if (e.target.closest('.tx-edit-btn')) return; // handled separately
+      if (e.target.closest('.tx-edit-btn')) return;
+      if (e.target.closest('.tx-time-pill')) return;
       openTxDetail(row.dataset.txId);
     });
   });
@@ -109,6 +144,12 @@ function _wireRowClicks(container) {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       openEditTx(btn.dataset.txId);
+    });
+  });
+  container.querySelectorAll('.tx-time-pill').forEach(pill => {
+    pill.addEventListener('click', (e) => {
+      e.stopPropagation();
+      _openTimePopover(pill);
     });
   });
 }
@@ -124,12 +165,17 @@ function _rowHtml(tx) {
       ? 'linear-gradient(135deg,rgba(255,59,48,.16),rgba(255,149,0,.12))'
       : 'linear-gradient(135deg,rgba(0,122,255,.14),rgba(175,82,222,.14))';
   const icon = isLoss ? '📉' : (CAT_ICONS[tx.category] || '💳');
+  const timeDisplay = formatTxDateTime(tx.date);
+  const isEditing = _editingTxId === tx.id;
+  const editCls = isEditing ? ' time-editing' : '';
 
-  return `<div class="tx-row" data-tx-id="${tx.id}">
+  return `<div class="tx-row${editCls}" data-tx-id="${tx.id}">
     <div class="tx-icon" style="background:${bg}">${icon}</div>
     <div class="tx-info">
       <div class="tx-name">${esc(tx.category)}${tx.note ? ' · ' + esc(tx.note) : ''}${isLoss ? ' · 亏损' : ''}</div>
-      <div class="tx-meta">${formatTxDateTime(tx.date)}</div>
+      <div class="tx-meta">
+        <span class="tx-time-pill${isEditing ? ' editing' : ''}" data-tx-id="${tx.id}" data-tx-time="${esc(tx.date)}" title="点击修改时间">🕐 ${esc(timeDisplay)}</span>
+      </div>
     </div>
     <div class="tx-amount ${cls}">${sign}¥${fmt(Math.abs(tx.amount))}</div>
     <button class="tx-edit-btn" data-tx-id="${tx.id}" title="编辑">✏️</button>
@@ -152,6 +198,295 @@ function _wireListControls() {
 
   const cleanupBtn = document.getElementById('dataCleanupBtn');
   if (cleanupBtn) cleanupBtn.addEventListener('click', openDataCleanup);
+}
+
+// ════════════════════════════════════════════════════
+//  VIEW TOGGLE (list ↔ calendar)
+// ════════════════════════════════════════════════════
+
+function _initViewToggle() {
+  document.querySelectorAll('#txViewSeg .seg-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      _currentView = btn.dataset.view;
+      document.querySelectorAll('#txViewSeg .seg-pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (_currentView === 'calendar') _selectedCalDay = null;
+      render();
+    });
+  });
+}
+
+// ════════════════════════════════════════════════════
+//  TIME POPOVER (click time pill → edit datetime)
+// ════════════════════════════════════════════════════
+
+function _initTimePopover() {
+  const popover = document.getElementById('timePopover');
+  if (!popover) return;
+
+  document.addEventListener('click', (e) => {
+    if (!popover.classList.contains('open')) return;
+    if (!popover.contains(e.target) && !e.target.closest('.tx-time-pill')) {
+      _closeTimePopover();
+    }
+  });
+
+  document.getElementById('timePopoverCancel')?.addEventListener('click', _closeTimePopover);
+  document.getElementById('timePopoverConfirm')?.addEventListener('click', _confirmTimeEdit);
+
+  // Also confirm on Enter key in the input
+  document.getElementById('timePopoverInput')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') _confirmTimeEdit();
+    if (e.key === 'Escape') _closeTimePopover();
+  });
+}
+
+function _openTimePopover(pillEl) {
+  const txId = pillEl.dataset.txId;
+  const tx = getTransactions().find(t => t.id === txId);
+  if (!tx) return;
+
+  // Close any previously open popover
+  _closeTimePopover(false);
+
+  _editingTxId = txId;
+
+  // Update the pill visual
+  pillEl.classList.add('editing');
+  pillEl.closest('.tx-row')?.classList.add('time-editing');
+
+  // Set the input value
+  const input = document.getElementById('timePopoverInput');
+  if (input) input.value = tx.date.length === 16 ? tx.date + ':00' : tx.date;
+
+  // Position the popover
+  const popover = document.getElementById('timePopover');
+  if (!popover) return;
+
+  const rect = pillEl.getBoundingClientRect();
+  const popW = 280;
+  let left = rect.left + rect.width / 2 - popW / 2;
+  const top = rect.bottom + 8;
+
+  // Clamp to viewport
+  if (left < 10) left = 10;
+  if (left + popW > window.innerWidth - 10) left = window.innerWidth - popW - 10;
+
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
+  popover.classList.add('open');
+
+  setTimeout(() => input?.focus(), 100);
+}
+
+function _closeTimePopover(restore = true) {
+  const popover = document.getElementById('timePopover');
+  if (popover) popover.classList.remove('open');
+
+  if (restore && _editingTxId) {
+    // Remove editing visual
+    document.querySelectorAll('.tx-time-pill.editing').forEach(p => p.classList.remove('editing'));
+    document.querySelectorAll('.tx-row.time-editing').forEach(r => r.classList.remove('time-editing'));
+  }
+  _editingTxId = null;
+}
+
+function _confirmTimeEdit() {
+  if (!_editingTxId) return;
+  const input = document.getElementById('timePopoverInput');
+  const newDate = input?.value;
+  if (!newDate) return;
+
+  const date = newDate.length === 16 ? newDate + ':00' : newDate;
+  updateTransaction(_editingTxId, { date });
+
+  _closeTimePopover(false);
+  showToast('时间已更新');
+  render();
+  import('./overview.js').then(m => m.render());
+}
+
+// ════════════════════════════════════════════════════
+//  CALENDAR VIEW
+// ════════════════════════════════════════════════════
+
+function _initCalendarNav() {
+  document.getElementById('calPrev')?.addEventListener('click', () => {
+    if (_calMonth === 1) { _calMonth = 12; _calYear--; }
+    else { _calMonth--; }
+    _selectedCalDay = null;
+    render();
+  });
+  document.getElementById('calNext')?.addEventListener('click', () => {
+    if (_calMonth === 12) { _calMonth = 1; _calYear++; }
+    else { _calMonth++; }
+    _selectedCalDay = null;
+    render();
+  });
+}
+
+function _renderCalendar(txs) {
+  const titleEl = document.getElementById('calTitle');
+  const gridEl  = document.getElementById('calGrid');
+  const detailEl = document.getElementById('calDayDetail');
+  const dayListEl = document.getElementById('calDayList');
+  const dayHeaderEl = document.getElementById('calDayHeader');
+
+  if (!titleEl || !gridEl) return;
+
+  titleEl.textContent = `${_calYear}年${_calMonth}月`;
+
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+
+  // Build day → transactions map for the current month
+  const dayMap = {};
+  const monthPrefix = `${_calYear}-${pad2(_calMonth)}-`;
+  txs.forEach(tx => {
+    const dayKey = (tx.date || '').slice(0, 10);
+    if (!dayKey.startsWith(monthPrefix)) return;
+    if (!dayMap[dayKey]) dayMap[dayKey] = [];
+    dayMap[dayKey].push(tx);
+  });
+
+  // Calculate first day of month and total days
+  const firstDay = new Date(_calYear, _calMonth - 1, 1);
+  const startDow = firstDay.getDay(); // 0=Sun
+  const daysInMonth = new Date(_calYear, _calMonth, 0).getDate();
+
+  // Build grid cells
+  const cells = [];
+
+  // Day headers
+  const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+  dayNames.forEach(d => {
+    cells.push(`<div class="cal-day-header">${d}</div>`);
+  });
+
+  // Empty cells before first day
+  for (let i = 0; i < startDow; i++) {
+    cells.push('<div class="cal-day other-month"></div>');
+  }
+
+  // Actual days
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dayKey = `${monthPrefix}${pad2(d)}`;
+    const dayTxs = dayMap[dayKey] || [];
+    const income  = dayTxs.filter(t => t.type === '收入').reduce((s, t) => s + t.amount, 0);
+    const expense = dayTxs.filter(t => t.type === '支出').reduce((s, t) => s + t.amount, 0);
+    const net = income - expense;
+
+    let dotCls = '';
+    if (dayTxs.length > 0) {
+      if (net > 0) dotCls = 'cal-dot--green';
+      else if (net < 0) dotCls = 'cal-dot--red';
+      else dotCls = 'cal-dot--gray';
+    }
+
+    const isToday   = dayKey === todayKey;
+    const isSelected = dayKey === _selectedCalDay;
+
+    let cls = 'cal-day';
+    if (isToday) cls += ' today';
+    if (isSelected) cls += ' selected';
+
+    let amountHtml = '';
+    if (dayTxs.length > 0) {
+      if (net !== 0) {
+        const amtCls = net > 0 ? 'income' : 'expense';
+        const sign = net > 0 ? '+' : '';
+        amountHtml = `<span class="cal-day-amount ${amtCls}">${sign}${fmt(Math.abs(net))}</span>`;
+      } else {
+        amountHtml = '<span class="cal-day-amount" style="color:var(--color-label-4)">¥0</span>';
+      }
+    }
+
+    let dotsHtml = '';
+    if (dayTxs.length > 0) {
+      dotsHtml = `<div class="cal-day-dots"><span class="cal-dot ${dotCls}"></span></div>`;
+    }
+
+    cells.push(`<div class="${cls}" data-day="${dayKey}">
+      <span class="cal-day-num">${d}</span>
+      ${amountHtml}
+      ${dotsHtml}
+    </div>`);
+  }
+
+  // Trailing empty cells
+  const totalCells = startDow + daysInMonth;
+  const remainder = totalCells % 7;
+  if (remainder > 0) {
+    for (let i = 0; i < 7 - remainder; i++) {
+      cells.push('<div class="cal-day other-month"></div>');
+    }
+  }
+
+  gridEl.innerHTML = cells.join('');
+
+  // Wire day clicks
+  gridEl.querySelectorAll('.cal-day:not(.other-month)').forEach(cell => {
+    cell.addEventListener('click', () => _selectCalDay(cell.dataset.day, txs));
+  });
+
+  // Show/hide day detail
+  if (_selectedCalDay && detailEl && dayListEl && dayHeaderEl) {
+    const dayTxs = txs.filter(t => (t.date || '').slice(0, 10) === _selectedCalDay);
+    if (dayTxs.length) {
+      detailEl.style.display = '';
+      const income  = dayTxs.filter(t => t.type === '收入').reduce((s, t) => s + t.amount, 0);
+      const expense = dayTxs.filter(t => t.type === '支出').reduce((s, t) => s + t.amount, 0);
+      const net = income - expense;
+      const dateLabel = _selectedCalDay.replace(/-/g, '/');
+      const dayOfWeek = ['日','一','二','三','四','五','六'][new Date(_selectedCalDay).getDay()];
+      dayHeaderEl.innerHTML = `📅 ${dateLabel} 周${dayOfWeek}
+        <span class="cal-day-summary">
+          ${income > 0 ? `<span class="cal-sum-income">+¥${fmt(income)}</span>` : ''}
+          ${expense > 0 ? `<span class="cal-sum-expense">-¥${fmt(expense)}</span>` : ''}
+          <span style="color:${net >= 0 ? 'var(--color-green)' : 'var(--color-red)'};font-weight:700">
+            结余 ${net >= 0 ? '+' : ''}¥${fmt(net)}
+          </span>
+        </span>`;
+
+      const sorted = [...dayTxs].sort((a, b) => new Date(b.date) - new Date(a.date));
+      dayListEl.innerHTML = sorted.map(_rowHtml).join('');
+      _wireRowClicks(dayListEl);
+    } else {
+      detailEl.style.display = 'none';
+    }
+  } else if (detailEl) {
+    detailEl.style.display = 'none';
+  }
+
+  // Monthly summary bar
+  _renderCalStickyBar(txs, monthPrefix);
+}
+
+function _selectCalDay(dayKey, txs) {
+  _selectedCalDay = (_selectedCalDay === dayKey) ? null : dayKey;
+  _renderCalendar(txs);
+}
+
+function _renderCalStickyBar(txs, monthPrefix) {
+  const detailEl = document.getElementById('calDayDetail');
+  if (!detailEl) return;
+
+  // Remove existing sticky bar
+  const existing = detailEl.querySelector('.cal-sticky-bar');
+  if (existing) existing.remove();
+
+  const monthTxs = txs.filter(t => (t.date || '').startsWith(monthPrefix));
+  const income  = monthTxs.filter(t => t.type === '收入').reduce((s, t) => s + t.amount, 0);
+  const expense = monthTxs.filter(t => t.type === '支出').reduce((s, t) => s + t.amount, 0);
+  const net = income - expense;
+
+  const bar = document.createElement('div');
+  bar.className = 'cal-sticky-bar';
+  bar.innerHTML = `
+    <span class="cal-bar-income">收入 +¥${fmt(income)}</span>
+    <span class="cal-bar-expense">支出 -¥${fmt(expense)}</span>
+    <span class="cal-bar-net ${net >= 0 ? 'positive' : 'negative'}">结余 ${net >= 0 ? '+' : ''}¥${fmt(net)}</span>`;
+  detailEl.appendChild(bar);
 }
 
 // ════════════════════════════════════════════════════

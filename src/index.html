@@ -170,9 +170,33 @@
           <button class="seg-pill" data-tf="收入" data-i18n="txIncome">收入</button>
           <button class="seg-pill" data-tf="支出" data-i18n="txExpense">支出</button>
         </div>
+        <div class="segmented" id="txViewSeg">
+          <button class="seg-pill active" data-view="list" title="列表视图">📋</button>
+          <button class="seg-pill" data-view="calendar" title="日历视图">📅</button>
+        </div>
       </div>
 
-      <div class="card glass">
+      <!-- Calendar View -->
+      <div class="card glass" id="calendarView" style="display:none">
+        <div class="cal-nav">
+          <button class="cal-nav-btn" id="calPrev">‹</button>
+          <div class="cal-nav-title" id="calTitle">2026年7月</div>
+          <button class="cal-nav-btn" id="calNext">›</button>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+        <div class="cal-legend">
+          <span><span class="cal-dot cal-dot--green"></span>净收入</span>
+          <span><span class="cal-dot cal-dot--red"></span>净支出</span>
+          <span><span class="cal-dot cal-dot--gray"></span>收支平衡</span>
+        </div>
+      </div>
+      <!-- Calendar Day Detail -->
+      <div class="card glass" id="calDayDetail" style="display:none">
+        <div class="cal-day-header" id="calDayHeader"></div>
+        <div class="tx-list" id="calDayList"></div>
+      </div>
+
+      <div class="card glass" id="listViewCard">
         <div class="tx-list" id="fullTxList">
           <div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">还没有交易记录</div></div>
         </div>
@@ -497,6 +521,19 @@
       <div class="sync-status-row flex-between" id="syncStatusRow" style="padding:10px 14px;background:var(--color-surface-2);border-radius:var(--r-xs);font-size:12.5px;font-weight:600"></div>
       <button class="btn btn-primary btn-block" id="manualSyncBtn" style="margin-top:12px" data-i18n="authSyncNow">☁️ 立即同步到云端</button>
       <button class="btn btn-secondary btn-block" id="signOutBtn" style="margin-top:10px" data-i18n="authLogout">退出登录</button>
+    </div>
+  </div>
+</div>
+
+<!-- Time Picker Popover -->
+<div class="time-popover" id="timePopover">
+  <div class="time-popover-arrow"></div>
+  <div class="time-popover-body">
+    <div class="time-popover-label">选择时间</div>
+    <input class="field-input" id="timePopoverInput" type="datetime-local" step="1">
+    <div class="time-popover-actions">
+      <button class="btn btn-secondary btn-xs" id="timePopoverCancel">取消</button>
+      <button class="btn btn-primary btn-xs" id="timePopoverConfirm">确认</button>
     </div>
   </div>
 </div>
