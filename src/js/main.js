@@ -343,8 +343,8 @@ function _renderAuthButton(user) {
     desktopSlot.innerHTML = html;
     mobileSlot.innerHTML  = html.replace(/32px/g, '30px');
   } else {
-    desktopSlot.innerHTML = `<button class="btn btn-secondary btn-sm" data-auth-trigger">🔑 ${t('authLogin')}</button>`;
-    mobileSlot.innerHTML  = `<button class="icon-btn" data-auth-trigger title="登录">🔑</button>`;
+    desktopSlot.innerHTML = `<button class="btn btn-secondary btn-sm" data-auth-trigger="login">🔑 ${t('authLogin')}</button>`;
+    mobileSlot.innerHTML  = `<button class="icon-btn" data-auth-trigger="login" title="登录">🔑</button>`;
   }
   // Re-wire the new buttons (innerHTML replace loses listeners)
   desktopSlot.querySelectorAll('[data-auth-trigger]').forEach(b => b.addEventListener('click', openAuthModal));

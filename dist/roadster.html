@@ -5262,8 +5262,8 @@ function _renderAuthButton(user) {
     desktopSlot.innerHTML = html;
     mobileSlot.innerHTML = html.replace(/32px/g, "30px");
   } else {
-    desktopSlot.innerHTML = `<button class="btn btn-secondary btn-sm" data-auth-trigger">\u{1F511} ${t("authLogin")}</button>`;
-    mobileSlot.innerHTML = `<button class="icon-btn" data-auth-trigger title="\u767B\u5F55">\u{1F511}</button>`;
+    desktopSlot.innerHTML = `<button class="btn btn-secondary btn-sm" data-auth-trigger="login">\u{1F511} ${t("authLogin")}</button>`;
+    mobileSlot.innerHTML = `<button class="icon-btn" data-auth-trigger="login" title="\u767B\u5F55">\u{1F511}</button>`;
   }
   desktopSlot.querySelectorAll("[data-auth-trigger]").forEach((b) => b.addEventListener("click", openAuthModal));
   mobileSlot.querySelectorAll("[data-auth-trigger]").forEach((b) => b.addEventListener("click", openAuthModal));
