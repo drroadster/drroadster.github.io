@@ -128,8 +128,17 @@ document.getElementById('authModal')?.addEventListener('click', (e) => {
   if (e.target.id === 'authModal') closeAuthModal();
 });
 
-document.querySelectorAll('[data-auth-trigger]').forEach(btn => {
-  btn.addEventListener('click', openAuthModal);
+// Use event delegation on auth button containers to
+// ensure clicks work even when buttons are dynamically
+// replaced (fixes PC desktop login button issue where
+// inline onclick or direct binding may fail)
+document.getElementById('authBtnDesktop')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-auth-trigger]');
+  if (btn) openAuthModal();
+});
+document.getElementById('authBtnMobile')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-auth-trigger]');
+  if (btn) openAuthModal();
 });
 
 function switchAuthMode(mode) {

@@ -507,6 +507,14 @@ body::after {
   .main { padding: 18px 16px 120px; }
 }
 
+/* Version badge */
+.version-badge {
+  position: fixed; bottom: 6px; right: 10px;
+  font-size: 10px; color: var(--color-label-4);
+  opacity: 0.35; z-index: 999; pointer-events: none;
+  font-weight: 600; letter-spacing: 0.04em;
+}
+
 /* Flex helpers */
 .flex-row     { display: flex; align-items: center; }
 .flex-between { display: flex; align-items: center; justify-content: space-between; }
@@ -1871,6 +1879,9 @@ body::after {
 
 <!-- App entry point (ES module) -->
 
+
+<!-- Version -->
+<div class="version-badge">v2026.07.05</div>
 <script type="module">
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -5039,8 +5050,13 @@ function closeAuthModal() {
 document.getElementById("authModal")?.addEventListener("click", (e) => {
   if (e.target.id === "authModal") closeAuthModal();
 });
-document.querySelectorAll("[data-auth-trigger]").forEach((btn) => {
-  btn.addEventListener("click", openAuthModal);
+document.getElementById("authBtnDesktop")?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-auth-trigger]");
+  if (btn) openAuthModal();
+});
+document.getElementById("authBtnMobile")?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-auth-trigger]");
+  if (btn) openAuthModal();
 });
 function switchAuthMode(mode) {
   _authMode = mode;
