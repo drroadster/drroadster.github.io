@@ -2082,6 +2082,28 @@ body::after {
   </div>
 </div>
 
+<div class="sheet-overlay" id="catManageModal">
+  <div class="sheet glass">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">🗂️ 类目管理</div>
+    <div style="font-size:12.5px;color:var(--color-label-3);margin-bottom:12px;font-weight:600">
+      管理系统类目和自定义类目
+    </div>
+    <div id="catManageList"></div>
+    <div class="divider" style="margin:14px 0"></div>
+    <div class="field" style="margin-bottom:0">
+      <label class="field-label">新增自定义类目</label>
+      <div style="display:flex;gap:8px">
+        <input class="field-input" id="newCatName" placeholder="输入类目名称，如「宠物」「快递」" style="flex:1">
+        <button class="btn btn-primary btn-sm" id="addCatBtn" style="white-space:nowrap">＋ 添加</button>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="catManageClose">关闭</button>
+    </div>
+  </div>
+</div>
+
 <div id="syncBanner" class="sync-banner"></div>
 <div class="toast" id="toast"></div>
 
@@ -2118,8 +2140,115 @@ __export(config_exports, {
   INCOME_CATS: () => INCOME_CATS,
   LS: () => LS,
   PALETTE: () => PALETTE,
+  addCustomCategory: () => addCustomCategory,
+  getAllCategories: () => getAllCategories,
+  getCatIcon: () => getCatIcon,
+  getCustomCategories: () => getCustomCategories,
+  guessIcon: () => guessIcon,
+  removeCustomCategory: () => removeCustomCategory,
+  saveCustomCategories: () => saveCustomCategories,
   userDocPath: () => userDocPath
 });
+function getCustomCategories() {
+  try {
+    return JSON.parse(localStorage.getItem(LS.CUSTOM_CATS) || "[]");
+  } catch {
+    return [];
+  }
+}
+function saveCustomCategories(cats) {
+  try {
+    localStorage.setItem(LS.CUSTOM_CATS, JSON.stringify(cats));
+  } catch {
+  }
+}
+function addCustomCategory(v, icon) {
+  const cats = getCustomCategories();
+  if (cats.find((c) => c.v === v)) return false;
+  cats.push({ v, icon: icon || guessIcon(v), label: v, custom: true });
+  saveCustomCategories(cats);
+  return true;
+}
+function removeCustomCategory(v) {
+  const builtins = new Set(ALL_CATS);
+  if (builtins.has(v)) return false;
+  const cats = getCustomCategories().filter((c) => c.v !== v);
+  saveCustomCategories(cats);
+  return true;
+}
+function getAllCategories() {
+  const custom = getCustomCategories().map((c) => c.v);
+  return [...ALL_CATS, ...custom];
+}
+function getCatIcon(v) {
+  if (CAT_ICONS[v]) return CAT_ICONS[v];
+  const custom = getCustomCategories().find((c) => c.v === v);
+  return custom?.icon || "\u{1F4CC}";
+}
+function guessIcon(name) {
+  if (!name) return "\u{1F4CC}";
+  const map = {
+    "\u5496\u5561": "\u2615",
+    "\u5976\u8336": "\u{1F9CB}",
+    "\u5916\u5356": "\u{1F961}",
+    "\u5FEB\u9012": "\u{1F4E6}",
+    "\u5BA0\u7269": "\u{1F431}",
+    "\u6559\u80B2": "\u{1F4D6}",
+    "\u5B66\u4E60": "\u{1F4DA}",
+    "\u57F9\u8BAD": "\u{1F393}",
+    "\u4FDD\u9669": "\u{1F6E1}\uFE0F",
+    "\u533B\u7597": "\u{1F48A}",
+    "\u7406\u53D1": "\u{1F487}",
+    "\u7F8E\u5BB9": "\u{1F484}",
+    "\u5065\u8EAB": "\u{1F3CB}\uFE0F",
+    "\u8FD0\u52A8": "\u26BD",
+    "\u65C5\u884C": "\u2708\uFE0F",
+    "\u9152\u5E97": "\u{1F3E8}",
+    "\u7535\u5F71": "\u{1F3AC}",
+    "\u97F3\u4E50": "\u{1F3B5}",
+    "\u6E38\u620F": "\u{1F3AE}",
+    "\u6570\u7801": "\u{1F4F1}",
+    "\u8BDD\u8D39": "\u{1F4DE}",
+    "\u6C34\u8D39": "\u{1F4A7}",
+    "\u7535\u8D39": "\u26A1",
+    "\u71C3\u6C14": "\u{1F525}",
+    "\u7269\u4E1A": "\u{1F3E2}",
+    "\u4E70\u83DC": "\u{1F96C}",
+    "\u6C34\u679C": "\u{1F34E}",
+    "\u96F6\u98DF": "\u{1F37F}",
+    "\u70DF\u9152": "\u{1F37A}",
+    "\u52A0\u6CB9": "\u26FD",
+    "\u505C\u8F66": "\u{1F17F}\uFE0F",
+    "\u5730\u94C1": "\u{1F687}",
+    "\u516C\u4EA4": "\u{1F68C}",
+    "\u6253\u8F66": "\u{1F695}",
+    "\u623F\u79DF": "\u{1F3E0}",
+    "\u623F\u8D37": "\u{1F3E1}",
+    "\u88C5\u4FEE": "\u{1F528}",
+    "\u5BB6\u7535": "\u{1F4FA}",
+    "\u5BB6\u5177": "\u{1FA91}",
+    "\u65E5\u7528\u54C1": "\u{1F9F4}",
+    "\u670D\u88C5": "\u{1F454}",
+    "\u978B\u5E3D": "\u{1F45F}",
+    "\u793C\u7269": "\u{1F381}",
+    "\u6350\u6B3E": "\u{1F49D}",
+    "\u7EA2\u5305": "\u{1F9E7}",
+    "\u5DE5\u8D44": "\u{1F4B0}",
+    "\u5956\u91D1": "\u{1F3C6}",
+    "\u517C\u804C": "\u{1F4BB}",
+    "\u7406\u8D22": "\u{1F4C8}",
+    "\u9000\u7A0E": "\u{1F4CB}",
+    "\u516C\u79EF\u91D1": "\u{1F3E6}",
+    "\u793E\u4FDD": "\u{1F4CB}",
+    "\u62A5\u9500": "\u{1F4DD}",
+    "\u9000\u6B3E": "\u{1F4B5}"
+  };
+  const lower = name.toLowerCase();
+  for (const [kw, icon] of Object.entries(map)) {
+    if (lower.includes(kw)) return icon;
+  }
+  return "\u{1F4CC}";
+}
 var FIREBASE_CONFIG, userDocPath, LS, PALETTE, EXPENSE_CATS, INCOME_CATS, ALL_CATS, CAT_ICONS, ASSET_GRADIENTS, ASSET_GRADIENT_DEFAULT, ASSET_ICONS, CAT_KEYWORD_MAP, APP_VERSION;
 var init_config = __esm({
   "src/js/config.js"() {
@@ -2138,7 +2267,9 @@ var init_config = __esm({
       ASSETS: "rdstr_assets",
       ASSET_HISTORY: "rdstr_asset_history",
       THEME: "rdstr_theme",
-      LANG: "rdstr_lang"
+      LANG: "rdstr_lang",
+      CUSTOM_CATS: "rdstr_custom_cats",
+      MIGRATED_V2: "rdstr_migrated_v2"
     };
     PALETTE = [
       "#5e7ce2",
@@ -2236,7 +2367,7 @@ var init_config = __esm({
       // Insurance special case — goes under Parents (common usage for family insurance)
       { canon: "Parents", kw: /保险|insurance/i }
     ];
-    APP_VERSION = "2.0.0";
+    APP_VERSION = "2.1.0";
   }
 });
 
@@ -2576,6 +2707,7 @@ function initStore() {
   _transactions = _read(LS.TX);
   _assets = _read(LS.ASSETS);
   _history = _read(LS.ASSET_HISTORY);
+  migrateDataV2();
 }
 function reloadFromStorage() {
   _transactions = _read(LS.TX);
@@ -2647,6 +2779,31 @@ function renormalizeAllCategories() {
   if (changed) {
     _persist(LS.TX, _transactions);
     _emit("transactions");
+  }
+  return changed;
+}
+function migrateDataV2() {
+  try {
+    if (localStorage.getItem(LS.MIGRATED_V2)) return 0;
+  } catch {
+    return 0;
+  }
+  let changed = 0;
+  _transactions.forEach((t2) => {
+    const raw = t2.category || "";
+    const norm = normalizeCategory(raw);
+    if (norm !== raw) {
+      t2.category = norm;
+      changed++;
+    }
+  });
+  if (changed) {
+    _persist(LS.TX, _transactions);
+    _emit("transactions");
+  }
+  try {
+    localStorage.setItem(LS.MIGRATED_V2, "1");
+  } catch {
   }
   return changed;
 }
@@ -2745,7 +2902,10 @@ function normalizeCategory(raw) {
   if (!raw) return "\u5176\u4ED6";
   let s = raw.trim().replace(/^[^\w\u4e00-\u9fa5a-zA-Z]+/, "").trim();
   if (!s) return "\u5176\u4ED6";
-  const exact = ALL_CATS.find((c) => c.toLowerCase() === s.toLowerCase());
+  s = s.replace(/\s*-?CN¥[\d.]+$/i, "").trim();
+  if (!s) return "\u5176\u4ED6";
+  const allCats = getAllCategories();
+  const exact = allCats.find((c) => c.toLowerCase() === s.toLowerCase());
   if (exact) return exact;
   const haystack = `${raw} ${s}`.toLowerCase();
   for (const { canon, kw } of CAT_KEYWORD_MAP) {
@@ -3302,6 +3462,7 @@ __export(transactions_exports, {
   closeTxDetail: () => closeTxDetail,
   closeTxModal: () => closeTxModal,
   initTransactionsPage: () => initTransactionsPage,
+  openCatManage: () => openCatManage,
   openDataCleanup: () => openDataCleanup,
   openEditTx: () => openEditTx,
   openTxDetail: () => openTxDetail,
@@ -3428,7 +3589,7 @@ function _rowHtml(tx) {
   const sign = isLoss ? "\u2212" : isGain ? "+" : "\u2212";
   const cls = isGain ? "income" : isLoss ? "loss" : "";
   const bg = isGain ? "linear-gradient(135deg,rgba(52,199,89,.16),rgba(0,199,190,.16))" : isLoss ? "linear-gradient(135deg,rgba(255,59,48,.16),rgba(255,149,0,.12))" : "linear-gradient(135deg,rgba(0,122,255,.14),rgba(175,82,222,.14))";
-  const icon = isLoss ? "\u{1F4C9}" : CAT_ICONS[tx.category] || "\u{1F4B3}";
+  const icon = isLoss ? "\u{1F4C9}" : getCatIcon(tx.category);
   const timeDisplay = formatTxDateTime(tx.date);
   const isEditing = _editingTxId === tx.id;
   const editCls = isEditing ? " time-editing" : "";
@@ -3750,14 +3911,15 @@ function _renderKeypadDisplay() {
 }
 function _renderCatGrid() {
   const list = _quickType === "\u652F\u51FA" ? EXPENSE_CATS : INCOME_CATS;
+  const custom = getCustomCategories();
   const grid = document.getElementById("catGrid");
   if (!grid) return;
-  const items = [...list, { v: "__custom__", icon: "\u270F\uFE0F", label: "\u81EA\u5B9A\u4E49" }];
+  const items = [...list, ...custom, { v: "__custom__", icon: "\u270F\uFE0F", label: "\u81EA\u5B9A\u4E49" }];
   grid.innerHTML = items.map((c) => {
     const selected = c.v === "__custom__" && _isCustomCat || !_isCustomCat && _selectedCat === c.v;
-    return `<div class="cat-item ${selected ? "selected" : ""}" data-cat="${c.v}">
+    return `<div class="cat-item ${selected ? "selected" : ""}" data-cat="${esc(c.v)}">
       <div class="cat-icon">${c.icon}</div>
-      <div class="cat-name">${esc(c.label.split(" ")[0])}</div>
+      <div class="cat-name">${esc(c.label ? c.label.split(" ")[0] : c.v)}</div>
     </div>`;
   }).join("");
   grid.querySelectorAll(".cat-item").forEach((item) => {
@@ -3765,8 +3927,8 @@ function _renderCatGrid() {
   });
   const customInput = document.getElementById("txCategoryCustom");
   if (customInput) customInput.classList.toggle("show", _isCustomCat);
-  if (!_isCustomCat && !list.find((c) => c.v === _selectedCat)) {
-    _selectedCat = list[0].v;
+  if (!_isCustomCat && !items.find((c) => c.v === _selectedCat)) {
+    _selectedCat = items[0].v;
     _renderCatGrid();
   }
 }
@@ -3838,7 +4000,7 @@ function openTxDetail(txId) {
   content.innerHTML = `
     <div class="tx-detail-header" style="background:${grad};border-radius:var(--r-lg);padding:32px 22px 24px;text-align:center;color:#fff;margin:-4px -4px 18px">
       <div style="width:54px;height:54px;border-radius:18px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:25px;margin:0 auto 12px;backdrop-filter:blur(8px)">
-        ${isLoss ? "\u{1F4C9}" : CAT_ICONS[tx.category] || "\u{1F4B3}"}
+        ${isLoss ? "\u{1F4C9}" : getCatIcon(tx.category)}
       </div>
       <div style="font-size:13px;font-weight:700;opacity:.85;margin-bottom:6px">${tx.type}${isLoss ? " \xB7 \u4E8F\u635F" : ""}</div>
       <div style="font-size:34px;font-weight:800;letter-spacing:-1px">${sign}\xA5${fmt(Math.abs(tx.amount))}</div>
@@ -3878,7 +4040,7 @@ function openEditTx(txId) {
   const tx = getTransactions().find((x) => x.id === txId);
   if (!tx) return;
   const options = ALL_CATS.map(
-    (c) => `<option value="${c}" ${tx.category === c ? "selected" : ""}>${CAT_ICONS[c] || "\u{1F4CC}"} ${c}</option>`
+    (c) => `<option value="${esc(c)}" ${tx.category === c ? "selected" : ""}>${getCatIcon(c)} ${esc(c)}</option>`
   ).join("");
   const content = document.getElementById("txDetailContent");
   if (!content) return;
@@ -3960,18 +4122,23 @@ function openDataCleanup() {
     <div style="font-size:13px;font-weight:800;margin-bottom:8px">\u5168\u90E8\u7C7B\u522B</div>
     ${sorted.map(([c, n]) => `
       <div class="tx-row" style="padding:8px 0;gap:10px;cursor:default">
-        <div class="tx-icon" style="background:linear-gradient(135deg,rgba(0,122,255,.12),rgba(175,82,222,.12));font-size:16px">${CAT_ICONS[c] || "\u{1F4CC}"}</div>
+        <div class="tx-icon" style="background:linear-gradient(135deg,rgba(0,122,255,.12),rgba(175,82,222,.12));font-size:16px">${getCatIcon(c)}</div>
         <div style="flex:1"><div style="font-size:13.5px;font-weight:700">${esc(c)}</div></div>
         <div style="font-size:12px;color:var(--color-label-4)">${n} \u6761</div>
         <button class="btn btn-danger btn-xs" data-delcat="${esc(c)}">\u5220\u9664\u5168\u90E8</button>
       </div>`).join("")}
     <div class="btn-row">
       <button class="btn btn-secondary" id="cleanupClose">\u5173\u95ED</button>
+      <button class="btn btn-primary" id="openCatManageBtn">\u{1F5C2}\uFE0F \u7C7B\u76EE\u7BA1\u7406</button>
       <button class="btn btn-danger" id="cleanupRenormalize">\u6279\u91CF\u91CD\u65B0\u5F52\u7C7B</button>
     </div>`;
   content.querySelectorAll("[data-reclass]").forEach((btn) => btn.addEventListener("click", () => _reclassify(btn.dataset.reclass)));
   content.querySelectorAll("[data-delcat]").forEach((btn) => btn.addEventListener("click", () => _deleteCategory(btn.dataset.delcat)));
   document.getElementById("cleanupClose")?.addEventListener("click", closeTxDetail);
+  document.getElementById("openCatManageBtn")?.addEventListener("click", () => {
+    closeTxDetail();
+    openCatManage();
+  });
   document.getElementById("cleanupRenormalize")?.addEventListener("click", _renormalizeAll);
   document.getElementById("txDetailModal")?.classList.add("open");
 }
@@ -4006,6 +4173,86 @@ function _renormalizeAll() {
   showToast(`\u2705 \u5B8C\u6210\uFF0C${changed} \u6761\u8BB0\u5F55\u5DF2\u66F4\u65B0`);
   openDataCleanup();
   render();
+}
+function openCatManage() {
+  const modal = document.getElementById("catManageModal");
+  if (!modal) return;
+  _renderCatManage();
+  modal.classList.add("open");
+}
+function _closeCatManage() {
+  document.getElementById("catManageModal")?.classList.remove("open");
+}
+function _renderCatManage() {
+  const listEl = document.getElementById("catManageList");
+  if (!listEl) return;
+  const builtIn = ALL_CATS;
+  const custom = getCustomCategories();
+  listEl.innerHTML = `
+    <div style="font-size:13px;font-weight:800;margin-bottom:8px">\u{1F3D7}\uFE0F \u7CFB\u7EDF\u7C7B\u76EE\uFF08\u4E0D\u53EF\u5220\u9664\uFF09</div>
+    ${builtIn.map((c) => {
+    const icon = getCatIcon(c);
+    return `<div class="tx-row" style="padding:8px 0;gap:10px;cursor:default">
+        <div class="tx-icon" style="background:linear-gradient(135deg,rgba(0,122,255,.12),rgba(175,82,222,.12));font-size:16px">${icon}</div>
+        <div style="flex:1"><div style="font-size:13.5px;font-weight:700">${esc(c)}</div></div>
+        <span style="font-size:11px;color:var(--color-label-4);font-weight:600">\u7CFB\u7EDF</span>
+      </div>`;
+  }).join("")}
+    ${custom.length ? `
+      <div class="divider" style="margin:10px 0"></div>
+      <div style="font-size:13px;font-weight:800;margin-bottom:8px">\u270F\uFE0F \u81EA\u5B9A\u4E49\u7C7B\u76EE</div>
+      ${custom.map((c) => {
+    return `<div class="tx-row" style="padding:8px 0;gap:10px;cursor:default">
+          <div class="tx-icon" style="background:linear-gradient(135deg,rgba(52,199,89,.12),rgba(0,199,190,.12));font-size:16px">${c.icon}</div>
+          <div style="flex:1"><div style="font-size:13.5px;font-weight:700">${esc(c.v)}</div></div>
+          <button class="btn btn-danger btn-xs" data-delcustom="${esc(c.v)}">\u5220\u9664</button>
+        </div>`;
+  }).join("")}
+    ` : '<div style="font-size:12px;color:var(--color-label-4);padding:8px 0">\u6682\u65E0\u81EA\u5B9A\u4E49\u7C7B\u76EE</div>'}`;
+  listEl.querySelectorAll("[data-delcustom]").forEach((btn) => {
+    btn.addEventListener("click", () => _deleteCustomCat(btn.dataset.delcustom));
+  });
+  const addBtn = document.getElementById("addCatBtn");
+  if (addBtn) {
+    const newHandler = () => _addCustomCat();
+    addBtn.replaceWith(addBtn.cloneNode(true));
+    document.getElementById("addCatBtn")?.addEventListener("click", newHandler);
+  }
+  const input = document.getElementById("newCatName");
+  if (input) {
+    const enterHandler = (e) => {
+      if (e.key === "Enter") _addCustomCat();
+    };
+    input.replaceWith(input.cloneNode(true));
+    document.getElementById("newCatName")?.addEventListener("keydown", enterHandler);
+  }
+  const closeBtn = document.getElementById("catManageClose");
+  if (closeBtn) {
+    closeBtn.replaceWith(closeBtn.cloneNode(true));
+    document.getElementById("catManageClose")?.addEventListener("click", _closeCatManage);
+  }
+}
+function _addCustomCat() {
+  const input = document.getElementById("newCatName");
+  const name = input?.value.trim();
+  if (!name) {
+    showToast("\u8BF7\u8F93\u5165\u7C7B\u76EE\u540D\u79F0");
+    return;
+  }
+  const ok = addCustomCategory(name);
+  if (!ok) {
+    showToast(`\u7C7B\u76EE\u300C${name}\u300D\u5DF2\u5B58\u5728`);
+    return;
+  }
+  if (input) input.value = "";
+  showToast(`\u2705 \u7C7B\u76EE\u300C${name}\u300D\u5DF2\u6DFB\u52A0`);
+  _renderCatManage();
+}
+function _deleteCustomCat(v) {
+  if (!confirm(`\u786E\u8BA4\u5220\u9664\u81EA\u5B9A\u4E49\u7C7B\u76EE\u300C${v}\u300D\uFF1F\u5DF2\u4F7F\u7528\u6B64\u7C7B\u76EE\u7684\u8BB0\u5F55\u4E0D\u4F1A\u53D7\u5F71\u54CD\u3002`)) return;
+  removeCustomCategory(v);
+  showToast(`\u{1F5D1}\uFE0F \u7C7B\u76EE\u300C${v}\u300D\u5DF2\u5220\u9664`);
+  _renderCatManage();
 }
 function _wireImportExport() {
   document.getElementById("csvInput")?.addEventListener("change", _handleCSVFile);
@@ -4364,7 +4611,7 @@ function _txRowHtml(tx) {
   const sign = isLoss ? "\u2212" : isGain ? "+" : "\u2212";
   const cls = isGain ? "income" : isLoss ? "loss" : "";
   const bg = isGain ? "linear-gradient(135deg,rgba(52,199,89,.16),rgba(0,199,190,.16))" : isLoss ? "linear-gradient(135deg,rgba(255,59,48,.16),rgba(255,149,0,.12))" : "linear-gradient(135deg,rgba(0,122,255,.14),rgba(175,82,222,.14))";
-  const icon = isLoss ? "\u{1F4C9}" : CAT_ICONS[tx.category] || "\u{1F4B3}";
+  const icon = isLoss ? "\u{1F4C9}" : getCatIcon(tx.category);
   return `<div class="tx-row" data-tx-id="${tx.id}">
     <div class="tx-icon" style="background:${bg}">${icon}</div>
     <div class="tx-info">

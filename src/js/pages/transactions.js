@@ -14,7 +14,7 @@ import { fmt, esc, formatTxDateTime, nowAsDatetimeLocal, pad2,
          normalizeDate, splitCSVLine, splitCSVLines, parseMoney } from '../utils.js';
 import { t } from '../i18n.js';
 import { showToast } from '../router.js';
-import { CAT_ICONS, EXPENSE_CATS, INCOME_CATS, ALL_CATS } from '../config.js';
+import { CAT_ICONS, EXPENSE_CATS, INCOME_CATS, ALL_CATS, getCustomCategories, getCatIcon, addCustomCategory, removeCustomCategory, getAllCategories } from '../config.js';
 import { onNavigate } from '../router.js';
 
 // ── State ────────────────────────────────────────────
@@ -164,7 +164,7 @@ function _rowHtml(tx) {
     : isLoss
       ? 'linear-gradient(135deg,rgba(255,59,48,.16),rgba(255,149,0,.12))'
       : 'linear-gradient(135deg,rgba(0,122,255,.14),rgba(175,82,222,.14))';
-  const icon = isLoss ? '📉' : (CAT_ICONS[tx.category] || '💳');
+  const icon = isLoss ? '📉' : (getCatIcon(tx.category));
   const timeDisplay = formatTxDateTime(tx.date);
   const isEditing = _editingTxId === tx.id;
   const editCls = isEditing ? ' time-editing' : '';
@@ -576,15 +576,16 @@ function _renderKeypadDisplay() {
 
 function _renderCatGrid() {
   const list = _quickType === '支出' ? EXPENSE_CATS : INCOME_CATS;
+  const custom = getCustomCategories();
   const grid = document.getElementById('catGrid');
   if (!grid) return;
 
-  const items = [...list, { v: '__custom__', icon: '✏️', label: '自定义' }];
+  const items = [...list, ...custom, { v: '__custom__', icon: '✏️', label: '自定义' }];
   grid.innerHTML = items.map(c => {
     const selected = (c.v === '__custom__' && _isCustomCat) || (!_isCustomCat && _selectedCat === c.v);
-    return `<div class="cat-item ${selected ? 'selected' : ''}" data-cat="${c.v}">
+    return `<div class="cat-item ${selected ? 'selected' : ''}" data-cat="${esc(c.v)}">
       <div class="cat-icon">${c.icon}</div>
-      <div class="cat-name">${esc(c.label.split(' ')[0])}</div>
+      <div class="cat-name">${esc(c.label ? c.label.split(' ')[0] : c.v)}</div>
     </div>`;
   }).join('');
 
@@ -596,8 +597,8 @@ function _renderCatGrid() {
   if (customInput) customInput.classList.toggle('show', _isCustomCat);
 
   // Default-select first category on type switch
-  if (!_isCustomCat && !list.find(c => c.v === _selectedCat)) {
-    _selectedCat = list[0].v;
+  if (!_isCustomCat && !items.find(c => c.v === _selectedCat)) {
+    _selectedCat = items[0].v;
     _renderCatGrid();
   }
 }
@@ -664,7 +665,7 @@ export function openTxDetail(txId) {
   content.innerHTML = `
     <div class="tx-detail-header" style="background:${grad};border-radius:var(--r-lg);padding:32px 22px 24px;text-align:center;color:#fff;margin:-4px -4px 18px">
       <div style="width:54px;height:54px;border-radius:18px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:25px;margin:0 auto 12px;backdrop-filter:blur(8px)">
-        ${isLoss ? '📉' : (CAT_ICONS[tx.category] || '💳')}
+        ${isLoss ? '📉' : (getCatIcon(tx.category))}
       </div>
       <div style="font-size:13px;font-weight:700;opacity:.85;margin-bottom:6px">${tx.type}${isLoss ? ' · 亏损' : ''}</div>
       <div style="font-size:34px;font-weight:800;letter-spacing:-1px">${sign}¥${fmt(Math.abs(tx.amount))}</div>
@@ -707,7 +708,7 @@ export function openEditTx(txId) {
   if (!tx) return;
 
   const options = ALL_CATS.map(c =>
-    `<option value="${c}" ${tx.category === c ? 'selected' : ''}>${CAT_ICONS[c] || '📌'} ${c}</option>`
+    `<option value="${esc(c)}" ${tx.category === c ? 'selected' : ''}>${getCatIcon(c)} ${esc(c)}</option>`
   ).join('');
 
   const content = document.getElementById('txDetailContent');
@@ -791,13 +792,14 @@ export function openDataCleanup() {
     <div style="font-size:13px;font-weight:800;margin-bottom:8px">全部类别</div>
     ${sorted.map(([c, n]) => `
       <div class="tx-row" style="padding:8px 0;gap:10px;cursor:default">
-        <div class="tx-icon" style="background:linear-gradient(135deg,rgba(0,122,255,.12),rgba(175,82,222,.12));font-size:16px">${CAT_ICONS[c] || '📌'}</div>
+        <div class="tx-icon" style="background:linear-gradient(135deg,rgba(0,122,255,.12),rgba(175,82,222,.12));font-size:16px">${getCatIcon(c)}</div>
         <div style="flex:1"><div style="font-size:13.5px;font-weight:700">${esc(c)}</div></div>
         <div style="font-size:12px;color:var(--color-label-4)">${n} 条</div>
         <button class="btn btn-danger btn-xs" data-delcat="${esc(c)}">删除全部</button>
       </div>`).join('')}
     <div class="btn-row">
       <button class="btn btn-secondary" id="cleanupClose">关闭</button>
+      <button class="btn btn-primary" id="openCatManageBtn">🗂️ 类目管理</button>
       <button class="btn btn-danger" id="cleanupRenormalize">批量重新归类</button>
     </div>`;
 
@@ -806,6 +808,10 @@ export function openDataCleanup() {
   content.querySelectorAll('[data-delcat]').forEach(btn =>
     btn.addEventListener('click', () => _deleteCategory(btn.dataset.delcat)));
   document.getElementById('cleanupClose')?.addEventListener('click', closeTxDetail);
+  document.getElementById('openCatManageBtn')?.addEventListener('click', () => {
+    closeTxDetail();
+    openCatManage();
+  });
   document.getElementById('cleanupRenormalize')?.addEventListener('click', _renormalizeAll);
 
   document.getElementById('txDetailModal')?.classList.add('open');
@@ -837,6 +843,99 @@ function _renormalizeAll() {
   showToast(`✅ 完成，${changed} 条记录已更新`);
   openDataCleanup();
   render();
+}
+
+// ════════════════════════════════════════════════════
+//  CATEGORY MANAGEMENT
+// ════════════════════════════════════════════════════
+
+export function openCatManage() {
+  const modal = document.getElementById('catManageModal');
+  if (!modal) return;
+  _renderCatManage();
+  modal.classList.add('open');
+}
+
+function _closeCatManage() {
+  document.getElementById('catManageModal')?.classList.remove('open');
+}
+
+function _renderCatManage() {
+  const listEl = document.getElementById('catManageList');
+  if (!listEl) return;
+
+  const builtIn = ALL_CATS;
+  const custom  = getCustomCategories();
+
+  listEl.innerHTML = `
+    <div style="font-size:13px;font-weight:800;margin-bottom:8px">🏗️ 系统类目（不可删除）</div>
+    ${builtIn.map(c => {
+      const icon = getCatIcon(c);
+      return `<div class="tx-row" style="padding:8px 0;gap:10px;cursor:default">
+        <div class="tx-icon" style="background:linear-gradient(135deg,rgba(0,122,255,.12),rgba(175,82,222,.12));font-size:16px">${icon}</div>
+        <div style="flex:1"><div style="font-size:13.5px;font-weight:700">${esc(c)}</div></div>
+        <span style="font-size:11px;color:var(--color-label-4);font-weight:600">系统</span>
+      </div>`;
+    }).join('')}
+    ${custom.length ? `
+      <div class="divider" style="margin:10px 0"></div>
+      <div style="font-size:13px;font-weight:800;margin-bottom:8px">✏️ 自定义类目</div>
+      ${custom.map(c => {
+        return `<div class="tx-row" style="padding:8px 0;gap:10px;cursor:default">
+          <div class="tx-icon" style="background:linear-gradient(135deg,rgba(52,199,89,.12),rgba(0,199,190,.12));font-size:16px">${c.icon}</div>
+          <div style="flex:1"><div style="font-size:13.5px;font-weight:700">${esc(c.v)}</div></div>
+          <button class="btn btn-danger btn-xs" data-delcustom="${esc(c.v)}">删除</button>
+        </div>`;
+      }).join('')}
+    ` : '<div style="font-size:12px;color:var(--color-label-4);padding:8px 0">暂无自定义类目</div>'}`;
+
+  // Wire delete buttons
+  listEl.querySelectorAll('[data-delcustom]').forEach(btn => {
+    btn.addEventListener('click', () => _deleteCustomCat(btn.dataset.delcustom));
+  });
+
+  // Wire add button
+  const addBtn = document.getElementById('addCatBtn');
+  if (addBtn) {
+    const newHandler = () => _addCustomCat();
+    addBtn.replaceWith(addBtn.cloneNode(true));
+    document.getElementById('addCatBtn')?.addEventListener('click', newHandler);
+  }
+
+  // Wire Enter key on input
+  const input = document.getElementById('newCatName');
+  if (input) {
+    const enterHandler = (e) => { if (e.key === 'Enter') _addCustomCat(); };
+    input.replaceWith(input.cloneNode(true));
+    document.getElementById('newCatName')?.addEventListener('keydown', enterHandler);
+  }
+
+  // Wire close
+  const closeBtn = document.getElementById('catManageClose');
+  if (closeBtn) {
+    closeBtn.replaceWith(closeBtn.cloneNode(true));
+    document.getElementById('catManageClose')?.addEventListener('click', _closeCatManage);
+  }
+}
+
+function _addCustomCat() {
+  const input = document.getElementById('newCatName');
+  const name = input?.value.trim();
+  if (!name) { showToast('请输入类目名称'); return; }
+
+  const ok = addCustomCategory(name);
+  if (!ok) { showToast(`类目「${name}」已存在`); return; }
+
+  if (input) input.value = '';
+  showToast(`✅ 类目「${name}」已添加`);
+  _renderCatManage();
+}
+
+function _deleteCustomCat(v) {
+  if (!confirm(`确认删除自定义类目「${v}」？已使用此类目的记录不会受影响。`)) return;
+  removeCustomCategory(v);
+  showToast(`🗑️ 类目「${v}」已删除`);
+  _renderCatManage();
 }
 
 // ════════════════════════════════════════════════════

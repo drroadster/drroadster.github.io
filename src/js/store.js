@@ -15,7 +15,7 @@
 //                            └────────────┘
 // ═══════════════════════════════════════════════════════
 
-import { LS, ALL_CATS, CAT_KEYWORD_MAP } from './config.js';
+import { LS, ALL_CATS, CAT_KEYWORD_MAP, getAllCategories, getCustomCategories } from './config.js';
 
 // ── State ─────────────────────────────────────────────
 /** @type {Transaction[]} */
@@ -61,6 +61,9 @@ export function initStore() {
   _transactions = _read(LS.TX);
   _assets       = _read(LS.ASSETS);
   _history      = _read(LS.ASSET_HISTORY);
+
+  // Run V2 data migration (normalise all categories + strip emoji)
+  migrateDataV2();
 }
 
 /**
@@ -160,6 +163,37 @@ export function renormalizeAllCategories() {
     if (norm !== t.category) { t.category = norm; changed++; }
   });
   if (changed) { _persist(LS.TX, _transactions); _emit('transactions'); }
+  return changed;
+}
+
+/**
+ * V2 data migration: normalise all categories once at startup.
+ * Handles emoji-prefixed, amount-as-category, and legacy non-system categories.
+ * Runs exactly once (guarded by LS.MIGRATED_V2 flag).
+ * @returns {number} count changed
+ */
+export function migrateDataV2() {
+  try {
+    if (localStorage.getItem(LS.MIGRATED_V2)) return 0;
+  } catch { return 0; }
+
+  let changed = 0;
+  _transactions.forEach(t => {
+    const raw = t.category || '';
+    // Normalise through the standard pipeline (strips emoji, does keyword match)
+    const norm = normalizeCategory(raw);
+    if (norm !== raw) {
+      t.category = norm;
+      changed++;
+    }
+  });
+
+  if (changed) {
+    _persist(LS.TX, _transactions);
+    _emit('transactions');
+  }
+
+  try { localStorage.setItem(LS.MIGRATED_V2, '1'); } catch {}
   return changed;
 }
 
@@ -320,8 +354,13 @@ export function normalizeCategory(raw) {
   let s = raw.trim().replace(/^[^\w\u4e00-\u9fa5a-zA-Z]+/, '').trim();
   if (!s) return '其他';
 
-  // Exact canonical match (case-insensitive)
-  const exact = ALL_CATS.find(c => c.toLowerCase() === s.toLowerCase());
+  // Strip trailing currency amount pattern (e.g. "Food -CN¥22" → "Food")
+  s = s.replace(/\s*-?CN¥[\d.]+$/i, '').trim();
+  if (!s) return '其他';
+
+  // Exact canonical match (case-insensitive) against all cats (built-in + custom)
+  const allCats = getAllCategories();
+  const exact = allCats.find(c => c.toLowerCase() === s.toLowerCase());
   if (exact) return exact;
 
   // Keyword fuzzy match over full raw string + stripped string

@@ -26,6 +26,8 @@ export const LS = {
   ASSET_HISTORY:'rdstr_asset_history',
   THEME:        'rdstr_theme',
   LANG:         'rdstr_lang',
+  CUSTOM_CATS:  'rdstr_custom_cats',
+  MIGRATED_V2:  'rdstr_migrated_v2',
 };
 
 // ── Chart.js palette ──────────────────────────────────
@@ -109,5 +111,73 @@ export const CAT_KEYWORD_MAP = [
   { canon:'Parents', kw:/保险|insurance/i },
 ];
 
+// ── Dynamic category management ──────────────────────
+
+/** Read custom categories from localStorage. */
+export function getCustomCategories() {
+  try { return JSON.parse(localStorage.getItem(LS.CUSTOM_CATS) || '[]'); }
+  catch { return []; }
+}
+
+/** Persist custom categories to localStorage. */
+export function saveCustomCategories(cats) {
+  try { localStorage.setItem(LS.CUSTOM_CATS, JSON.stringify(cats)); }
+  catch {}
+}
+
+/** Add a custom category. Returns false if duplicate. */
+export function addCustomCategory(v, icon) {
+  const cats = getCustomCategories();
+  if (cats.find(c => c.v === v)) return false;
+  cats.push({ v, icon: icon || guessIcon(v), label: v, custom: true });
+  saveCustomCategories(cats);
+  return true;
+}
+
+/** Remove a custom category by value. Returns false if not found or is built-in. */
+export function removeCustomCategory(v) {
+  const builtins = new Set(ALL_CATS);
+  if (builtins.has(v)) return false;
+  const cats = getCustomCategories().filter(c => c.v !== v);
+  saveCustomCategories(cats);
+  return true;
+}
+
+/** Get all categories (built-in + custom) as flat value list. */
+export function getAllCategories() {
+  const custom = getCustomCategories().map(c => c.v);
+  return [...ALL_CATS, ...custom];
+}
+
+/** Get the icon for a category (checks custom cats too). */
+export function getCatIcon(v) {
+  if (CAT_ICONS[v]) return CAT_ICONS[v];
+  const custom = getCustomCategories().find(c => c.v === v);
+  return custom?.icon || '📌';
+}
+
+/** Guess an emoji icon from category name. */
+export function guessIcon(name) {
+  if (!name) return '📌';
+  const map = {
+    '咖啡':'☕','奶茶':'🧋','外卖':'🥡','快递':'📦','宠物':'🐱',
+    '教育':'📖','学习':'📚','培训':'🎓','保险':'🛡️','医疗':'💊',
+    '理发':'💇','美容':'💄','健身':'🏋️','运动':'⚽','旅行':'✈️',
+    '酒店':'🏨','电影':'🎬','音乐':'🎵','游戏':'🎮','数码':'📱',
+    '话费':'📞','水费':'💧','电费':'⚡','燃气':'🔥','物业':'🏢',
+    '买菜':'🥬','水果':'🍎','零食':'🍿','烟酒':'🍺','加油':'⛽',
+    '停车':'🅿️','地铁':'🚇','公交':'🚌','打车':'🚕','房租':'🏠',
+    '房贷':'🏡','装修':'🔨','家电':'📺','家具':'🪑','日用品':'🧴',
+    '服装':'👔','鞋帽':'👟','礼物':'🎁','捐款':'💝','红包':'🧧',
+    '工资':'💰','奖金':'🏆','兼职':'💻','理财':'📈','退税':'📋',
+    '公积金':'🏦','社保':'📋','报销':'📝','退款':'💵',
+  };
+  const lower = name.toLowerCase();
+  for (const [kw, icon] of Object.entries(map)) {
+    if (lower.includes(kw)) return icon;
+  }
+  return '📌';
+}
+
 // ── App version ───────────────────────────────────────
-export const APP_VERSION = '2.0.0';
+export const APP_VERSION = '2.1.0';

@@ -9,7 +9,7 @@ import { buildLineChart, buildDoughnut, cssVar, hexToRgba } from '../charts.js';
 import { fmt, fmtK, esc, formatTxDateTime, pad2 } from '../utils.js';
 import { t } from '../i18n.js';
 import { onNavigate } from '../router.js';
-import { CAT_ICONS } from '../config.js';
+import { CAT_ICONS, getCatIcon } from '../config.js';
 
 let _period = 'month';
 
@@ -189,7 +189,7 @@ function _txRowHtml(tx) {
     : isLoss
       ? 'linear-gradient(135deg,rgba(255,59,48,.16),rgba(255,149,0,.12))'
       : 'linear-gradient(135deg,rgba(0,122,255,.14),rgba(175,82,222,.14))';
-  const icon = isLoss ? '📉' : (CAT_ICONS[tx.category] || '💳');
+  const icon = isLoss ? '📉' : (getCatIcon(tx.category));
 
   return `<div class="tx-row" data-tx-id="${tx.id}">
     <div class="tx-icon" style="background:${bg}">${icon}</div>

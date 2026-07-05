@@ -538,6 +538,28 @@
   </div>
 </div>
 
+<div class="sheet-overlay" id="catManageModal">
+  <div class="sheet glass">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">🗂️ 类目管理</div>
+    <div style="font-size:12.5px;color:var(--color-label-3);margin-bottom:12px;font-weight:600">
+      管理系统类目和自定义类目
+    </div>
+    <div id="catManageList"></div>
+    <div class="divider" style="margin:14px 0"></div>
+    <div class="field" style="margin-bottom:0">
+      <label class="field-label">新增自定义类目</label>
+      <div style="display:flex;gap:8px">
+        <input class="field-input" id="newCatName" placeholder="输入类目名称，如「宠物」「快递」" style="flex:1">
+        <button class="btn btn-primary btn-sm" id="addCatBtn" style="white-space:nowrap">＋ 添加</button>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="catManageClose">关闭</button>
+    </div>
+  </div>
+</div>
+
 <div id="syncBanner" class="sync-banner"></div>
 <div class="toast" id="toast"></div>
 
