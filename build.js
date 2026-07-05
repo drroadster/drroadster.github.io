@@ -108,20 +108,29 @@ const bundledCss = CSS_ORDER.map(rel => {
 
 log(`  → ${(bundledCss.length / 1024).toFixed(1)} KB`);
 
-// ── Step 3: read index.html and inject bundles ────────
-log('Injecting bundles into index.html...');
+// ── Step 3: read src/index.html and inject bundles ────
+const SRC_HTML = path.join(ROOT, 'src', 'index.html');
+if (!fs.existsSync(SRC_HTML)) fail(`Missing source HTML: ${SRC_HTML}`);
+log('Injecting bundles into src/index.html...');
 
-let html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+let html = fs.readFileSync(SRC_HTML, 'utf8');
 
-// Remove the 5 <link rel="stylesheet" href="src/css/...."> lines
+// Fix icon paths: source uses ../roadster-icon.svg (relative to src/),
+// but the built output at dist/roadster.html needs roadster-icon.svg
 html = html.replace(
-  /<link rel="stylesheet" href="src\/css\/[^"]+">\n?/g,
+  /href="\.\.\/roadster-icon\.svg"/g,
+  'href="roadster-icon.svg"'
+);
+
+// Remove the 5 <link rel="stylesheet" href="css/...."> lines
+html = html.replace(
+  /<link rel="stylesheet" href="css\/[^"]+">\n?/g,
   ''
 );
 
 // Remove the external module script tag
 html = html.replace(
-  /<script type="module" src="src\/js\/main\.js"><\/script>\n?/,
+  /<script type="module" src="js\/main\.js"><\/script>\n?/,
   ''
 );
 
