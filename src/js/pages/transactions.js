@@ -1227,7 +1227,9 @@ function _sourceLabel(source) {
  */
 function _sourceTagHtml(tx) {
   const source = tx.source;
-  if (!source || source === 'none') return '';
+  if (source === 'none') return '';
+  // 历史存量数据 source 字段缺失，默认视为手动添加
+  const effectiveSource = source || 'user';
 
   const map = {
     'ai':       { icon: '🤖', label: 'AI分类', color: '#af52de' },
@@ -1235,7 +1237,7 @@ function _sourceTagHtml(tx) {
     'merchant': { icon: '🏪', label: '自动',   color: '#34c759' },
     'user':     { icon: '✋', label: '手动',   color: '#ff9500' },
   };
-  const cfg = map[source];
+  const cfg = map[effectiveSource];
   if (!cfg) return '';
 
   return `<span class="tx-tag tx-tag--source" style="background:${cfg.color}18;color:${cfg.color};border:1px solid ${cfg.color}33;font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.85">${cfg.icon} ${cfg.label}</span>`;
