@@ -23,7 +23,7 @@ import {
 import { syncToCloud, onSyncStatus, getLastSyncDate } from './db.js';
 
 // v2.1: Delta Sync 引擎
-import { init as initSync, syncOnLogin, syncOnLogout, manualSync, getLastSyncTime, onSyncStatus as onSyncStatusV21 } from './sync/syncManager.js';
+import { init as initSync, syncOnLogin, syncOnLogout, manualSync, getLastSyncTime, onSyncStatus as onSyncStatusV21, isSyncing, getQueueSize as getSyncQueueSize } from './sync/syncManager.js';
 
 import { nowAsDatetimeLocal, pad2 } from './utils.js';
 
@@ -306,14 +306,24 @@ document.getElementById('signOutBtn')?.addEventListener('click', async () => {
 document.getElementById('manualSyncBtn')?.addEventListener('click', async () => {
   const user = getCurrentUser();
   if (!user) return;
+
+  // 同步已在执行中，不重复触发
+  if (isSyncing()) {
+    const qs = getSyncQueueSize();
+    showToast(qs > 0 ? `同步进行中（${qs} 条待处理）` : '同步进行中，请稍候');
+    return;
+  }
+
   const btn = document.getElementById('manualSyncBtn');
   const origText = btn?.innerHTML;
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin">↻</span> 同步中…'; }
   try {
     const { uploaded } = await manualSync();
-    showToast(uploaded > 0
-      ? (t('syncedCount') || '已同步{n}条').replace('{n}', uploaded)
-      : (t('synced') || '已同步'));
+    if (!isSyncing()) {
+      showToast(uploaded > 0
+        ? (t('syncedCount') || '已同步{n}条').replace('{n}', uploaded)
+        : (t('synced') || '已同步'));
+    }
     _updateSyncStatusRow(user.uid);
   } catch (err) {
     showToast('同步失败');

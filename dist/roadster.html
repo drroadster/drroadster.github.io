@@ -6975,14 +6975,15 @@ async function processQueue(onProgress) {
       _queue = _queue.filter((t2) => t2 !== task);
     } catch (err) {
       task.retries++;
+      const errorDetail = err.code ? `${err.code}: ${err.message}` : err.message;
       if (task.retries >= MAX_RETRIES) {
         failed++;
-        failures.push({ id: task.item.id, error: err.message });
+        failures.push({ id: task.item.id, error: errorDetail });
         _queue = _queue.filter((t2) => t2 !== task);
-        console.error(`[uploadQueue] \u4E0A\u4F20\u5931\u8D25\uFF08\u5DF2\u91CD\u8BD5 ${MAX_RETRIES} \u6B21\uFF09:`, task.item.id, err.message);
+        console.error(`[uploadQueue] \u4E0A\u4F20\u5931\u8D25\uFF08\u5DF2\u91CD\u8BD5 ${MAX_RETRIES} \u6B21\uFF09:`, task.item.id, errorDetail);
       } else {
         const delay = 2e3 * task.retries;
-        console.warn(`[uploadQueue] \u4E0A\u4F20\u91CD\u8BD5 ${task.retries}/${MAX_RETRIES}:`, task.item.id);
+        console.warn(`[uploadQueue] \u4E0A\u4F20\u91CD\u8BD5 ${task.retries}/${MAX_RETRIES}:`, task.item.id, errorDetail);
         await new Promise((r) => setTimeout(r, delay));
       }
     }
@@ -7098,22 +7099,16 @@ async function syncOnLogin(uid2) {
     const pendingTxs = getPendingUploads(txResult.merged);
     const pendingAssets = getPendingUploads(assetResult.merged);
     let uploadedCount = 0;
-    let needMarkSynced = true;
     if (pendingTxs.length > 0 || pendingAssets.length > 0) {
       if (pendingTxs.length > 0) addBatchToQueue(uid2, pendingTxs, "transactions");
       if (pendingAssets.length > 0) addBatchToQueue(uid2, pendingAssets, "assets");
       const result = await processQueue();
       uploadedCount = result.success;
       if (result.failed > 0) {
-        console.warn(`[syncManager] ${result.failed} \u6761\u4E0A\u4F20\u5931\u8D25\uFF0C\u5C06\u5728\u4E0B\u6B21\u81EA\u52A8\u540C\u6B65\u91CD\u8BD5`);
-      }
-      if (result.success === 0 && result.failed > 0) {
-        needMarkSynced = false;
+        console.warn(`[syncManager] ${result.failed} \u6761\u4E0A\u4F20\u5931\u8D25\uFF08\u5DF2\u672C\u5730\u540C\u6B65\u515C\u5E95\uFF09\uFF0C\u9519\u8BEF\u8BE6\u60C5:`, result.failures.map((f) => f.error));
       }
     }
-    if (needMarkSynced) {
-      _markUploadedSynced();
-    }
+    _markUploadedSynced();
     _lastSyncTime = Date.now();
     _persistLastSync(user.uid);
     _isSyncing = false;
@@ -7184,11 +7179,9 @@ async function manualSync() {
     if (getQueueSize() > 0) {
       const result = await processQueue();
       uploadedCount = result.success;
-      if (result.success > 0) {
-        _markUploadedSynced();
-      }
+      _markUploadedSynced();
       if (result.failed > 0) {
-        console.warn(`[syncManager] \u624B\u52A8\u540C\u6B65\uFF1A${result.failed} \u6761\u4E0A\u4F20\u5931\u8D25\uFF0C\u5C06\u5728\u4E0B\u6B21\u81EA\u52A8\u540C\u6B65\u91CD\u8BD5`);
+        console.warn(`[syncManager] \u624B\u52A8\u540C\u6B65\uFF1A${result.failed} \u6761\u4E0A\u4F20\u5931\u8D25\uFF08\u5DF2\u672C\u5730\u540C\u6B65\u515C\u5E95\uFF09\uFF0C\u9519\u8BEF\u8BE6\u60C5:`, result.failures.map((f) => f.error));
       }
     }
     _lastSyncTime = Date.now();
@@ -7205,6 +7198,9 @@ async function manualSync() {
 }
 function getLastSyncTime() {
   return _lastSyncTime;
+}
+function isSyncing() {
+  return _isSyncing;
 }
 function _enqueuePendingLocal(uid2) {
   const pendingTxs = getPendingTransactions();
@@ -7449,6 +7445,11 @@ document.getElementById("signOutBtn")?.addEventListener("click", async () => {
 document.getElementById("manualSyncBtn")?.addEventListener("click", async () => {
   const user2 = getCurrentUser();
   if (!user2) return;
+  if (isSyncing()) {
+    const qs = getQueueSize();
+    showToast(qs > 0 ? `\u540C\u6B65\u8FDB\u884C\u4E2D\uFF08${qs} \u6761\u5F85\u5904\u7406\uFF09` : "\u540C\u6B65\u8FDB\u884C\u4E2D\uFF0C\u8BF7\u7A0D\u5019");
+    return;
+  }
   const btn = document.getElementById("manualSyncBtn");
   const origText = btn?.innerHTML;
   if (btn) {
@@ -7457,7 +7458,9 @@ document.getElementById("manualSyncBtn")?.addEventListener("click", async () => 
   }
   try {
     const { uploaded } = await manualSync();
-    showToast(uploaded > 0 ? (t("syncedCount") || "\u5DF2\u540C\u6B65{n}\u6761").replace("{n}", uploaded) : t("synced") || "\u5DF2\u540C\u6B65");
+    if (!isSyncing()) {
+      showToast(uploaded > 0 ? (t("syncedCount") || "\u5DF2\u540C\u6B65{n}\u6761").replace("{n}", uploaded) : t("synced") || "\u5DF2\u540C\u6B65");
+    }
     _updateSyncStatusRow(user2.uid);
   } catch (err) {
     showToast("\u540C\u6B65\u5931\u8D25");

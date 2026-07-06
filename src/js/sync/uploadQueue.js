@@ -85,16 +85,16 @@ export async function processQueue(onProgress) {
       _queue = _queue.filter(t => t !== task);
     } catch (err) {
       task.retries++;
+      // 记录 Firestore 错误码以便诊断
+      const errorDetail = err.code ? `${err.code}: ${err.message}` : err.message;
       if (task.retries >= MAX_RETRIES) {
-        // 超过最大重试次数，标记失败
         failed++;
-        failures.push({ id: task.item.id, error: err.message });
+        failures.push({ id: task.item.id, error: errorDetail });
         _queue = _queue.filter(t => t !== task);
-        console.error(`[uploadQueue] 上传失败（已重试 ${MAX_RETRIES} 次）:`, task.item.id, err.message);
+        console.error(`[uploadQueue] 上传失败（已重试 ${MAX_RETRIES} 次）:`, task.item.id, errorDetail);
       } else {
-        // 等待后重试（指数退避）
         const delay = 2000 * task.retries;
-        console.warn(`[uploadQueue] 上传重试 ${task.retries}/${MAX_RETRIES}:`, task.item.id);
+        console.warn(`[uploadQueue] 上传重试 ${task.retries}/${MAX_RETRIES}:`, task.item.id, errorDetail);
         await new Promise(r => setTimeout(r, delay));
       }
     }

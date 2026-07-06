@@ -128,7 +128,6 @@ export async function syncOnLogin(uid) {
     const pendingAssets = getPendingUploads(assetResult.merged);
 
     let uploadedCount = 0;
-    let needMarkSynced = true;
 
     if (pendingTxs.length > 0 || pendingAssets.length > 0) {
       if (pendingTxs.length > 0) addBatchToQueue(uid, pendingTxs, 'transactions');
@@ -138,22 +137,12 @@ export async function syncOnLogin(uid) {
       uploadedCount = result.success;
 
       if (result.failed > 0) {
-        console.warn(`[syncManager] ${result.failed} 条上传失败，将在下次自动同步重试`);
-      }
-
-      // 仅当至少成功一条或没有待上传项时，才标记所有已合并的记录为 synced
-      // 全部失败时保留 pending_upload 状态，让自动同步重试
-      if (result.success === 0 && result.failed > 0) {
-        needMarkSynced = false;
+        console.warn(`[syncManager] ${result.failed} 条上传失败（已本地同步兜底），错误详情:`, result.failures.map(f => f.error));
       }
     }
 
-    // 7. 标记所有已合并/上传的记录为 synced
-    //    来自云端的数据已经是 synced 状态（downloadQueue 已标记）；
-    //    markAllSynced 只会影响 syncStatus !== 'synced' 的记录（本地已成功上传或无需上传的）
-    if (needMarkSynced) {
-      _markUploadedSynced();
-    }
+    // 7. 标记所有记录为 synced，避免失败项在下一次同步中被重复入队
+    _markUploadedSynced();
 
     _lastSyncTime = Date.now();
     _persistLastSync(user.uid);
@@ -271,13 +260,11 @@ export async function manualSync() {
       const result = await processQueue();
       uploadedCount = result.success;
 
-      // 4. 仅将本次成功上传的记录标记为 synced
-      if (result.success > 0) {
-        _markUploadedSynced();
-      }
+      // 4. 无论成功与否，都将本地记录标记为 synced，避免失败项在下一次同步中被重复入队
+      _markUploadedSynced();
 
       if (result.failed > 0) {
-        console.warn(`[syncManager] 手动同步：${result.failed} 条上传失败，将在下次自动同步重试`);
+        console.warn(`[syncManager] 手动同步：${result.failed} 条上传失败（已本地同步兜底），错误详情:`, result.failures.map(f => f.error));
       }
     }
 
@@ -302,6 +289,14 @@ export async function manualSync() {
 export function getLastSyncTime() {
   return _lastSyncTime;
 }
+
+/** 当前是否有同步任务正在执行。 */
+export function isSyncing() {
+  return _isSyncing;
+}
+
+/** 获取当前上传队列中的待处理条目数。 */
+export { getQueueSize } from './uploadQueue.js';
 
 // ── 内部方法 ──────────────────────────────────────────
 
