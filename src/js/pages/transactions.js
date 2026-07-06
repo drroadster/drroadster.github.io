@@ -16,6 +16,8 @@ import { t } from '../i18n.js';
 import { showToast } from '../router.js';
 import { CAT_ICONS, EXPENSE_CATS, INCOME_CATS, ALL_CATS, getCustomCategories, getCatIcon, addCustomCategory, removeCustomCategory, getAllCategories } from '../config.js';
 import { onNavigate } from '../router.js';
+import { categorize } from '../ai/categorizer.js';
+import { learn } from '../ai/userMemoryEngine.js';
 
 // ── State ────────────────────────────────────────────
 let _filterType = '';              // '' | '收入' | '支出'
@@ -169,12 +171,20 @@ function _rowHtml(tx) {
   const isEditing = _editingTxId === tx.id;
   const editCls = isEditing ? ' time-editing' : '';
 
+  // 存储位置标签
+  const storageTag = _storageTagHtml(tx);
+  // 智能分类标签
+  const gCatLabel = tx.gCategory ? _gCategoryBadge(tx) : '';
+  // 分类来源标签
+  const sourceTag = _sourceTagHtml(tx);
+
   return `<div class="tx-row${editCls}" data-tx-id="${tx.id}">
     <div class="tx-icon" style="background:${bg}">${icon}</div>
     <div class="tx-info">
       <div class="tx-name">${esc(tx.category)}${tx.note ? ' · ' + esc(tx.note) : ''}${isLoss ? ' · 亏损' : ''}</div>
       <div class="tx-meta">
         <span class="tx-time-pill${isEditing ? ' editing' : ''}" data-tx-id="${tx.id}" data-tx-time="${esc(tx.date)}" title="点击修改时间">🕐 ${esc(timeDisplay)}</span>
+        ${gCatLabel}${sourceTag}${storageTag}
       </div>
     </div>
     <div class="tx-amount ${cls}">${sign}¥${fmt(Math.abs(tx.amount))}</div>
@@ -595,12 +605,6 @@ function _renderCatGrid() {
 
   const customInput = document.getElementById('txCategoryCustom');
   if (customInput) customInput.classList.toggle('show', _isCustomCat);
-
-  // Default-select first category on type switch
-  if (!_isCustomCat && !items.find(c => c.v === _selectedCat)) {
-    _selectedCat = items[0].v;
-    _renderCatGrid();
-  }
 }
 
 function _selectCategory(v) {
@@ -621,22 +625,37 @@ function _getSelectedCategory() {
   return _selectedCat;
 }
 
-export function saveQuickTx() {
+export async function saveQuickTx() {
   let amount = parseFloat(_keypadVal);
   const category = _getSelectedCategory();
   const dateRaw   = document.getElementById('txDate')?.value || '';
   const note      = document.getElementById('txNote')?.value.trim() || '';
 
   if (isNaN(amount) || amount === 0) { showToast(t('toastInvalidAmount')); return; }
-  if (!category) { showToast(t('toastNeedCategory')); return; }
   if (!dateRaw)  { showToast(t('toastNeedDate'));    return; }
 
-  const date = dateRaw.length === 16 ? dateRaw + ':00' : dateRaw; // pad missing seconds
+  const date = dateRaw.length === 16 ? dateRaw + ':00' : dateRaw;
   const allowsNegative = (_quickType === '收入' && category === '理财');
   if (!allowsNegative) amount = Math.abs(amount);
 
-  const tx = { id: `t${Date.now()}${Math.random().toString(36).slice(2,8)}`,
-               date, type: _quickType, amount, category, note };
+  // 调用智能分类器
+  const classifyResult = await categorize(note, category, _quickType);
+
+  // 未选择类目时，以 AI 智能分类结果填充 category
+  const finalCategory = category || classifyResult.gCategory || '其他';
+
+  const tx = {
+    id: `t${Date.now()}${Math.random().toString(36).slice(2,8)}`,
+    date, type: _quickType, amount, category: finalCategory, note,
+    gCategory: classifyResult.gCategory || '其他',
+    gSubCategory: classifyResult.gSubCategory || '其他',
+    tags: classifyResult.tags || [],
+    confidence: classifyResult.confidence || 0,
+    source: classifyResult.source || 'none',
+    aiUsed: classifyResult.aiUsed || false,
+    userOverride: false,
+    matchedRule: classifyResult.matchedRule || '',
+  };
 
   const { added, duplicates } = addTransactions([tx]);
   closeTxModal();
@@ -711,10 +730,21 @@ export function openEditTx(txId) {
     `<option value="${esc(c)}" ${tx.category === c ? 'selected' : ''}>${getCatIcon(c)} ${esc(c)}</option>`
   ).join('');
 
+  const gCat = tx.gCategory || '';
+  const sourceTag = tx.source
+    ? `<span class="tx-source-tag" title="${esc(tx.matchedRule || '')}">${_sourceLabel(tx.source)}</span>`
+    : '';
+
   const content = document.getElementById('txDetailContent');
   if (!content) return;
   content.innerHTML = `
     <div style="padding:4px 0 16px;font-size:17px;font-weight:800">编辑记录</div>
+    <div class="field"><label class="field-label">智能分类</label>
+      <div style="display:flex;align-items:center;gap:8px;padding:4px 0">
+        <span style="font-size:14px;font-weight:700;background:var(--color-surface-2);padding:4px 12px;border-radius:var(--r-sm)">${esc(gCat)}</span>
+        ${sourceTag}
+      </div>
+    </div>
     <div class="field">
       <label class="field-label">收支类型</label>
       <div class="segmented" style="width:100%">
@@ -734,6 +764,9 @@ export function openEditTx(txId) {
     </div>`;
 
   let editType = tx.type;
+  const origCategory = tx.category;
+  const origNote = tx.note || '';
+
   document.getElementById('editTypeExp')?.addEventListener('click', function () {
     editType = '支出'; this.classList.add('active');
     document.getElementById('editTypeInc')?.classList.remove('active');
@@ -748,7 +781,18 @@ export function openEditTx(txId) {
     const newAmt = parseFloat(document.getElementById('editAmount').value);
     const newNote = document.getElementById('editNote').value.trim();
     if (isNaN(newAmt) || newAmt <= 0) { showToast(t('toastInvalidAmount')); return; }
-    updateTransaction(tx.id, { type: editType, category: newCat, amount: newAmt, note: newNote });
+
+    const patch = { type: editType, category: newCat, amount: newAmt, note: newNote };
+
+    // 如果用户修改了分类，标记 userOverride 并触发学习
+    if (newCat !== origCategory || newNote !== origNote) {
+      patch.userOverride = true;
+      // 学习：用现有 gCategory 或新 category 做训练
+      const effectiveCat = tx.gCategory || normalizeCategory(newCat);
+      learn(newNote || newCat, effectiveCat);
+    }
+
+    updateTransaction(tx.id, patch);
     closeTxDetail();
     showToast(t('toastTxUpdated'));
     render();
@@ -1117,11 +1161,100 @@ function _exportCSV(kind) {
   if (kind === 'tx') {
     const txs = getTransactions();
     if (!txs.length) { showToast(t('toastNoData')); return; }
-    const rows = [['时间','收支','类别','金额','备注'].join(','),
+    const rows = [['时间','收支','类别','金额','备注','智能分类','分类来源'].join(','),
       ...[...txs].sort((a,b)=>new Date(a.date)-new Date(b.date))
-        .map(t => [t.date, t.type, t.category, t.amount, t.note || ''].map(_csvEscape).join(','))];
+        .map(t => [t.date, t.type, t.category, t.amount, t.note || '', t.gCategory || '', t.source || ''].map(_csvEscape).join(','))];
     _download(`Roadster_记账数据_${stamp}.csv`, '\uFEFF' + rows.join('\n'), 'text/csv;charset=utf-8');
     showToast(t('toastExportDone'));
   }
   // asset-csv / asset-history-csv are handled in pages/assets.js
+}
+
+// ════════════════════════════════════════════════════
+//  AI 分类辅助函数
+// ════════════════════════════════════════════════════
+
+/**
+ * 生成 gCategory 徽章 HTML
+ * @param {Transaction} tx
+ * @returns {string}
+ */
+function _gCategoryBadge(tx) {
+  if (!tx.gCategory || tx.gCategory === '其他') return '';
+
+  const colorMap = {
+    '餐饮': '#ff9500',
+    '交通': '#5ac8fa',
+    '购物': '#ff2d55',
+    '住房': '#af52de',
+    '娱乐': '#30d158',
+    '医疗': '#ff3b30',
+    '教育': '#5856d6',
+    '收入': '#34c759',
+    '投资': '#ffd60a',
+    '其他': '#8e8e93',
+  };
+  const color = colorMap[tx.gCategory] || '#8e8e93';
+  const sourceLabel = _sourceLabel(tx.source);
+
+  return `<span class="tx-gcat-badge" style="background:${color}22;color:${color};border:1px solid ${color}44;font-size:11px;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;display:inline-flex;align-items:center;gap:3px">
+    ${esc(tx.gCategory)}
+    ${sourceLabel ? `<span style="font-size:9px;opacity:0.7">${sourceLabel}</span>` : ''}
+  </span>`;
+}
+
+/**
+ * 来源标签文字
+ * @param {string} source
+ * @returns {string}
+ */
+function _sourceLabel(source) {
+  if (!source) return '';
+  const map = {
+    'merchant': '🏪 商户',
+    'rule':     '📏 规则',
+    'user':     '🧠 记忆',
+    'ai':       '🤖 AI',
+    'none':     '',
+  };
+  return map[source] || '';
+}
+
+/**
+ * 分类来源标签 HTML（新功能 2）
+ * @param {Transaction} tx
+ * @returns {string}
+ */
+function _sourceTagHtml(tx) {
+  const source = tx.source;
+  if (!source || source === 'none') return '';
+
+  const map = {
+    'ai':       { icon: '🤖', label: 'AI分类', color: '#af52de' },
+    'rule':     { icon: '⚡', label: '自动',   color: '#5ac8fa' },
+    'merchant': { icon: '🏪', label: '自动',   color: '#34c759' },
+    'user':     { icon: '✋', label: '手动',   color: '#ff9500' },
+  };
+  const cfg = map[source];
+  if (!cfg) return '';
+
+  return `<span class="tx-tag tx-tag--source" style="background:${cfg.color}18;color:${cfg.color};border:1px solid ${cfg.color}33;font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.85">${cfg.icon} ${cfg.label}</span>`;
+}
+
+/**
+ * 存储位置标签 HTML（新功能 1）
+ * @param {Transaction} tx
+ * @returns {string}
+ */
+function _storageTagHtml(tx) {
+  const status = tx.syncStatus;
+
+  if (status === 'synced') {
+    return '<span class="tx-tag tx-tag--storage" style="background:rgba(52,199,89,.12);color:#34c759;border:1px solid rgba(52,199,89,.2);font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.75">☁️ 云端</span>';
+  }
+  if (status === 'pending_upload') {
+    return '<span class="tx-tag tx-tag--storage" style="background:rgba(255,149,0,.12);color:#ff9500;border:1px solid rgba(255,149,0,.2);font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.75">📤 待同步</span>';
+  }
+  // syncStatus === 'local' 或空（未登录/新记录）
+  return '<span class="tx-tag tx-tag--storage" style="background:rgba(142,142,147,.12);color:var(--color-label-3);border:1px solid rgba(142,142,147,.18);font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.75">💻 本地</span>';
 }

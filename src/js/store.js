@@ -286,6 +286,31 @@ export function getPendingAssets() {
 }
 
 /**
+ * 将所有「未同步」的记录标记为待上传（local → pending_upload）。
+ * 用于登录同步前批量准备上传队列。
+ */
+export function markAllPendingUpload() {
+  let txChanged = false, assetChanged = false;
+
+  _transactions.forEach(t => {
+    if (t.syncStatus === 'local' && t.deleted !== true) {
+      t.syncStatus = 'pending_upload';
+      txChanged = true;
+    }
+  });
+
+  _assets.forEach(a => {
+    if (a.syncStatus === 'local' && a.deleted !== true) {
+      a.syncStatus = 'pending_upload';
+      assetChanged = true;
+    }
+  });
+
+  if (txChanged)  { _persist(LS.TX, _transactions); _emit('transactions'); }
+  if (assetChanged) { _persist(LS.ASSETS, _assets); _emit('assets'); }
+}
+
+/**
  * 将所有记录的 syncStatus 标记为 'synced'。
  * 在上传队列全部处理完成后调用。
  */
@@ -306,9 +331,8 @@ export function markAllSynced() {
     }
   });
 
-  if (txChanged)  _persist(LS.TX, _transactions);
-  if (assetChanged) _persist(LS.ASSETS, _assets);
-  // 不触发 emit，避免 UI 重渲染（syncStatus 变化无需刷新页面）
+  if (txChanged)  { _persist(LS.TX, _transactions); _emit('transactions'); }
+  if (assetChanged) { _persist(LS.ASSETS, _assets); _emit('assets'); }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -689,7 +713,15 @@ function _persist(key, value) {
  *   deviceId: string,
  *   version: number,
  *   deleted: boolean,
- *   syncStatus: 'local'|'pending_upload'|'synced'|'conflict'
+ *   syncStatus: 'local'|'pending_upload'|'synced'|'conflict',
+ *   gCategory: string,
+ *   gSubCategory: string,
+ *   tags: string[],
+ *   confidence: number,
+ *   source: string,
+ *   aiUsed: boolean,
+ *   userOverride: boolean,
+ *   matchedRule: string
  * }} Transaction
  *
  * @typedef {{

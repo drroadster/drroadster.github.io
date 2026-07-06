@@ -22,13 +22,17 @@
 //  └─────────────────┴─────────────────┴───────────────────┘
 // ═══════════════════════════════════════════════════════
 
-import { getCurrentUser } from '../auth.js';
+import { getCurrentUser, firebaseApp } from '../auth.js';
 import * as store from '../store.js';
 import { downloadAll } from './downloadQueue.js';
 import { addBatchToQueue, processQueue, clearQueue, getQueueSize } from './uploadQueue.js';
 import { merge, getPendingUploads } from './mergeEngine.js';
-import { SYNC } from '../config.js';
+import { SYNC, userDocPath } from '../config.js';
 import { getDeviceId } from './versionManager.js';
+import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+
+const _db = getFirestore(firebaseApp);
+const LS_LAST_SYNC = 'roadster:lastSync';
 
 // ── 内部状态 ──────────────────────────────────────────
 let _autoSyncTimer = null;
@@ -63,6 +67,9 @@ function _notify(status, detail) {
  */
 export function init() {
   console.log('[syncManager] 初始化同步管理器');
+  // 从 localStorage 恢复上次同步时间
+  const saved = localStorage.getItem(LS_LAST_SYNC);
+  if (saved) _lastSyncTime = parseInt(saved, 10);
   // 启动自动同步（如果已登录，定时处理上传队列）
   _maybeStartAutoSync();
 }
@@ -94,12 +101,15 @@ export async function syncOnLogin(uid) {
     const cloud = await downloadAll(uid);
     console.log(`[syncManager] 云端数据：${cloud.transactions.length} 条交易, ${cloud.assets.length} 个资产`);
 
-    // 2. 读取本地数据（原始数组，包含 syncStatus 等元数据）
+    // 2. 读取本地数据前，先把旧数据（syncStatus='local'）标记为 'pending_upload'
+    store.markAllPendingUpload();
+
+    // 3. 读取本地数据（原始数组，包含 syncStatus 等元数据）
     const localTxs = store.getTransactionsRaw();
     const localAssets = store.getAssetsRaw();
     console.log(`[syncManager] 本地数据：${localTxs.length} 条交易, ${localAssets.length} 个资产`);
 
-    // 3-4. Merge 并写回本地
+    // 4-5. Merge 并写回本地
     _notify('pending', { phase: 'merge' });
 
     const txResult = merge(cloud.transactions, localTxs, 'id');
@@ -111,13 +121,15 @@ export async function syncOnLogin(uid) {
     console.log(`[syncManager] 合并结果 — 交易: 新增${txResult.stats.added} 更新${txResult.stats.updated} 删除${txResult.stats.deleted} 不变${txResult.stats.unchanged}`);
     console.log(`[syncManager] 合并结果 — 资产: 新增${assetResult.stats.added} 更新${assetResult.stats.updated} 删除${assetResult.stats.deleted} 不变${assetResult.stats.unchanged}`);
 
-    // 5. 上传本地新增/修改的记录
+    // 6. 上传本地新增/修改的记录
     _notify('pending', { phase: 'upload' });
 
     const pendingTxs = getPendingUploads(txResult.merged);
     const pendingAssets = getPendingUploads(assetResult.merged);
 
     let uploadedCount = 0;
+    let needMarkSynced = true;
+
     if (pendingTxs.length > 0 || pendingAssets.length > 0) {
       if (pendingTxs.length > 0) addBatchToQueue(uid, pendingTxs, 'transactions');
       if (pendingAssets.length > 0) addBatchToQueue(uid, pendingAssets, 'assets');
@@ -125,18 +137,26 @@ export async function syncOnLogin(uid) {
       const result = await processQueue();
       uploadedCount = result.success;
 
-      // 上传成功后更新本地 syncStatus
-      if (result.success > 0) {
-        // 重新加载本地数据并标记已上传项
-        _markUploadedSynced();
-      }
-
       if (result.failed > 0) {
         console.warn(`[syncManager] ${result.failed} 条上传失败，将在下次自动同步重试`);
       }
+
+      // 仅当至少成功一条或没有待上传项时，才标记所有已合并的记录为 synced
+      // 全部失败时保留 pending_upload 状态，让自动同步重试
+      if (result.success === 0 && result.failed > 0) {
+        needMarkSynced = false;
+      }
+    }
+
+    // 7. 标记所有已合并/上传的记录为 synced
+    //    来自云端的数据已经是 synced 状态（downloadQueue 已标记）；
+    //    markAllSynced 只会影响 syncStatus !== 'synced' 的记录（本地已成功上传或无需上传的）
+    if (needMarkSynced) {
+      _markUploadedSynced();
     }
 
     _lastSyncTime = Date.now();
+    _persistLastSync(user.uid);
     _isSyncing = false;
 
     // 启动后台自动同步
@@ -187,6 +207,7 @@ export function startAutoSync() {
       await processQueue();
       _markUploadedSynced();
       _lastSyncTime = Date.now();
+      _persistLastSync(user.uid);
     } catch (err) {
       console.error('[syncManager] 自动同步失败:', err);
     } finally {
@@ -238,25 +259,30 @@ export async function manualSync() {
   _notify('pending', { phase: 'manual' });
 
   try {
-    // 先处理上传队列
+    // 1. 先将本地所有 syncStatus === 'local' 的记录标记为 pending_upload
+    store.markAllPendingUpload();
+    
+    // 2. 将待上传记录加入队列
+    _enqueuePendingLocal(user.uid);
+
+    // 3. 处理上传队列
     let uploadedCount = 0;
     if (getQueueSize() > 0) {
       const result = await processQueue();
       uploadedCount = result.success;
-      _markUploadedSynced();
-    }
 
-    // 标记所有 syncStatus !== 'synced' 的记录为待上传
-    _enqueuePendingLocal(user.uid);
+      // 4. 仅将本次成功上传的记录标记为 synced
+      if (result.success > 0) {
+        _markUploadedSynced();
+      }
 
-    // 再次处理队列
-    if (getQueueSize() > 0) {
-      const result = await processQueue();
-      uploadedCount += result.success;
-      _markUploadedSynced();
+      if (result.failed > 0) {
+        console.warn(`[syncManager] 手动同步：${result.failed} 条上传失败，将在下次自动同步重试`);
+      }
     }
 
     _lastSyncTime = Date.now();
+    _persistLastSync(user.uid);
     _isSyncing = false;
     _notify('synced', { uploaded: uploadedCount });
 
@@ -289,6 +315,23 @@ function _enqueuePendingLocal(uid) {
 
   if (pendingTxs.length > 0) addBatchToQueue(uid, pendingTxs, 'transactions');
   if (pendingAssets.length > 0) addBatchToQueue(uid, pendingAssets, 'assets');
+}
+
+/**
+ * 持久化上次同步时间：写入 localStorage + Firestore 用户文档。
+ * 这样即使页面刷新，_updateSyncStatusRow 仍能读到有效时间。
+ * @param {string} uid
+ */
+async function _persistLastSync(uid) {
+  localStorage.setItem(LS_LAST_SYNC, String(_lastSyncTime));
+  try {
+    // 写入 Firestore users/{uid}/data/finance 文档的 updatedAt 字段，
+    // 这样 _updateSyncStatusRow 中的 getLastSyncDate(uid) 就能读到有效时间
+    await setDoc(doc(_db, userDocPath(uid)), { updatedAt: serverTimestamp() }, { merge: true });
+  } catch (err) {
+    // Firestore 写入非关键路径，静默失败不影响前台体验
+    console.warn('[syncManager] 写入同步时间戳失败:', err.message);
+  }
 }
 
 /**
