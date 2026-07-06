@@ -8,7 +8,7 @@
 
 import { initTheme, setTheme, getTheme } from './theme.js';
 import { initI18n, toggleLang, t } from './i18n.js';
-import { initStore, reloadFromStorage } from './store.js';
+import { initStore, reloadFromStorage, addTransactions } from './store.js';
 import { initRouter, navigate, onNavigate, fabAction, showToast, currentPage } from './router.js';
 
 import { initOverviewPage,     render as renderOverview }     from './pages/overview.js';
@@ -26,6 +26,7 @@ import { syncToCloud, onSyncStatus, getLastSyncDate } from './db.js';
 import { init as initSync, syncOnLogin, syncOnLogout, manualSync, getLastSyncTime, onSyncStatus as onSyncStatusV21, isSyncing, getQueueSize as getSyncQueueSize } from './sync/syncManager.js';
 
 import { nowAsDatetimeLocal, pad2 } from './utils.js';
+import { categorize } from './ai/categorizer.js';
 
 // ════════════════════════════════════════════════════
 //  1. THEME + LANGUAGE
@@ -451,63 +452,72 @@ window.__rdstr_onSyncSuccess = function () { /* status banner already shows this
 window.__rdstr_onSyncError   = function (msg) { console.warn('[sync] failed:', msg); };
 
 // ════════════════════════════════════════════════════
-//  7. URL DEEP-LINK (iOS Shortcuts → auto-open quick-add)
+//  7. URL QUICK-ADD (Shortcuts / 快捷指令自动记账)
 // ════════════════════════════════════════════════════
 //
-//  Format: roadster.html?amount=121&note=...&date=ISO&type=支出
-//  Used by the "double-tap to log expense" Shortcut workflow.
+//  Format: ?amount=121&note=咖啡&type=支出&date=2026-07-07
+//  示例: https://drroadster.github.io/html?amount=36.5&note=猫咪零食
+//  检测到 amount 参数后直接添加记录，跳过 UI。
 
 (function handleUrlParams() {
   const p = new URLSearchParams(window.location.search);
   const amount = p.get('amount');
   if (!amount) return;
 
-  const openOnReady = () => {
-    navigate('transactions', false);
-    openTxModal();
-
-    // Pre-fill amount into the keypad display directly
+  const openOnReady = async () => {
     const numeric = parseFloat(amount.replace(/[^\d.]/g, ''));
-    const amountEl = document.getElementById('amountText');
-    if (!isNaN(numeric) && numeric > 0 && amountEl) {
-      amountEl.textContent = String(numeric);
-      // Sync the internal keypad state via a synthetic digit sequence
-      // is fragile — instead we dispatch a custom event the page module
-      // listens for. Simpler: just set the textContent (display-only)
-      // and let the user confirm via keypad if they need to adjust.
-    }
+    if (isNaN(numeric) || numeric <= 0) return;
 
-    const note = p.get('note') || '';
-    const noteEl = document.getElementById('txNote');
-    if (note && noteEl) noteEl.value = note;
+    const note  = p.get('note') || '';
+    const type  = (p.get('type') === '收入' || p.get('type') === 'income') ? '收入' : '支出';
 
+    let date;
     const dateParam = p.get('date') || p.get('time');
-    const dateEl = document.getElementById('txDate');
-    if (dateEl) {
-      if (dateParam) {
-        const d = new Date(dateParam);
-        if (!isNaN(d)) {
-          dateEl.value = `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
-        }
-      } else {
-        dateEl.value = nowAsDatetimeLocal();
-      }
+    if (dateParam) {
+      const d = new Date(dateParam);
+      date = isNaN(d)
+        ? nowAsDatetimeLocal()
+        : `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+    } else {
+      date = nowAsDatetimeLocal();
     }
 
-    const typeParam = p.get('type');
-    if (typeParam === '收入' || typeParam === 'income') {
-      document.getElementById('segIncome')?.click();
-    }
+    // AI 智能分类
+    const classifyResult = await categorize(note, '', type);
 
-    // Clean the URL so refreshing doesn't re-trigger
+    const tx = {
+      id: `t${Date.now()}${Math.random().toString(36).slice(2,8)}`,
+      date, type,
+      amount: Math.abs(numeric),
+      category: classifyResult.gCategory || '其他',
+      note,
+      gCategory: classifyResult.gCategory || '其他',
+      gSubCategory: classifyResult.gSubCategory || '其他',
+      tags: classifyResult.tags || [],
+      confidence: classifyResult.confidence || 0,
+      source: classifyResult.source || 'none',
+      aiUsed: classifyResult.aiUsed || false,
+      userOverride: false,
+      matchedRule: classifyResult.matchedRule || '',
+    };
+
+    const { added, duplicates } = addTransactions([tx]);
+
+    // 清除 URL 参数防止刷新重复添加
     window.history.replaceState({}, '', window.location.pathname);
-    showToast(t('toastAutoFill'));
+
+    if (duplicates && !added) {
+      showToast('已存在相同记录，未重复添加');
+      return;
+    }
+
+    showToast(`已添加${type}：¥${numeric}${note ? ' · ' + note : ''}`);
   };
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(openOnReady, 150));
+    document.addEventListener('DOMContentLoaded', () => setTimeout(openOnReady, 300));
   } else {
-    setTimeout(openOnReady, 150);
+    setTimeout(openOnReady, 300);
   }
 })();
 

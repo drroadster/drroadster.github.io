@@ -7292,6 +7292,7 @@ function _maybeStartAutoSync() {
 
 // src/js/main.js
 init_utils();
+init_categorizer();
 initTheme();
 initI18n();
 document.querySelectorAll("[data-theme-opt]").forEach((btn) => {
@@ -7655,40 +7656,48 @@ window.__rdstr_onSyncError = function(msg) {
   const p = new URLSearchParams(window.location.search);
   const amount = p.get("amount");
   if (!amount) return;
-  const openOnReady = () => {
-    navigate("transactions", false);
-    openTxModal();
+  const openOnReady = async () => {
     const numeric = parseFloat(amount.replace(/[^\d.]/g, ""));
-    const amountEl = document.getElementById("amountText");
-    if (!isNaN(numeric) && numeric > 0 && amountEl) {
-      amountEl.textContent = String(numeric);
-    }
+    if (isNaN(numeric) || numeric <= 0) return;
     const note = p.get("note") || "";
-    const noteEl = document.getElementById("txNote");
-    if (note && noteEl) noteEl.value = note;
+    const type = p.get("type") === "\u6536\u5165" || p.get("type") === "income" ? "\u6536\u5165" : "\u652F\u51FA";
+    let date;
     const dateParam = p.get("date") || p.get("time");
-    const dateEl = document.getElementById("txDate");
-    if (dateEl) {
-      if (dateParam) {
-        const d = new Date(dateParam);
-        if (!isNaN(d)) {
-          dateEl.value = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
-        }
-      } else {
-        dateEl.value = nowAsDatetimeLocal();
-      }
+    if (dateParam) {
+      const d = new Date(dateParam);
+      date = isNaN(d) ? nowAsDatetimeLocal() : `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+    } else {
+      date = nowAsDatetimeLocal();
     }
-    const typeParam = p.get("type");
-    if (typeParam === "\u6536\u5165" || typeParam === "income") {
-      document.getElementById("segIncome")?.click();
-    }
+    const classifyResult = await categorize(note, "", type);
+    const tx = {
+      id: `t${Date.now()}${Math.random().toString(36).slice(2, 8)}`,
+      date,
+      type,
+      amount: Math.abs(numeric),
+      category: classifyResult.gCategory || "\u5176\u4ED6",
+      note,
+      gCategory: classifyResult.gCategory || "\u5176\u4ED6",
+      gSubCategory: classifyResult.gSubCategory || "\u5176\u4ED6",
+      tags: classifyResult.tags || [],
+      confidence: classifyResult.confidence || 0,
+      source: classifyResult.source || "none",
+      aiUsed: classifyResult.aiUsed || false,
+      userOverride: false,
+      matchedRule: classifyResult.matchedRule || ""
+    };
+    const { added, duplicates } = addTransactions([tx]);
     window.history.replaceState({}, "", window.location.pathname);
-    showToast(t("toastAutoFill"));
+    if (duplicates && !added) {
+      showToast("\u5DF2\u5B58\u5728\u76F8\u540C\u8BB0\u5F55\uFF0C\u672A\u91CD\u590D\u6DFB\u52A0");
+      return;
+    }
+    showToast(`\u5DF2\u6DFB\u52A0${type}\uFF1A\xA5${numeric}${note ? " \xB7 " + note : ""}`);
   };
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => setTimeout(openOnReady, 150));
+    document.addEventListener("DOMContentLoaded", () => setTimeout(openOnReady, 300));
   } else {
-    setTimeout(openOnReady, 150);
+    setTimeout(openOnReady, 300);
   }
 })();
 
