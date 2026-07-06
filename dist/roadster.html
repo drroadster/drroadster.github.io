@@ -2113,7 +2113,7 @@ body::after {
 
 
 <!-- Version -->
-<div class="version-badge">v2026.07.05</div>
+<div class="version-badge">v2026.07.06</div>
 <script type="module">
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -2135,11 +2135,13 @@ __export(config_exports, {
   ASSET_ICONS: () => ASSET_ICONS,
   CAT_ICONS: () => CAT_ICONS,
   CAT_KEYWORD_MAP: () => CAT_KEYWORD_MAP,
+  COLLECTIONS: () => COLLECTIONS,
   EXPENSE_CATS: () => EXPENSE_CATS,
   FIREBASE_CONFIG: () => FIREBASE_CONFIG,
   INCOME_CATS: () => INCOME_CATS,
   LS: () => LS,
   PALETTE: () => PALETTE,
+  SYNC: () => SYNC,
   addCustomCategory: () => addCustomCategory,
   getAllCategories: () => getAllCategories,
   getCatIcon: () => getCatIcon,
@@ -2249,7 +2251,7 @@ function guessIcon(name) {
   }
   return "\u{1F4CC}";
 }
-var FIREBASE_CONFIG, userDocPath, LS, PALETTE, EXPENSE_CATS, INCOME_CATS, ALL_CATS, CAT_ICONS, ASSET_GRADIENTS, ASSET_GRADIENT_DEFAULT, ASSET_ICONS, CAT_KEYWORD_MAP, APP_VERSION;
+var FIREBASE_CONFIG, userDocPath, COLLECTIONS, SYNC, LS, PALETTE, EXPENSE_CATS, INCOME_CATS, ALL_CATS, CAT_ICONS, ASSET_GRADIENTS, ASSET_GRADIENT_DEFAULT, ASSET_ICONS, CAT_KEYWORD_MAP, APP_VERSION;
 var init_config = __esm({
   "src/js/config.js"() {
     FIREBASE_CONFIG = {
@@ -2262,6 +2264,24 @@ var init_config = __esm({
       measurementId: "G-0BML53ZJCJ"
     };
     userDocPath = (uid2) => `users/${uid2}/data/finance`;
+    COLLECTIONS = {
+      /** users/{uid}/transactions */
+      transactions: (uid2) => `users/${uid2}/transactions`,
+      /** users/{uid}/assets */
+      assets: (uid2) => `users/${uid2}/assets`,
+      /** users/{uid}/settings */
+      settings: (uid2) => `users/${uid2}/settings`,
+      /** Firestore doc/collection 构造辅助 */
+      userDoc: (uid2, collection2, itemId) => `users/${uid2}/${collection2}/${itemId}`
+    };
+    SYNC = {
+      maxRetries: 3,
+      // 上传失败最大重试次数
+      retryDelayMs: 2e3,
+      // 重试基础延迟（ms），实际使用指数退避
+      autoSyncInterval: 3e4
+      // 后台自动同步间隔（30 秒）
+    };
     LS = {
       TX: "rdstr_tx",
       ASSETS: "rdstr_assets",
@@ -2687,6 +2707,36 @@ var init_i18n = __esm({
   }
 });
 
+// src/js/sync/versionManager.js
+function getDeviceId() {
+  try {
+    let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+    if (!deviceId) {
+      deviceId = `dev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      localStorage.setItem(DEVICE_ID_KEY, deviceId);
+    }
+    return deviceId;
+  } catch {
+    return "dev-unknown";
+  }
+}
+function generateTxId() {
+  return `tx-${_devicePrefix()}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+function generateAssetId() {
+  return `ast-${_devicePrefix()}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+function nextVersion(currentVersion) {
+  return (currentVersion || 0) + 1;
+}
+var DEVICE_ID_KEY, _devicePrefix;
+var init_versionManager = __esm({
+  "src/js/sync/versionManager.js"() {
+    DEVICE_ID_KEY = "rdstr_device_id";
+    _devicePrefix = () => getDeviceId().split("-")[1] || "xx";
+  }
+});
+
 // src/js/store.js
 function _emit(channel) {
   (_subs.get(channel) || /* @__PURE__ */ new Set()).forEach((cb) => {
@@ -2708,6 +2758,7 @@ function initStore() {
   _assets = _read(LS.ASSETS);
   _history = _read(LS.ASSET_HISTORY);
   migrateDataV2();
+  migrateDataV21();
 }
 function reloadFromStorage() {
   _transactions = _read(LS.TX);
@@ -2717,19 +2768,109 @@ function reloadFromStorage() {
   _emit("assets");
   _emit("history");
 }
+function _newSyncMeta(type) {
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  return {
+    id: type === "tx" ? generateTxId() : generateAssetId(),
+    createdAt: now,
+    updatedAt: now,
+    deviceId: getDeviceId(),
+    version: 1,
+    deleted: false,
+    syncStatus: "local"
+  };
+}
+function updateTx(id, changes) {
+  const idx = _transactions.findIndex((t2) => t2.id === id);
+  if (idx === -1) return false;
+  _transactions[idx] = {
+    ..._transactions[idx],
+    ...changes,
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    version: nextVersion(_transactions[idx].version),
+    syncStatus: _transactions[idx].syncStatus === "synced" ? "local" : _transactions[idx].syncStatus
+  };
+  _persist(LS.TX, _transactions);
+  _emit("transactions");
+  return true;
+}
+function deleteTx(id) {
+  return updateTx(id, { deleted: true });
+}
+function updateAsset(id, changes) {
+  const idx = _assets.findIndex((a) => a.id === id);
+  if (idx === -1) return false;
+  _assets[idx] = {
+    ..._assets[idx],
+    ...changes,
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    version: nextVersion(_assets[idx].version),
+    syncStatus: _assets[idx].syncStatus === "synced" ? "local" : _assets[idx].syncStatus
+  };
+  _persist(LS.ASSETS, _assets);
+  _emit("assets");
+  return true;
+}
+function deleteAssetV21(id) {
+  return updateAsset(id, { deleted: true });
+}
+function getTransactionsRaw() {
+  return [..._transactions];
+}
+function getAssetsRaw() {
+  return [..._assets];
+}
+function replaceAllTransactions(items) {
+  _transactions = items;
+  _persist(LS.TX, _transactions);
+  _emit("transactions");
+}
+function replaceAllAssets(items) {
+  _assets = items;
+  _persist(LS.ASSETS, _assets);
+  _emit("assets");
+}
+function getPendingTransactions() {
+  return _transactions.filter(
+    (t2) => t2.syncStatus !== "synced" && t2.deleted !== true
+  );
+}
+function getPendingAssets() {
+  return _assets.filter(
+    (a) => a.syncStatus !== "synced" && a.deleted !== true
+  );
+}
+function markAllSynced() {
+  let txChanged = false, assetChanged = false;
+  _transactions.forEach((t2) => {
+    if (t2.syncStatus !== "synced" && t2.deleted !== true) {
+      t2.syncStatus = "synced";
+      txChanged = true;
+    }
+  });
+  _assets.forEach((a) => {
+    if (a.syncStatus !== "synced" && a.deleted !== true) {
+      a.syncStatus = "synced";
+      assetChanged = true;
+    }
+  });
+  if (txChanged) _persist(LS.TX, _transactions);
+  if (assetChanged) _persist(LS.ASSETS, _assets);
+}
 function getTransactions() {
-  return [..._transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+  return [..._transactions].filter((t2) => t2.deleted !== true).sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 function addTransactions(items) {
   const arr = Array.isArray(items) ? items : [items];
   const existing = new Set(_transactions.map(_fp));
   let added = 0, duplicates = 0;
-  for (const tx of arr) {
-    const key = _fp(tx);
+  for (const inputTx of arr) {
+    const key = _fp(inputTx);
     if (existing.has(key)) {
       duplicates++;
       continue;
     }
+    const tx = inputTx.id && inputTx.createdAt ? inputTx : { ...inputTx, ..._newSyncMeta("tx"), date: inputTx.date };
     const normalised = { ...tx, category: normalizeCategory(tx.category || tx.note || "") };
     _transactions.push(normalised);
     existing.add(key);
@@ -2742,25 +2883,21 @@ function addTransactions(items) {
   return { added, duplicates };
 }
 function updateTransaction(id, patch) {
-  const idx = _transactions.findIndex((t2) => t2.id === id);
-  if (idx === -1) return false;
-  _transactions[idx] = { ..._transactions[idx], ...patch };
-  _persist(LS.TX, _transactions);
-  _emit("transactions");
-  return true;
+  return updateTx(id, patch);
 }
 function deleteTransaction(id) {
-  const before = _transactions.length;
-  _transactions = _transactions.filter((t2) => t2.id !== id);
-  if (_transactions.length === before) return false;
-  _persist(LS.TX, _transactions);
-  _emit("transactions");
-  return true;
+  return deleteTx(id);
 }
 function deleteByCategory(category) {
-  const before = _transactions.length;
-  _transactions = _transactions.filter((t2) => t2.category !== category);
-  const n = before - _transactions.length;
+  let n = 0;
+  _transactions.forEach((t2) => {
+    if (t2.category === category && !t2.deleted) {
+      t2.deleted = true;
+      t2.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+      t2.syncStatus = t2.syncStatus === "synced" ? "local" : t2.syncStatus;
+      n++;
+    }
+  });
   if (n) {
     _persist(LS.TX, _transactions);
     _emit("transactions");
@@ -2770,6 +2907,7 @@ function deleteByCategory(category) {
 function renormalizeAllCategories() {
   let changed = 0;
   _transactions.forEach((t2) => {
+    if (t2.deleted) return;
     const norm = normalizeCategory(t2.category);
     if (norm !== t2.category) {
       t2.category = norm;
@@ -2782,63 +2920,40 @@ function renormalizeAllCategories() {
   }
   return changed;
 }
-function migrateDataV2() {
-  try {
-    if (localStorage.getItem(LS.MIGRATED_V2)) return 0;
-  } catch {
-    return 0;
-  }
-  let changed = 0;
-  _transactions.forEach((t2) => {
-    const raw = t2.category || "";
-    const norm = normalizeCategory(raw);
-    if (norm !== raw) {
-      t2.category = norm;
-      changed++;
-    }
-  });
-  if (changed) {
-    _persist(LS.TX, _transactions);
-    _emit("transactions");
-  }
-  try {
-    localStorage.setItem(LS.MIGRATED_V2, "1");
-  } catch {
-  }
-  return changed;
-}
 function clearTransactions() {
   _transactions = [];
   _persist(LS.TX, _transactions);
   _emit("transactions");
 }
 function getAssets() {
-  return [..._assets];
+  return [..._assets].filter((a) => a.deleted !== true);
 }
 function upsertAsset(asset) {
   const idx = _assets.findIndex((a) => a.id === asset.id);
   if (idx === -1) {
-    _assets.push(asset);
+    const record = asset.id && asset.createdAt ? asset : { ...asset, ..._newSyncMeta("asset") };
+    _assets.push(record);
   } else {
-    _assets[idx] = { ..._assets[idx], ...asset };
+    _assets[idx] = {
+      ..._assets[idx],
+      ...asset,
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      version: nextVersion(_assets[idx].version),
+      syncStatus: _assets[idx].syncStatus === "synced" ? "local" : _assets[idx].syncStatus
+    };
   }
   _persist(LS.ASSETS, _assets);
   _emit("assets");
 }
 function deleteAsset(id) {
-  const before = _assets.length;
-  _assets = _assets.filter((a) => a.id !== id);
-  if (_assets.length === before) return false;
-  _persist(LS.ASSETS, _assets);
-  _emit("assets");
-  return true;
+  return deleteAssetV21(id);
 }
 function getAssetHistory() {
   return [..._history];
 }
 function recordSnapshot() {
-  const total = _assets.reduce((s, a) => s + (a.value || 0), 0);
-  const breakdown = Object.fromEntries(_assets.map((a) => [a.id, a.value || 0]));
+  const total = _assets.filter((a) => !a.deleted).reduce((s, a) => s + (a.value || 0), 0);
+  const breakdown = Object.fromEntries(_assets.filter((a) => !a.deleted).map((a) => [a.id, a.value || 0]));
   if (_history.length) {
     const last = _history[_history.length - 1];
     if (last.total === total && JSON.stringify(last.breakdown) === JSON.stringify(breakdown)) return;
@@ -2873,10 +2988,120 @@ function importAssetSnapshots(snaps) {
   }
   return added;
 }
+function migrateDataV21() {
+  try {
+    if (localStorage.getItem(MIGRATED_V21_KEY)) return { txCount: 0, assetCount: 0 };
+  } catch {
+    return { txCount: 0, assetCount: 0 };
+  }
+  const deviceId = getDeviceId();
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  let txChanged = 0, assetChanged = 0;
+  _transactions.forEach((tx) => {
+    let modified = false;
+    if (!tx.id) {
+      tx.id = generateTxId();
+      modified = true;
+    }
+    if (!tx.createdAt) {
+      tx.createdAt = tx.date || now;
+      modified = true;
+    }
+    if (!tx.updatedAt) {
+      tx.updatedAt = tx.date || now;
+      modified = true;
+    }
+    if (!tx.deviceId) {
+      tx.deviceId = deviceId;
+      modified = true;
+    }
+    if (tx.version == null) {
+      tx.version = 1;
+      modified = true;
+    }
+    if (tx.deleted == null) {
+      tx.deleted = false;
+      modified = true;
+    }
+    if (!tx.syncStatus) {
+      tx.syncStatus = "local";
+      modified = true;
+    }
+    if (modified) txChanged++;
+  });
+  _assets.forEach((asset) => {
+    let modified = false;
+    if (!asset.id) {
+      asset.id = generateAssetId();
+      modified = true;
+    }
+    if (!asset.createdAt) {
+      asset.createdAt = asset.updatedAt || now;
+      modified = true;
+    }
+    if (!asset.updatedAt) {
+      asset.updatedAt = asset.createdAt || now;
+      modified = true;
+    }
+    if (!asset.deviceId) {
+      asset.deviceId = deviceId;
+      modified = true;
+    }
+    if (asset.version == null) {
+      asset.version = 1;
+      modified = true;
+    }
+    if (asset.deleted == null) {
+      asset.deleted = false;
+      modified = true;
+    }
+    if (!asset.syncStatus) {
+      asset.syncStatus = "local";
+      modified = true;
+    }
+    if (modified) assetChanged++;
+  });
+  if (txChanged > 0) _persist(LS.TX, _transactions);
+  if (assetChanged > 0) _persist(LS.ASSETS, _assets);
+  try {
+    localStorage.setItem(MIGRATED_V21_KEY, "1");
+  } catch {
+  }
+  if (txChanged > 0 || assetChanged > 0) {
+    console.log(`[store] v2.1 \u8FC1\u79FB\u5B8C\u6210\uFF1A${txChanged} \u6761\u4EA4\u6613, ${assetChanged} \u4E2A\u8D44\u4EA7`);
+  }
+  return { txCount: txChanged, assetCount: assetChanged };
+}
+function migrateDataV2() {
+  try {
+    if (localStorage.getItem(LS.MIGRATED_V2)) return 0;
+  } catch {
+    return 0;
+  }
+  let changed = 0;
+  _transactions.forEach((t2) => {
+    const raw = t2.category || "";
+    const norm = normalizeCategory(raw);
+    if (norm !== raw) {
+      t2.category = norm;
+      changed++;
+    }
+  });
+  if (changed) {
+    _persist(LS.TX, _transactions);
+    _emit("transactions");
+  }
+  try {
+    localStorage.setItem(LS.MIGRATED_V2, "1");
+  } catch {
+  }
+  return changed;
+}
 function filterByPeriod(period, txs) {
   txs = txs || getTransactions();
   const now = /* @__PURE__ */ new Date();
   return txs.filter((t2) => {
+    if (t2.deleted) return false;
     const d = new Date(t2.date);
     if (period === "month") return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
     if (period === "quarter") return d.getFullYear() === now.getFullYear() && Math.floor(d.getMonth() / 3) === Math.floor(now.getMonth() / 3);
@@ -2933,10 +3158,11 @@ function _persist(key, value) {
     console.warn("[store] localStorage write failed:", key, e);
   }
 }
-var _transactions, _assets, _history, _subs, _fp;
+var _transactions, _assets, _history, _subs, MIGRATED_V21_KEY, _fp;
 var init_store = __esm({
   "src/js/store.js"() {
     init_config();
+    init_versionManager();
     _transactions = [];
     _assets = [];
     _history = [];
@@ -2946,6 +3172,7 @@ var init_store = __esm({
       ["history", /* @__PURE__ */ new Set()],
       ["any", /* @__PURE__ */ new Set()]
     ]);
+    MIGRATED_V21_KEY = "rdstr_migrated_v21";
     _fp = txFingerprint;
   }
 });
@@ -5588,91 +5815,6 @@ function onSyncStatus(cb) {
   _statusCbs.add(cb);
   return () => _statusCbs.delete(cb);
 }
-function _emitStatus(status, msg) {
-  _statusCbs.forEach((cb) => {
-    try {
-      cb(status, msg);
-    } catch (_) {
-    }
-  });
-}
-var _syncTimer = null;
-var _currentUid = null;
-function scheduleSyncToCloud(uid2) {
-  if (!uid2) return;
-  _currentUid = uid2;
-  clearTimeout(_syncTimer);
-  _emitStatus("pending");
-  _syncTimer = setTimeout(() => syncToCloud(uid2, true), 2e3);
-}
-async function syncToCloud(uid2, silent = false) {
-  if (!uid2) return;
-  clearTimeout(_syncTimer);
-  _emitStatus("pending");
-  const payload = {
-    transactions: _readLocal(LS.TX),
-    assets: _readLocal(LS.ASSETS),
-    assetHistory: _readLocal(LS.ASSET_HISTORY),
-    updatedAt: serverTimestamp(),
-    clientVersion: APP_VERSION
-  };
-  try {
-    await setDoc(doc(_db, userDocPath(uid2)), payload, { merge: true });
-    _emitStatus("synced");
-    if (!silent) {
-      _callHook("onSyncSuccess");
-    }
-  } catch (err) {
-    _emitStatus("error", err.message);
-    if (!silent) _callHook("onSyncError", err.message);
-    console.error("[db] syncToCloud failed:", err);
-  }
-}
-async function loadCloudData(uid2) {
-  if (!uid2) return { merged: 0 };
-  _emitStatus("pending");
-  try {
-    const snap = await getDoc(doc(_db, userDocPath(uid2)));
-    if (!snap.exists()) {
-      _emitStatus("idle");
-      return { merged: 0 };
-    }
-    const cloud = snap.data();
-    const cloudTxs = Array.isArray(cloud.transactions) ? cloud.transactions : [];
-    const cloudAssets = Array.isArray(cloud.assets) ? cloud.assets : [];
-    const cloudHist = Array.isArray(cloud.assetHistory) ? cloud.assetHistory : [];
-    const localTxs = _readLocal(LS.TX);
-    const localAssets = _readLocal(LS.ASSETS);
-    const localHist = _readLocal(LS.ASSET_HISTORY);
-    const fp = (tx) => `${(tx.date || "").slice(0, 10)}|${tx.type}|${tx.amount}|${tx.category}`;
-    const seen = new Set(cloudTxs.map(fp));
-    const added = [];
-    localTxs.forEach((tx) => {
-      if (!seen.has(fp(tx))) {
-        added.push(tx);
-        seen.add(fp(tx));
-      }
-    });
-    const mergedTxs = [...cloudTxs, ...added].sort((a, b) => new Date(b.date) - new Date(a.date));
-    const mergedAssets = cloudAssets.length ? cloudAssets : localAssets;
-    const dayMap = {};
-    [...localHist, ...cloudHist].forEach((h) => {
-      const day = (h.ts || "").slice(0, 10);
-      if (day) dayMap[day] = h;
-    });
-    const mergedHist = Object.values(dayMap).sort((a, b) => (a.ts || "").localeCompare(b.ts || ""));
-    _writeLocal(LS.TX, mergedTxs);
-    _writeLocal(LS.ASSETS, mergedAssets);
-    _writeLocal(LS.ASSET_HISTORY, mergedHist);
-    _callHook("onCloudDataLoaded", { count: mergedTxs.length });
-    _emitStatus("synced");
-    return { merged: added.length };
-  } catch (err) {
-    _emitStatus("error", err.message);
-    console.error("[db] loadCloudData failed:", err);
-    return { merged: 0 };
-  }
-}
 async function getLastSyncDate(uid2) {
   if (!uid2) return null;
   try {
@@ -5684,28 +5826,303 @@ async function getLastSyncDate(uid2) {
     return null;
   }
 }
-function _readLocal(key) {
+
+// src/js/sync/syncManager.js
+init_store();
+
+// src/js/sync/downloadQueue.js
+import { getFirestore as getFirestore2, collection, getDocs } from "firebase/firestore";
+var _db2 = getFirestore2(_app);
+async function downloadAll(uid2) {
+  const [transactions, assets] = await Promise.all([
+    _downloadCollection(uid2, "transactions"),
+    _downloadCollection(uid2, "assets")
+  ]);
+  return { transactions, assets };
+}
+async function _downloadCollection(uid2, collectionName) {
   try {
-    return JSON.parse(localStorage.getItem(key) || "[]");
-  } catch {
+    const colRef = collection(_db2, "users", uid2, collectionName);
+    const snapshot = await getDocs(colRef);
+    const items = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (data.updatedAt && typeof data.updatedAt.toDate === "function") {
+        data.updatedAt = data.updatedAt.toDate().toISOString();
+      }
+      if (data.createdAt && typeof data.createdAt.toDate === "function") {
+        data.createdAt = data.createdAt.toDate().toISOString();
+      }
+      items.push({ ...data, id: docSnap.id, syncStatus: "synced" });
+    });
+    return items;
+  } catch (err) {
+    console.warn(`[downloadQueue] \u4E0B\u8F7D ${collectionName} \u5931\u8D25:`, err.message);
     return [];
   }
 }
-function _writeLocal(key, value) {
+
+// src/js/sync/uploadQueue.js
+import { getFirestore as getFirestore3, doc as doc2, setDoc as setDoc2, serverTimestamp as serverTimestamp2 } from "firebase/firestore";
+init_config();
+var _db3 = getFirestore3(_app);
+var MAX_RETRIES = SYNC.maxRetries;
+var _queue = [];
+function addToQueue(uid2, item, collection2) {
+  if (_queue.some((t2) => t2.item.id === item.id && t2.collection === collection2)) return;
+  _queue.push({
+    uid: uid2,
+    item,
+    collection: collection2,
+    retries: 0,
+    addedAt: Date.now()
+  });
+}
+function addBatchToQueue(uid2, items, collection2) {
+  items.forEach((item) => addToQueue(uid2, item, collection2));
+}
+async function processQueue(onProgress) {
+  const total = _queue.length;
+  let success = 0, failed = 0;
+  const failures = [];
+  const tasks = [..._queue];
+  for (const task of tasks) {
+    try {
+      const ref = doc2(_db3, "users", task.uid, task.collection, task.item.id);
+      const data = { ...task.item };
+      delete data.syncStatus;
+      data.updatedAt = serverTimestamp2();
+      await setDoc2(ref, data, { merge: true });
+      success++;
+      _queue = _queue.filter((t2) => t2 !== task);
+    } catch (err) {
+      task.retries++;
+      if (task.retries >= MAX_RETRIES) {
+        failed++;
+        failures.push({ id: task.item.id, error: err.message });
+        _queue = _queue.filter((t2) => t2 !== task);
+        console.error(`[uploadQueue] \u4E0A\u4F20\u5931\u8D25\uFF08\u5DF2\u91CD\u8BD5 ${MAX_RETRIES} \u6B21\uFF09:`, task.item.id, err.message);
+      } else {
+        const delay = 2e3 * task.retries;
+        console.warn(`[uploadQueue] \u4E0A\u4F20\u91CD\u8BD5 ${task.retries}/${MAX_RETRIES}:`, task.item.id);
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+    if (onProgress) onProgress(success + failed, total);
+  }
+  return { success, failed, failures };
+}
+function clearQueue() {
+  _queue = [];
+}
+function getQueueSize() {
+  return _queue.length;
+}
+
+// src/js/sync/mergeEngine.js
+function merge(cloudItems, localItems, idField = "id") {
+  const stats = { added: 0, updated: 0, deleted: 0, unchanged: 0 };
+  const localMap = /* @__PURE__ */ new Map();
+  localItems.forEach((item) => {
+    if (item[idField] != null) localMap.set(item[idField], item);
+  });
+  const resultMap = /* @__PURE__ */ new Map();
+  for (const cloudItem of cloudItems) {
+    const id = cloudItem[idField];
+    if (id == null) continue;
+    const localItem = localMap.get(id);
+    if (cloudItem.deleted === true) {
+      if (localItem) stats.deleted++;
+      localMap.delete(id);
+      continue;
+    }
+    if (!localItem) {
+      resultMap.set(id, { ...cloudItem, syncStatus: "synced" });
+      stats.added++;
+    } else {
+      const cloudTime = _parseTime(cloudItem.updatedAt || cloudItem.createdAt);
+      const localTime = _parseTime(localItem.updatedAt || localItem.createdAt);
+      if (cloudTime > localTime) {
+        resultMap.set(id, { ...cloudItem, syncStatus: "synced" });
+        stats.updated++;
+      } else {
+        resultMap.set(id, localItem);
+        stats.unchanged++;
+      }
+    }
+    localMap.delete(id);
+  }
+  for (const [id, localItem] of localMap) {
+    if (localItem.deleted === true) continue;
+    resultMap.set(id, localItem);
+    stats.unchanged++;
+  }
+  return {
+    merged: Array.from(resultMap.values()),
+    stats
+  };
+}
+function getPendingUploads(items, idField = "id") {
+  return items.filter(
+    (item) => item.syncStatus !== "synced" && item.deleted !== true
+  );
+}
+function _parseTime(t2) {
+  if (!t2) return 0;
+  if (typeof t2.toDate === "function") return t2.toDate().getTime();
+  return new Date(t2).getTime();
+}
+
+// src/js/sync/syncManager.js
+init_config();
+init_versionManager();
+var _autoSyncTimer = null;
+var _lastSyncTime = null;
+var _isSyncing = false;
+var _statusListeners = /* @__PURE__ */ new Set();
+function _notify(status, detail) {
+  _statusListeners.forEach((cb) => {
+    try {
+      cb(status, detail);
+    } catch (_) {
+    }
+  });
+}
+function init() {
+  console.log("[syncManager] \u521D\u59CB\u5316\u540C\u6B65\u7BA1\u7406\u5668");
+  _maybeStartAutoSync();
+}
+async function syncOnLogin(uid2) {
+  if (!uid2 || _isSyncing) return { merged: 0, uploaded: 0 };
+  _isSyncing = true;
+  console.log("[syncManager] ===== \u767B\u5F55\u540C\u6B65\u5F00\u59CB =====");
+  _notify("pending", { phase: "download" });
   try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    console.warn("[db] localStorage write failed:", e);
+    const cloud = await downloadAll(uid2);
+    console.log(`[syncManager] \u4E91\u7AEF\u6570\u636E\uFF1A${cloud.transactions.length} \u6761\u4EA4\u6613, ${cloud.assets.length} \u4E2A\u8D44\u4EA7`);
+    const localTxs = getTransactionsRaw();
+    const localAssets = getAssetsRaw();
+    console.log(`[syncManager] \u672C\u5730\u6570\u636E\uFF1A${localTxs.length} \u6761\u4EA4\u6613, ${localAssets.length} \u4E2A\u8D44\u4EA7`);
+    _notify("pending", { phase: "merge" });
+    const txResult = merge(cloud.transactions, localTxs, "id");
+    const assetResult = merge(cloud.assets, localAssets, "id");
+    replaceAllTransactions(txResult.merged);
+    replaceAllAssets(assetResult.merged);
+    console.log(`[syncManager] \u5408\u5E76\u7ED3\u679C \u2014 \u4EA4\u6613: \u65B0\u589E${txResult.stats.added} \u66F4\u65B0${txResult.stats.updated} \u5220\u9664${txResult.stats.deleted} \u4E0D\u53D8${txResult.stats.unchanged}`);
+    console.log(`[syncManager] \u5408\u5E76\u7ED3\u679C \u2014 \u8D44\u4EA7: \u65B0\u589E${assetResult.stats.added} \u66F4\u65B0${assetResult.stats.updated} \u5220\u9664${assetResult.stats.deleted} \u4E0D\u53D8${assetResult.stats.unchanged}`);
+    _notify("pending", { phase: "upload" });
+    const pendingTxs = getPendingUploads(txResult.merged);
+    const pendingAssets = getPendingUploads(assetResult.merged);
+    let uploadedCount = 0;
+    if (pendingTxs.length > 0 || pendingAssets.length > 0) {
+      if (pendingTxs.length > 0) addBatchToQueue(uid2, pendingTxs, "transactions");
+      if (pendingAssets.length > 0) addBatchToQueue(uid2, pendingAssets, "assets");
+      const result = await processQueue();
+      uploadedCount = result.success;
+      if (result.success > 0) {
+        _markUploadedSynced();
+      }
+      if (result.failed > 0) {
+        console.warn(`[syncManager] ${result.failed} \u6761\u4E0A\u4F20\u5931\u8D25\uFF0C\u5C06\u5728\u4E0B\u6B21\u81EA\u52A8\u540C\u6B65\u91CD\u8BD5`);
+      }
+    }
+    _lastSyncTime = Date.now();
+    _isSyncing = false;
+    startAutoSync();
+    const totalMerged = txResult.stats.added + assetResult.stats.added;
+    console.log(`[syncManager] ===== \u767B\u5F55\u540C\u6B65\u5B8C\u6210\uFF1A\u5408\u5E76 ${totalMerged} \u6761\uFF0C\u4E0A\u4F20 ${uploadedCount} \u6761 =====`);
+    _notify("synced", {
+      merged: totalMerged,
+      uploaded: uploadedCount,
+      stats: { tx: txResult.stats, asset: assetResult.stats }
+    });
+    return {
+      merged: totalMerged,
+      uploaded: uploadedCount,
+      stats: { tx: txResult.stats, asset: assetResult.stats }
+    };
+  } catch (err) {
+    _isSyncing = false;
+    console.error("[syncManager] \u767B\u5F55\u540C\u6B65\u5931\u8D25:", err);
+    _notify("error", { message: err.message });
+    return { merged: 0, uploaded: 0 };
   }
 }
-function _callHook(name, payload) {
-  if (typeof window[`__rdstr_${name}`] === "function") {
+function startAutoSync() {
+  stopAutoSync();
+  _autoSyncTimer = setInterval(async () => {
+    const user = getCurrentUser();
+    if (!user || _isSyncing) return;
+    const queueSize = getQueueSize();
+    if (queueSize === 0) return;
+    console.log(`[syncManager] \u81EA\u52A8\u540C\u6B65\uFF1A\u5904\u7406 ${queueSize} \u6761\u5F85\u4E0A\u4F20\u8BB0\u5F55`);
+    _isSyncing = true;
     try {
-      window[`__rdstr_${name}`](payload);
-    } catch (e) {
-      console.error(`[db] hook ${name} threw:`, e);
+      await processQueue();
+      _markUploadedSynced();
+      _lastSyncTime = Date.now();
+    } catch (err) {
+      console.error("[syncManager] \u81EA\u52A8\u540C\u6B65\u5931\u8D25:", err);
+    } finally {
+      _isSyncing = false;
     }
+  }, SYNC.autoSyncInterval);
+  console.log(`[syncManager] \u81EA\u52A8\u540C\u6B65\u5DF2\u542F\u52A8\uFF08\u95F4\u9694 ${SYNC.autoSyncInterval / 1e3}s\uFF09`);
+}
+function stopAutoSync() {
+  if (_autoSyncTimer) {
+    clearInterval(_autoSyncTimer);
+    _autoSyncTimer = null;
   }
+}
+function syncOnLogout() {
+  console.log("[syncManager] \u9000\u51FA\u767B\u5F55\uFF1A\u4FDD\u7559\u672C\u5730\u6570\u636E\uFF0C\u6E05\u7A7A\u540C\u6B65\u961F\u5217");
+  stopAutoSync();
+  clearQueue();
+  _lastSyncTime = null;
+  _notify("idle");
+}
+async function manualSync() {
+  const user = getCurrentUser();
+  if (!user || _isSyncing) return { uploaded: 0 };
+  _isSyncing = true;
+  _notify("pending", { phase: "manual" });
+  try {
+    let uploadedCount = 0;
+    if (getQueueSize() > 0) {
+      const result = await processQueue();
+      uploadedCount = result.success;
+      _markUploadedSynced();
+    }
+    _enqueuePendingLocal(user.uid);
+    if (getQueueSize() > 0) {
+      const result = await processQueue();
+      uploadedCount += result.success;
+      _markUploadedSynced();
+    }
+    _lastSyncTime = Date.now();
+    _isSyncing = false;
+    _notify("synced", { uploaded: uploadedCount });
+    return { uploaded: uploadedCount };
+  } catch (err) {
+    _isSyncing = false;
+    console.error("[syncManager] \u624B\u52A8\u540C\u6B65\u5931\u8D25:", err);
+    _notify("error", { message: err.message });
+    return { uploaded: 0 };
+  }
+}
+function _enqueuePendingLocal(uid2) {
+  const pendingTxs = getPendingTransactions();
+  const pendingAssets = getPendingAssets();
+  if (pendingTxs.length > 0) addBatchToQueue(uid2, pendingTxs, "transactions");
+  if (pendingAssets.length > 0) addBatchToQueue(uid2, pendingAssets, "assets");
+}
+function _markUploadedSynced() {
+  markAllSynced();
+}
+function _maybeStartAutoSync() {
+  const user = getCurrentUser();
+  if (user) startAutoSync();
 }
 
 // src/js/main.js
@@ -5725,9 +6142,12 @@ window.__rdstr_refreshChartsForTheme = function() {
   else if (page === "analysis") render4();
 };
 initStore();
-window.__rdstr_onStoreWrite = function() {
+init();
+window.__rdstr_onStoreWrite = function(key) {
   const user = getCurrentUser();
-  if (user) scheduleSyncToCloud(user.uid);
+  if (!user) return;
+  if (key === "rdstr_tx" || key === "rdstr_assets") {
+  }
 };
 initRouter();
 initOverviewPage();
@@ -5883,8 +6303,6 @@ document.getElementById("authSubmitBtn")?.addEventListener("click", async () => 
   try {
     if (_authMode === "register") {
       await registerWithEmail(email, pwd, name);
-      const user = getCurrentUser();
-      if (user) await syncToCloud(user.uid);
       showToast(t("toastRegisterOk"));
     } else {
       await loginWithEmail(email, pwd);
@@ -5919,7 +6337,8 @@ document.getElementById("signOutBtn")?.addEventListener("click", async () => {
 document.getElementById("manualSyncBtn")?.addEventListener("click", async () => {
   const user = getCurrentUser();
   if (!user) return;
-  await syncToCloud(user.uid);
+  const { uploaded } = await manualSync();
+  showToast(uploaded > 0 ? (t("syncedCount") || "\u5DF2\u540C\u6B65{n}\u6761").replace("{n}", uploaded) : t("synced") || "\u5DF2\u540C\u6B65");
   _updateSyncStatusRow(user.uid);
 });
 function setAuthLoading(on) {
@@ -5957,8 +6376,18 @@ onAuthChange(async (user) => {
   _renderAuthButton(user);
   if (user && !_hasLoadedCloudOnce) {
     _hasLoadedCloudOnce = true;
-    const { merged } = await loadCloudData(user.uid);
-    if (merged > 0) showToast(t("toastCloudLoaded", { n: merged }));
+    const result = await syncOnLogin(user.uid);
+    if (result.merged > 0) {
+      showToast(t("toastCloudLoaded", { n: result.merged }));
+    }
+    reloadFromStorage();
+    render2();
+    if (currentPage() === "assets") render3();
+    if (currentPage() === "transactions") render();
+  }
+  if (!user && _hasLoadedCloudOnce) {
+    _hasLoadedCloudOnce = false;
+    syncOnLogout();
   }
   const modal = document.getElementById("authModal");
   if (modal?.classList.contains("open")) {
