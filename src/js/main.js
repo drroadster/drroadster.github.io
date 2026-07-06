@@ -318,11 +318,12 @@ document.getElementById('manualSyncBtn')?.addEventListener('click', async () => 
   const origText = btn?.innerHTML;
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin">↻</span> 同步中…'; }
   try {
-    const { uploaded } = await manualSync();
+    const { uploaded, downloaded } = await manualSync();
     if (!isSyncing()) {
-      showToast(uploaded > 0
-        ? (t('syncedCount') || '已同步{n}条').replace('{n}', uploaded)
-        : (t('synced') || '已同步'));
+      const parts = [];
+      if (uploaded > 0) parts.push(`上传 ${uploaded} 条`);
+      if (downloaded > 0) parts.push(`新增 ${downloaded} 条`);
+      showToast(parts.length > 0 ? parts.join('，') : (t('synced') || '已同步'));
     }
     _updateSyncStatusRow(user.uid);
   } catch (err) {

@@ -229,6 +229,9 @@ export function syncOnLogout() {
   clearQueue();
   _lastSyncTime = null;
 
+  // 重新加载本地数据，移除云端合并数据
+  store.reloadFromStorage();
+
   _notify('idle');
 }
 
@@ -238,11 +241,11 @@ export function syncOnLogout() {
  * 手动触发完整同步（立即上传 + 增量下载）。
  * 用于用户点击"立即同步"按钮。
  *
- * @returns {Promise<{ uploaded: number }>}
+ * @returns {Promise<{ uploaded: number, downloaded: number }>}
  */
 export async function manualSync() {
   const user = getCurrentUser();
-  if (!user || _isSyncing) return { uploaded: 0 };
+  if (!user || _isSyncing) return { uploaded: 0, downloaded: 0 };
 
   _isSyncing = true;
   _notify('pending', { phase: 'manual' });
@@ -268,17 +271,39 @@ export async function manualSync() {
       }
     }
 
+    // 5. 下载云端新增数据并合并到本地
+    let downloadedCount = 0;
+    try {
+      const cloud = await downloadAll(user.uid);
+      const localTxs = store.getTransactionsRaw();
+      const localAssets = store.getAssetsRaw();
+
+      const txResult = merge(cloud.transactions, localTxs, 'id');
+      const assetResult = merge(cloud.assets, localAssets, 'id');
+
+      store.replaceAllTransactions(txResult.merged);
+      store.replaceAllAssets(assetResult.merged);
+
+      downloadedCount = txResult.stats.added + assetResult.stats.added;
+
+      if (downloadedCount > 0 || txResult.stats.updated > 0 || assetResult.stats.updated > 0) {
+        console.log(`[syncManager] 手动同步：云端新增 ${downloadedCount} 条，更新 ${txResult.stats.updated + assetResult.stats.updated} 条`);
+      }
+    } catch (downloadErr) {
+      console.warn('[syncManager] 下载云端数据失败，跳过:', downloadErr.message);
+    }
+
     _lastSyncTime = Date.now();
     _persistLastSync(user.uid);
     _isSyncing = false;
-    _notify('synced', { uploaded: uploadedCount });
+    _notify('synced', { uploaded: uploadedCount, downloaded: downloadedCount });
 
-    return { uploaded: uploadedCount };
+    return { uploaded: uploadedCount, downloaded: downloadedCount };
   } catch (err) {
     _isSyncing = false;
     console.error('[syncManager] 手动同步失败:', err);
     _notify('error', { message: err.message });
-    return { uploaded: 0 };
+    return { uploaded: 0, downloaded: 0 };
   }
 }
 

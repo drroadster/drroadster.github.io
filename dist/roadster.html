@@ -7166,11 +7166,12 @@ function syncOnLogout() {
   stopAutoSync();
   clearQueue();
   _lastSyncTime = null;
+  reloadFromStorage();
   _notify("idle");
 }
 async function manualSync() {
   const user2 = getCurrentUser();
-  if (!user2 || _isSyncing) return { uploaded: 0 };
+  if (!user2 || _isSyncing) return { uploaded: 0, downloaded: 0 };
   _isSyncing = true;
   _notify("pending", { phase: "manual" });
   try {
@@ -7185,16 +7186,32 @@ async function manualSync() {
         console.warn(`[syncManager] \u624B\u52A8\u540C\u6B65\uFF1A${result.failed} \u6761\u4E0A\u4F20\u5931\u8D25\uFF08\u5DF2\u672C\u5730\u540C\u6B65\u515C\u5E95\uFF09\uFF0C\u9519\u8BEF\u8BE6\u60C5:`, result.failures.map((f) => f.error));
       }
     }
+    let downloadedCount = 0;
+    try {
+      const cloud = await downloadAll(user2.uid);
+      const localTxs = getTransactionsRaw();
+      const localAssets = getAssetsRaw();
+      const txResult = merge(cloud.transactions, localTxs, "id");
+      const assetResult = merge(cloud.assets, localAssets, "id");
+      replaceAllTransactions(txResult.merged);
+      replaceAllAssets(assetResult.merged);
+      downloadedCount = txResult.stats.added + assetResult.stats.added;
+      if (downloadedCount > 0 || txResult.stats.updated > 0 || assetResult.stats.updated > 0) {
+        console.log(`[syncManager] \u624B\u52A8\u540C\u6B65\uFF1A\u4E91\u7AEF\u65B0\u589E ${downloadedCount} \u6761\uFF0C\u66F4\u65B0 ${txResult.stats.updated + assetResult.stats.updated} \u6761`);
+      }
+    } catch (downloadErr) {
+      console.warn("[syncManager] \u4E0B\u8F7D\u4E91\u7AEF\u6570\u636E\u5931\u8D25\uFF0C\u8DF3\u8FC7:", downloadErr.message);
+    }
     _lastSyncTime = Date.now();
     _persistLastSync(user2.uid);
     _isSyncing = false;
-    _notify("synced", { uploaded: uploadedCount });
-    return { uploaded: uploadedCount };
+    _notify("synced", { uploaded: uploadedCount, downloaded: downloadedCount });
+    return { uploaded: uploadedCount, downloaded: downloadedCount };
   } catch (err) {
     _isSyncing = false;
     console.error("[syncManager] \u624B\u52A8\u540C\u6B65\u5931\u8D25:", err);
     _notify("error", { message: err.message });
-    return { uploaded: 0 };
+    return { uploaded: 0, downloaded: 0 };
   }
 }
 function getLastSyncTime() {
@@ -7458,9 +7475,12 @@ document.getElementById("manualSyncBtn")?.addEventListener("click", async () => 
     btn.innerHTML = '<span class="spin">\u21BB</span> \u540C\u6B65\u4E2D\u2026';
   }
   try {
-    const { uploaded } = await manualSync();
+    const { uploaded, downloaded } = await manualSync();
     if (!isSyncing()) {
-      showToast(uploaded > 0 ? (t("syncedCount") || "\u5DF2\u540C\u6B65{n}\u6761").replace("{n}", uploaded) : t("synced") || "\u5DF2\u540C\u6B65");
+      const parts = [];
+      if (uploaded > 0) parts.push(`\u4E0A\u4F20 ${uploaded} \u6761`);
+      if (downloaded > 0) parts.push(`\u65B0\u589E ${downloaded} \u6761`);
+      showToast(parts.length > 0 ? parts.join("\uFF0C") : t("synced") || "\u5DF2\u540C\u6B65");
     }
     _updateSyncStatusRow(user2.uid);
   } catch (err) {
