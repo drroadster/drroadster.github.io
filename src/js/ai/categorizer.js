@@ -18,6 +18,7 @@ import { matchByRule } from './ruleEngine.js';
 import { recall } from './userMemoryEngine.js';
 import { score } from './scoringEngine.js';
 import { aiClassify, incrementClassifyCount, incrementAICallCount } from './aiFallback.js';
+import { addCustomCategory } from '../config.js';
 
 /**
  * @typedef {Object} ClassifyResult
@@ -132,15 +133,27 @@ export async function categorize(note, category, type) {
   incrementAICallCount();
 
   if (aiResult) {
+    let gCategory = aiResult.gCategory;
+    const gSubCategory = aiResult.gSubCategory || 'AI分类';
+
+    // 如果 AI 分类为"其他"但给了有意义的子类目，自动注册为新类目并提升为主类目
+    if (gCategory === '其他' && gSubCategory &&
+        !['其他', '未分类', 'AI分类'].includes(gSubCategory)) {
+      addCustomCategory(gSubCategory);
+      gCategory = gSubCategory;
+    }
+
     return {
       ...baseResult,
-      gCategory: aiResult.gCategory,
-      gSubCategory: aiResult.gSubCategory || 'AI分类',
+      gCategory,
+      gSubCategory,
       tags: aiResult.tags || [],
       confidence: aiResult.confidence || 0.7,
       source: 'ai',
       aiUsed: true,
-      matchedRule: 'AI 兜底分类',
+      matchedRule: gCategory !== aiResult.gCategory
+        ? `AI 新类目: ${gCategory}`
+        : 'AI 兜底分类',
     };
   }
 

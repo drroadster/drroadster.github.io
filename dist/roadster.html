@@ -4599,15 +4599,21 @@ async function categorize(note, category, type) {
   const aiResult = await aiClassify(note || category || "", category);
   incrementAICallCount();
   if (aiResult) {
+    let gCategory = aiResult.gCategory;
+    const gSubCategory = aiResult.gSubCategory || "AI\u5206\u7C7B";
+    if (gCategory === "\u5176\u4ED6" && gSubCategory && !["\u5176\u4ED6", "\u672A\u5206\u7C7B", "AI\u5206\u7C7B"].includes(gSubCategory)) {
+      addCustomCategory(gSubCategory);
+      gCategory = gSubCategory;
+    }
     return {
       ...baseResult,
-      gCategory: aiResult.gCategory,
-      gSubCategory: aiResult.gSubCategory || "AI\u5206\u7C7B",
+      gCategory,
+      gSubCategory,
       tags: aiResult.tags || [],
       confidence: aiResult.confidence || 0.7,
       source: "ai",
       aiUsed: true,
-      matchedRule: "AI \u515C\u5E95\u5206\u7C7B"
+      matchedRule: gCategory !== aiResult.gCategory ? `AI \u65B0\u7C7B\u76EE: ${gCategory}` : "AI \u515C\u5E95\u5206\u7C7B"
     };
   }
   if (category && type) {
@@ -4678,6 +4684,7 @@ var init_categorizer = __esm({
     init_userMemoryEngine();
     init_scoringEngine();
     init_aiFallback();
+    init_config();
     init_aiFallback();
   }
 });
