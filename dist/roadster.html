@@ -507,17 +507,16 @@ body::after {
   .main { padding: 18px 16px 120px; }
 }
 
-/* Version badge — subtle but always legible on both themes */
+/* Version badge — ultra-subtle, out of the way */
 .version-badge {
-  position: fixed; bottom: 8px; right: 12px;
-  font-size: 10.5px;
+  position: fixed; bottom: 6px; right: 10px;
+  font-size: 9px;
   color: var(--color-label-3);
-  opacity: 0.55;
+  opacity: 0.28;
   z-index: 99999;
   pointer-events: none;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  font-weight: 400;
+  letter-spacing: 0.08em;
   user-select: none;
 }
 
@@ -2840,6 +2839,29 @@ function getPendingAssets() {
     (a) => a.syncStatus !== "synced" && a.deleted !== true
   );
 }
+function markAllPendingUpload() {
+  let txChanged = false, assetChanged = false;
+  _transactions.forEach((t2) => {
+    if (t2.syncStatus === "local" && t2.deleted !== true) {
+      t2.syncStatus = "pending_upload";
+      txChanged = true;
+    }
+  });
+  _assets.forEach((a) => {
+    if (a.syncStatus === "local" && a.deleted !== true) {
+      a.syncStatus = "pending_upload";
+      assetChanged = true;
+    }
+  });
+  if (txChanged) {
+    _persist(LS.TX, _transactions);
+    _emit("transactions");
+  }
+  if (assetChanged) {
+    _persist(LS.ASSETS, _assets);
+    _emit("assets");
+  }
+}
 function markAllSynced() {
   let txChanged = false, assetChanged = false;
   _transactions.forEach((t2) => {
@@ -2854,8 +2876,14 @@ function markAllSynced() {
       assetChanged = true;
     }
   });
-  if (txChanged) _persist(LS.TX, _transactions);
-  if (assetChanged) _persist(LS.ASSETS, _assets);
+  if (txChanged) {
+    _persist(LS.TX, _transactions);
+    _emit("transactions");
+  }
+  if (assetChanged) {
+    _persist(LS.ASSETS, _assets);
+    _emit("assets");
+  }
 }
 function getTransactions() {
   return [..._transactions].filter((t2) => t2.deleted !== true).sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -3683,6 +3711,977 @@ var init_utils = __esm({
   }
 });
 
+// src/js/ai/merchantEngine.js
+function matchMerchant(note) {
+  if (!note || typeof note !== "string") return null;
+  const lowerNote = note.toLowerCase();
+  for (const entry of MERCHANT_DICT) {
+    for (const kw of entry.keywords) {
+      if (lowerNote.includes(kw.toLowerCase())) {
+        return {
+          gCategory: entry.gCategory,
+          matchedMerchant: kw
+        };
+      }
+    }
+  }
+  return null;
+}
+var MERCHANT_DICT;
+var init_merchantEngine = __esm({
+  "src/js/ai/merchantEngine.js"() {
+    MERCHANT_DICT = [
+      // 餐饮
+      { keywords: ["starbucks", "\u661F\u5DF4\u514B"], gCategory: "\u9910\u996E" },
+      { keywords: ["mcdonald", "\u9EA6\u5F53\u52B3"], gCategory: "\u9910\u996E" },
+      { keywords: ["kfc", "\u80AF\u5FB7\u57FA"], gCategory: "\u9910\u996E" },
+      { keywords: ["pizza", "\u5FC5\u80DC\u5BA2"], gCategory: "\u9910\u996E" },
+      { keywords: ["subway", "\u8D5B\u767E\u5473"], gCategory: "\u9910\u996E" },
+      { keywords: ["burger", "\u6C49\u5821\u738B"], gCategory: "\u9910\u996E" },
+      { keywords: ["taco", "\u5854\u53EF"], gCategory: "\u9910\u996E" },
+      { keywords: ["noodle", "\u62C9\u9762", "\u9762\u9986"], gCategory: "\u9910\u996E" },
+      { keywords: ["sushi", "\u5BFF\u53F8"], gCategory: "\u9910\u996E" },
+      { keywords: ["hotpot", "\u6D77\u5E95\u635E", "\u706B\u9505"], gCategory: "\u9910\u996E" },
+      // 交通
+      { keywords: ["uber", "\u6EF4\u6EF4", "didi", "lyft"], gCategory: "\u4EA4\u901A" },
+      { keywords: ["metro", "\u5730\u94C1", "subway"], gCategory: "\u4EA4\u901A" },
+      { keywords: ["bus", "\u516C\u4EA4"], gCategory: "\u4EA4\u901A" },
+      { keywords: ["train", "\u9AD8\u94C1", "\u706B\u8F66"], gCategory: "\u4EA4\u901A" },
+      { keywords: ["airline", "air", "\u673A\u7968", "flight"], gCategory: "\u4EA4\u901A" },
+      { keywords: ["taxi", "\u51FA\u79DF\u8F66"], gCategory: "\u4EA4\u901A" },
+      { keywords: ["shell", "sinopec", "\u4E2D\u77F3\u5316", "\u4E2D\u77F3\u6CB9"], gCategory: "\u4EA4\u901A" },
+      { keywords: ["parking", "\u505C\u8F66"], gCategory: "\u4EA4\u901A" },
+      // 购物
+      { keywords: ["apple", "apple store", "\u82F9\u679C"], gCategory: "\u8D2D\u7269" },
+      { keywords: ["taobao", "\u6DD8\u5B9D"], gCategory: "\u8D2D\u7269" },
+      { keywords: ["jd", "jd.com", "\u4EAC\u4E1C"], gCategory: "\u8D2D\u7269" },
+      { keywords: ["pdd", "pinduoduo", "\u62FC\u591A\u591A"], gCategory: "\u8D2D\u7269" },
+      { keywords: ["amazon", "\u4E9A\u9A6C\u900A"], gCategory: "\u8D2D\u7269" },
+      { keywords: ["tmall", "\u5929\u732B"], gCategory: "\u8D2D\u7269" },
+      { keywords: ["suning", "\u82CF\u5B81"], gCategory: "\u8D2D\u7269" },
+      { keywords: ["dewu", "\u5F97\u7269"], gCategory: "\u8D2D\u7269" },
+      { keywords: ["xiaohongshu", "\u5C0F\u7EA2\u4E66"], gCategory: "\u8D2D\u7269" },
+      { keywords: ["supermarket", "\u8D85\u5E02", "walmart", "\u6C83\u5C14\u739B", "carrefour", "\u5BB6\u4E50\u798F"], gCategory: "\u8D2D\u7269" },
+      // 娱乐
+      { keywords: ["netflix", "netflix"], gCategory: "\u5A31\u4E50" },
+      { keywords: ["spotify", "spotify"], gCategory: "\u5A31\u4E50" },
+      { keywords: ["steam", "steam"], gCategory: "\u5A31\u4E50" },
+      { keywords: ["xbox", "playstation"], gCategory: "\u5A31\u4E50" },
+      { keywords: ["cinema", "\u7535\u5F71\u9662", "\u7535\u5F71"], gCategory: "\u5A31\u4E50" },
+      { keywords: ["ktv", "karaoke"], gCategory: "\u5A31\u4E50" },
+      { keywords: ["concert", "\u6F14\u5531\u4F1A"], gCategory: "\u5A31\u4E50" },
+      { keywords: ["game", "\u6E38\u620F"], gCategory: "\u5A31\u4E50" },
+      // 住房
+      { keywords: ["rent", "\u623F\u79DF"], gCategory: "\u4F4F\u623F" },
+      { keywords: ["mortgage", "\u623F\u8D37"], gCategory: "\u4F4F\u623F" },
+      { keywords: ["property", "\u7269\u4E1A"], gCategory: "\u4F4F\u623F" },
+      { keywords: ["electric", "\u7535\u8D39"], gCategory: "\u4F4F\u623F" },
+      { keywords: ["water", "\u6C34\u8D39"], gCategory: "\u4F4F\u623F" },
+      { keywords: ["gas", "\u71C3\u6C14"], gCategory: "\u4F4F\u623F" },
+      { keywords: ["internet", "\u5BBD\u5E26", "\u7F51\u8D39"], gCategory: "\u4F4F\u623F" },
+      // 医疗
+      { keywords: ["hospital", "\u533B\u9662"], gCategory: "\u533B\u7597" },
+      { keywords: ["clinic", "\u8BCA\u6240"], gCategory: "\u533B\u7597" },
+      { keywords: ["pharmacy", "\u836F\u5E97", "\u836F"], gCategory: "\u533B\u7597" },
+      { keywords: ["doctor", "\u533B\u751F"], gCategory: "\u533B\u7597" },
+      { keywords: ["insurance", "\u4FDD\u9669"], gCategory: "\u533B\u7597" },
+      // 教育
+      { keywords: ["tuition", "\u5B66\u8D39"], gCategory: "\u6559\u80B2" },
+      { keywords: ["book", "\u4E66\u7C4D", "\u56FE\u4E66"], gCategory: "\u6559\u80B2" },
+      { keywords: ["course", "\u8BFE\u7A0B"], gCategory: "\u6559\u80B2" },
+      { keywords: ["udemy", "coursera", "edx"], gCategory: "\u6559\u80B2" },
+      { keywords: ["school", "\u5B66\u6821"], gCategory: "\u6559\u80B2" },
+      // 收入
+      { keywords: ["salary", "\u5DE5\u8D44", "\u85AA\u8D44"], gCategory: "\u6536\u5165" },
+      { keywords: ["bonus", "\u5956\u91D1"], gCategory: "\u6536\u5165" },
+      { keywords: ["dividend", "\u5206\u7EA2"], gCategory: "\u6536\u5165" },
+      { keywords: ["interest", "\u5229\u606F"], gCategory: "\u6536\u5165" },
+      { keywords: ["refund", "\u9000\u6B3E"], gCategory: "\u6536\u5165" },
+      { keywords: ["gift", "\u7EA2\u5305", "\u793C\u7269"], gCategory: "\u6536\u5165" },
+      // 投资
+      { keywords: ["stock", "\u80A1\u7968"], gCategory: "\u6295\u8D44" },
+      { keywords: ["fund", "\u57FA\u91D1"], gCategory: "\u6295\u8D44" },
+      { keywords: ["crypto", "crypto", "btc", "eth"], gCategory: "\u6295\u8D44" },
+      { keywords: ["bond", "\u503A\u5238"], gCategory: "\u6295\u8D44" }
+    ];
+  }
+});
+
+// src/js/ai/ruleEngine.js
+function matchByRule(note) {
+  if (!note || typeof note !== "string") return null;
+  const lowerNote = note.toLowerCase();
+  const scores = {};
+  for (const [category, keywords] of Object.entries(CATEGORY_RULES)) {
+    let count = 0;
+    const matched = [];
+    for (const kw of keywords) {
+      if (lowerNote.includes(kw.toLowerCase())) {
+        count++;
+        matched.push(kw);
+      }
+    }
+    if (count > 0) {
+      scores[category] = { count, matched };
+    }
+  }
+  if (Object.keys(scores).length === 0) return null;
+  const bestCategory = Object.entries(scores).sort((a, b) => b[1].count - a[1].count)[0];
+  let gSubCategory = "\u5176\u4ED6";
+  const subRules = SUBCATEGORY_RULES[bestCategory[0]];
+  if (subRules) {
+    for (const rule of subRules) {
+      for (const kw of rule.keywords) {
+        if (lowerNote.includes(kw.toLowerCase())) {
+          gSubCategory = rule.sub;
+          break;
+        }
+      }
+      if (gSubCategory !== "\u5176\u4ED6") break;
+    }
+  }
+  return {
+    gCategory: bestCategory[0],
+    gSubCategory,
+    matchedKeywords: bestCategory[1].matched
+  };
+}
+var CATEGORY_RULES, SUBCATEGORY_RULES;
+var init_ruleEngine = __esm({
+  "src/js/ai/ruleEngine.js"() {
+    CATEGORY_RULES = {
+      \u9910\u996E: [
+        "\u5496\u5561",
+        "\u5976\u8336",
+        "\u706B\u9505",
+        "\u5916\u5356",
+        "\u9910\u5385",
+        "\u996D",
+        "\u83DC",
+        "\u5403",
+        "\u997F",
+        "\u5348\u9910",
+        "\u665A\u9910",
+        "\u65E9\u9910",
+        "coffee",
+        "drink",
+        "\u996E\u6599",
+        "\u5C0F\u5403",
+        "\u96F6\u98DF",
+        "\u6CE1\u9762",
+        "\u8089",
+        "\u9C7C",
+        "\u852C",
+        "\u679C",
+        "\u98DF\u7269",
+        "\u996E\u98DF",
+        "groceries",
+        "grocery",
+        "supermarket",
+        "\u4FBF\u5229",
+        "\u96F6",
+        "\u7CD5",
+        "\u7CD6",
+        "\u997C",
+        "\u7CAE",
+        "\u725B\u5976",
+        "milk",
+        "snack",
+        "lunch",
+        "dinner",
+        "breakfast",
+        "meal",
+        "food",
+        "restaurant",
+        "cafe",
+        "bakery",
+        "\u9762\u5305",
+        "\u751C\u70B9",
+        "\u70E7\u70E4",
+        "\u70E4\u8089",
+        "\u4E32",
+        "\u9152",
+        "\u5564\u9152",
+        "bar",
+        "pub"
+      ],
+      \u4EA4\u901A: [
+        "\u6253\u8F66",
+        "\u5730\u94C1",
+        "\u9AD8\u94C1",
+        "\u516C\u4EA4",
+        "\u4EA4\u901A",
+        "\u51FA\u884C",
+        "\u6EF4\u6EF4",
+        "uber",
+        "taxi",
+        "\u9A91\u884C",
+        "\u5355\u8F66",
+        "\u5171\u4EAB",
+        "car",
+        "vehicle",
+        "\u6C7D\u8F66",
+        "\u8F66",
+        "\u6CB9",
+        "\u52A0\u6CB9",
+        "\u505C\u8F66",
+        "train",
+        "flight",
+        "\u673A\u7968",
+        "bus",
+        "metro",
+        "toll",
+        "\u8FC7\u8DEF",
+        "\u9AD8\u901F",
+        "etc",
+        "\u706B\u8F66"
+      ],
+      \u8D2D\u7269: [
+        "\u6DD8\u5B9D",
+        "\u4EAC\u4E1C",
+        "\u62FC\u591A\u591A",
+        "\u8D2D\u4E70",
+        "\u4E70",
+        "shop",
+        "shopping",
+        "\u8D2D\u7269",
+        "\u8D85\u5E02",
+        "\u5546\u573A",
+        "mall",
+        "\u670D\u88C5",
+        "\u8863",
+        "\u978B",
+        "\u5305",
+        "\u7F8E\u5986",
+        "\u5316\u5986",
+        "amazon",
+        "\u65E5\u7528\u54C1",
+        "\u6570\u7801",
+        "\u7535\u5B50",
+        "\u624B\u673A",
+        "\u7535\u8111",
+        "\u5BB6\u5177",
+        "\u5BB6\u7535",
+        "purchase",
+        "buy",
+        "store",
+        "retail"
+      ],
+      \u4F4F\u623F: [
+        "\u623F\u79DF",
+        "\u623F\u8D37",
+        "\u6C34\u7535",
+        "\u7269\u4E1A",
+        "home",
+        "\u4F4F\u623F",
+        "house",
+        "rent",
+        "mortgage",
+        "\u6C34\u8D39",
+        "\u7535\u8D39",
+        "\u71C3\u6C14",
+        "\u7164\u6C14",
+        "\u5BBD\u5E26",
+        "\u7F51\u8D39",
+        "\u8BDD\u8D39",
+        "\u7535\u8BDD",
+        "\u88C5\u4FEE",
+        "\u7EF4\u4FEE",
+        "\u5BB6\u5C45"
+      ],
+      \u5A31\u4E50: [
+        "\u7535\u5F71",
+        "\u6E38\u620F",
+        "ktv",
+        "fun",
+        "\u5A31\u4E50",
+        "play",
+        "movie",
+        "game",
+        "music",
+        "concert",
+        "\u6F14\u5531\u4F1A",
+        "\u6F14\u51FA",
+        "\u7968",
+        "\u65C5\u6E38",
+        "travel",
+        "\u9152\u5E97",
+        "hotel",
+        "\u666F\u70B9",
+        "\u95E8\u7968",
+        "\u5EA6\u5047",
+        "\u5065\u8EAB",
+        "gym",
+        "\u8FD0\u52A8",
+        "sport",
+        "steam",
+        "\u82F1\u96C4",
+        "\u8054\u76DF",
+        "\u70B9\u5361",
+        "\u738B\u8005",
+        "\u5403\u9E21",
+        "pubg",
+        "lol",
+        "dota",
+        "\u539F\u795E",
+        "switch",
+        "ps5",
+        "xbox",
+        "epic",
+        "nintendo",
+        "\u624B\u6E38"
+      ],
+      \u533B\u7597: [
+        "\u533B\u9662",
+        "\u770B\u75C5",
+        "\u836F",
+        "health",
+        "\u533B\u7597",
+        "medical",
+        "doctor",
+        "hospital",
+        "\u8BCA\u6240",
+        "\u4F53\u68C0",
+        "\u7259",
+        "\u773C",
+        "\u62A4",
+        "\u517B\u751F",
+        "\u68C0\u67E5",
+        "\u624B\u672F"
+      ],
+      \u6559\u80B2: [
+        "\u5B66\u8D39",
+        "\u4E66",
+        "\u8BFE\u7A0B",
+        "education",
+        "\u6559\u80B2",
+        "learn",
+        "course",
+        "book",
+        "\u57F9\u8BAD",
+        "\u8003\u8BD5",
+        "\u62A5\u540D",
+        "\u5B66",
+        "\u8BFE",
+        "\u6559\u6750",
+        "\u6587\u5177",
+        "tuition"
+      ],
+      \u6536\u5165: [
+        "\u5DE5\u8D44",
+        "\u517C\u804C",
+        "\u7EA2\u5305",
+        "\u7406\u8D22",
+        "wage",
+        "income",
+        "salary",
+        "bonus",
+        "\u5956\u91D1",
+        "\u9000\u6B3E",
+        "refund",
+        "\u62A5\u9500",
+        "\u5229\u606F",
+        "freelance",
+        "\u526F\u4E1A",
+        "\u7A3F\u8D39"
+      ],
+      \u6295\u8D44: [
+        "\u80A1\u7968",
+        "\u57FA\u91D1",
+        "\u6295\u8D44",
+        "investment",
+        "stock",
+        "fund",
+        "dividend",
+        "\u5206\u7EA2",
+        "crypto",
+        "btc",
+        "eth",
+        "\u503A\u5238",
+        "\u7406\u8D22"
+      ]
+    };
+    SUBCATEGORY_RULES = {
+      \u9910\u996E: [
+        { keywords: ["\u5496\u5561", "coffee"], sub: "\u5496\u5561" },
+        { keywords: ["\u5976\u8336", "milk tea"], sub: "\u5976\u8336" },
+        { keywords: ["\u5916\u5356", "delivery"], sub: "\u5916\u5356" },
+        { keywords: ["\u706B\u9505", "hotpot"], sub: "\u706B\u9505" },
+        { keywords: ["\u70E7\u70E4", "\u70E4\u8089", "\u4E32"], sub: "\u70E7\u70E4" },
+        { keywords: ["\u9762\u5305", "bakery", "\u751C\u70B9", "\u7CD5", "\u997C"], sub: "\u70D8\u7119" },
+        { keywords: ["\u96F6\u98DF", "snack", "\u5C0F\u5403"], sub: "\u96F6\u98DF" },
+        { keywords: ["groceries", "grocery", "supermarket", "\u8D85\u5E02", "\u4FBF\u5229"], sub: "\u8D85\u5E02\u91C7\u8D2D" },
+        { keywords: ["\u9152", "\u5564\u9152", "bar", "pub", "\u996E\u6599", "drink"], sub: "\u996E\u54C1" },
+        { keywords: ["\u5348\u9910", "lunch"], sub: "\u5348\u9910" },
+        { keywords: ["\u665A\u9910", "dinner"], sub: "\u665A\u9910" },
+        { keywords: ["\u65E9\u9910", "breakfast"], sub: "\u65E9\u9910" }
+      ],
+      \u4EA4\u901A: [
+        { keywords: ["\u6253\u8F66", "\u6EF4\u6EF4", "uber", "taxi"], sub: "\u6253\u8F66" },
+        { keywords: ["\u5730\u94C1", "metro", "subway"], sub: "\u5730\u94C1" },
+        { keywords: ["\u516C\u4EA4", "bus"], sub: "\u516C\u4EA4" },
+        { keywords: ["\u9AD8\u94C1", "train", "\u706B\u8F66"], sub: "\u706B\u8F66" },
+        { keywords: ["\u673A\u7968", "flight", "\u822A\u7A7A"], sub: "\u673A\u7968" },
+        { keywords: ["\u52A0\u6CB9", "shell", "\u6CB9"], sub: "\u52A0\u6CB9" },
+        { keywords: ["\u505C\u8F66", "parking"], sub: "\u505C\u8F66" },
+        { keywords: ["\u5355\u8F66", "\u9A91\u884C", "\u5171\u4EAB"], sub: "\u5171\u4EAB\u51FA\u884C" },
+        { keywords: ["\u9AD8\u901F", "toll", "etc", "\u8FC7\u8DEF"], sub: "\u8FC7\u8DEF\u8D39" }
+      ],
+      \u8D2D\u7269: [
+        { keywords: ["\u6DD8\u5B9D", "taobao"], sub: "\u6DD8\u5B9D" },
+        { keywords: ["\u4EAC\u4E1C", "jd"], sub: "\u4EAC\u4E1C" },
+        { keywords: ["\u62FC\u591A\u591A", "pdd", "pinduoduo"], sub: "\u62FC\u591A\u591A" },
+        { keywords: ["\u6570\u7801", "\u7535\u5B50", "\u624B\u673A", "\u7535\u8111"], sub: "\u6570\u7801" },
+        { keywords: ["\u670D\u88C5", "\u8863", "\u978B", "\u5305"], sub: "\u670D\u9970" },
+        { keywords: ["\u7F8E\u5986", "\u5316\u5986"], sub: "\u7F8E\u5986" },
+        { keywords: ["\u8D85\u5E02", "supermarket", "walmart", "\u65E5\u7528\u54C1"], sub: "\u8D85\u5E02" },
+        { keywords: ["\u5BB6\u5177", "\u5BB6\u7535", "\u5BB6\u5C45"], sub: "\u5BB6\u5C45" }
+      ],
+      \u4F4F\u623F: [
+        { keywords: ["\u623F\u79DF", "rent"], sub: "\u623F\u79DF" },
+        { keywords: ["\u623F\u8D37", "mortgage"], sub: "\u623F\u8D37" },
+        { keywords: ["\u6C34\u8D39", "water"], sub: "\u6C34\u8D39" },
+        { keywords: ["\u7535\u8D39", "electric"], sub: "\u7535\u8D39" },
+        { keywords: ["\u71C3\u6C14", "gas", "\u7164\u6C14"], sub: "\u71C3\u6C14" },
+        { keywords: ["\u5BBD\u5E26", "\u7F51\u8D39", "internet"], sub: "\u7F51\u7EDC" },
+        { keywords: ["\u8BDD\u8D39", "\u7535\u8BDD", "phone", "mobile"], sub: "\u901A\u8BAF" },
+        { keywords: ["\u7269\u4E1A", "property"], sub: "\u7269\u4E1A" },
+        { keywords: ["\u88C5\u4FEE", "\u5BB6\u5C45"], sub: "\u88C5\u4FEE\u5BB6\u5C45" }
+      ],
+      \u5A31\u4E50: [
+        { keywords: ["\u7535\u5F71", "movie", "cinema"], sub: "\u7535\u5F71" },
+        { keywords: ["\u6E38\u620F", "game", "steam"], sub: "\u6E38\u620F" },
+        { keywords: ["ktv", "music", "\u97F3\u4E50"], sub: "\u97F3\u4E50/KTV" },
+        { keywords: ["\u65C5\u6E38", "travel", "\u9152\u5E97", "hotel", "\u666F\u70B9"], sub: "\u65C5\u6E38" },
+        { keywords: ["\u5065\u8EAB", "gym", "\u8FD0\u52A8", "sport"], sub: "\u5065\u8EAB" }
+      ],
+      \u533B\u7597: [
+        { keywords: ["\u533B\u9662", "hospital"], sub: "\u533B\u9662" },
+        { keywords: ["\u836F", "pharmacy", "\u836F\u5E97"], sub: "\u836F\u54C1" },
+        { keywords: ["\u4F53\u68C0", "\u68C0\u67E5"], sub: "\u4F53\u68C0" },
+        { keywords: ["\u7259", "dentist"], sub: "\u7259\u79D1" }
+      ],
+      \u6559\u80B2: [
+        { keywords: ["\u5B66\u8D39", "tuition"], sub: "\u5B66\u8D39" },
+        { keywords: ["\u4E66", "book"], sub: "\u4E66\u7C4D" },
+        { keywords: ["\u8BFE\u7A0B", "course"], sub: "\u8BFE\u7A0B" },
+        { keywords: ["\u57F9\u8BAD"], sub: "\u57F9\u8BAD" }
+      ],
+      \u6536\u5165: [
+        { keywords: ["\u5DE5\u8D44", "wage", "salary"], sub: "\u5DE5\u8D44" },
+        { keywords: ["\u517C\u804C", "freelance", "\u526F\u4E1A"], sub: "\u517C\u804C" },
+        { keywords: ["\u7EA2\u5305", "gift"], sub: "\u7EA2\u5305" },
+        { keywords: ["\u7406\u8D22", "\u5229\u606F", "dividend"], sub: "\u7406\u8D22\u6536\u76CA" },
+        { keywords: ["\u9000\u6B3E", "refund"], sub: "\u9000\u6B3E" }
+      ],
+      \u6295\u8D44: [
+        { keywords: ["\u80A1\u7968", "stock"], sub: "\u80A1\u7968" },
+        { keywords: ["\u57FA\u91D1", "fund"], sub: "\u57FA\u91D1" },
+        { keywords: ["crypto", "btc", "eth"], sub: "\u52A0\u5BC6\u8D27\u5E01" },
+        { keywords: ["\u503A\u5238", "bond"], sub: "\u503A\u5238" }
+      ]
+    };
+  }
+});
+
+// src/js/ai/userMemoryEngine.js
+function _load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+function _save2(memory) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(memory));
+  } catch (e) {
+    console.warn("[userMemoryEngine] \u4FDD\u5B58\u5931\u8D25:", e);
+  }
+}
+function _normalizeKey(key) {
+  if (!key) return "";
+  return key.toLowerCase().replace(/[^\w\u4e00-\u9fa5]/g, " ").replace(/\s+/g, " ").trim().split(" ").filter((w) => w.length >= 2).join(" ");
+}
+function recall(note) {
+  if (!note) return null;
+  const memory = _load();
+  const words = _normalizeKey(note).split(" ");
+  let bestCategory = null;
+  let bestScore = 0;
+  const categoryScores = {};
+  for (const word of words) {
+    if (!memory[word]) continue;
+    for (const [cat, weight] of Object.entries(memory[word])) {
+      categoryScores[cat] = (categoryScores[cat] || 0) + weight;
+    }
+  }
+  const entries = Object.entries(categoryScores);
+  if (entries.length === 0) return null;
+  for (const [cat, score2] of entries) {
+    if (score2 > bestScore) {
+      bestScore = score2;
+      bestCategory = cat;
+    }
+  }
+  const totalWeight = entries.reduce((s, [, w]) => s + w, 0);
+  const confidence = Math.min(bestScore / Math.max(totalWeight, 1), 1);
+  if (confidence < 0.5) return null;
+  return {
+    gCategory: bestCategory,
+    confidence
+  };
+}
+function learn(note, userCategory) {
+  if (!note || !userCategory) return;
+  const memory = _load();
+  const words = _normalizeKey(note).split(" ");
+  const LEARN_RATE = 0.3;
+  const DECAY_FACTOR = 0.95;
+  for (const word of words) {
+    if (!word) continue;
+    if (!memory[word]) memory[word] = {};
+    memory[word][userCategory] = (memory[word][userCategory] || 0) + LEARN_RATE;
+    for (const cat of Object.keys(memory[word])) {
+      if (cat !== userCategory) {
+        memory[word][cat] *= DECAY_FACTOR;
+      }
+    }
+    if (memory[word][userCategory] > 1) memory[word][userCategory] = 1;
+    for (const cat of Object.keys(memory[word])) {
+      if (memory[word][cat] < 0.01) delete memory[word][cat];
+    }
+  }
+  _save2(memory);
+}
+var STORAGE_KEY;
+var init_userMemoryEngine = __esm({
+  "src/js/ai/userMemoryEngine.js"() {
+    STORAGE_KEY = "rdstr_user_memory";
+  }
+});
+
+// src/js/ai/scoringEngine.js
+function score(note) {
+  if (!note || typeof note !== "string") return null;
+  const lowerNote = note.toLowerCase();
+  const scores = {};
+  const matchLog = [];
+  for (const { kw, cat, score: score2 } of SCORE_MAP) {
+    if (lowerNote.includes(kw.toLowerCase())) {
+      scores[cat] = (scores[cat] || 0) + score2;
+      matchLog.push(`${kw}\u2192${cat}(+${score2})`);
+    }
+  }
+  const entries = Object.entries(scores);
+  if (entries.length === 0) return null;
+  entries.sort((a, b) => b[1] - a[1]);
+  return {
+    gCategory: entries[0][0],
+    score: entries[0][1],
+    matches: matchLog
+  };
+}
+var SCORE_MAP;
+var init_scoringEngine = __esm({
+  "src/js/ai/scoringEngine.js"() {
+    SCORE_MAP = [
+      // 餐饮 (food)
+      { kw: "coffee", cat: "\u9910\u996E", score: 5 },
+      { kw: "\u5496\u5561", cat: "\u9910\u996E", score: 5 },
+      { kw: "meal", cat: "\u9910\u996E", score: 4 },
+      { kw: "food", cat: "\u9910\u996E", score: 4 },
+      { kw: "restaurant", cat: "\u9910\u996E", score: 4 },
+      { kw: "\u996D", cat: "\u9910\u996E", score: 3 },
+      { kw: "\u83DC", cat: "\u9910\u996E", score: 3 },
+      { kw: "\u5403", cat: "\u9910\u996E", score: 3 },
+      { kw: "drink", cat: "\u9910\u996E", score: 3 },
+      { kw: "\u5976\u8336", cat: "\u9910\u996E", score: 4 },
+      { kw: "\u5916\u5356", cat: "\u9910\u996E", score: 4 },
+      { kw: "\u706B\u9505", cat: "\u9910\u996E", score: 5 },
+      { kw: "\u5C0F\u5403", cat: "\u9910\u996E", score: 3 },
+      { kw: "\u96F6\u98DF", cat: "\u9910\u996E", score: 3 },
+      { kw: "lunch", cat: "\u9910\u996E", score: 5 },
+      { kw: "dinner", cat: "\u9910\u996E", score: 5 },
+      { kw: "breakfast", cat: "\u9910\u996E", score: 5 },
+      { kw: "grocery", cat: "\u9910\u996E", score: 3 },
+      { kw: "\u8D85\u5E02", cat: "\u9910\u996E", score: 2 },
+      // 交通
+      { kw: "taxi", cat: "\u4EA4\u901A", score: 5 },
+      { kw: "\u6253\u8F66", cat: "\u4EA4\u901A", score: 5 },
+      { kw: "uber", cat: "\u4EA4\u901A", score: 5 },
+      { kw: "\u6EF4\u6EF4", cat: "\u4EA4\u901A", score: 5 },
+      { kw: "\u5730\u94C1", cat: "\u4EA4\u901A", score: 5 },
+      { kw: "metro", cat: "\u4EA4\u901A", score: 5 },
+      { kw: "\u516C\u4EA4", cat: "\u4EA4\u901A", score: 5 },
+      { kw: "bus", cat: "\u4EA4\u901A", score: 4 },
+      { kw: "\u9AD8\u94C1", cat: "\u4EA4\u901A", score: 4 },
+      { kw: "train", cat: "\u4EA4\u901A", score: 4 },
+      { kw: "flight", cat: "\u4EA4\u901A", score: 5 },
+      { kw: "\u673A\u7968", cat: "\u4EA4\u901A", score: 5 },
+      { kw: "\u52A0\u6CB9", cat: "\u4EA4\u901A", score: 5 },
+      { kw: "gas", cat: "\u4EA4\u901A", score: 4 },
+      { kw: "\u505C\u8F66", cat: "\u4EA4\u901A", score: 5 },
+      { kw: "parking", cat: "\u4EA4\u901A", score: 5 },
+      // 购物
+      { kw: "buy", cat: "\u8D2D\u7269", score: 3 },
+      { kw: "\u4E70", cat: "\u8D2D\u7269", score: 3 },
+      { kw: "shop", cat: "\u8D2D\u7269", score: 3 },
+      { kw: "shopping", cat: "\u8D2D\u7269", score: 5 },
+      { kw: "\u8D2D\u7269", cat: "\u8D2D\u7269", score: 5 },
+      { kw: "\u6DD8\u5B9D", cat: "\u8D2D\u7269", score: 5 },
+      { kw: "\u4EAC\u4E1C", cat: "\u8D2D\u7269", score: 5 },
+      { kw: "\u62FC\u591A\u591A", cat: "\u8D2D\u7269", score: 5 },
+      { kw: "amazon", cat: "\u8D2D\u7269", score: 5 },
+      { kw: "\u8863\u670D", cat: "\u8D2D\u7269", score: 4 },
+      { kw: "\u670D\u88C5", cat: "\u8D2D\u7269", score: 4 },
+      { kw: "\u978B", cat: "\u8D2D\u7269", score: 3 },
+      { kw: "\u7535\u5B50", cat: "\u8D2D\u7269", score: 3 },
+      { kw: "\u6570\u7801", cat: "\u8D2D\u7269", score: 3 },
+      { kw: "\u624B\u673A", cat: "\u8D2D\u7269", score: 4 },
+      { kw: "\u7535\u8111", cat: "\u8D2D\u7269", score: 4 },
+      // 住房
+      { kw: "rent", cat: "\u4F4F\u623F", score: 5 },
+      { kw: "\u623F\u79DF", cat: "\u4F4F\u623F", score: 5 },
+      { kw: "\u623F\u8D37", cat: "\u4F4F\u623F", score: 5 },
+      { kw: "mortgage", cat: "\u4F4F\u623F", score: 5 },
+      { kw: "\u6C34\u7535", cat: "\u4F4F\u623F", score: 4 },
+      { kw: "\u7269\u4E1A", cat: "\u4F4F\u623F", score: 4 },
+      { kw: "\u7535\u8D39", cat: "\u4F4F\u623F", score: 5 },
+      { kw: "\u6C34\u8D39", cat: "\u4F4F\u623F", score: 5 },
+      { kw: "\u71C3\u6C14", cat: "\u4F4F\u623F", score: 5 },
+      { kw: "\u5BBD\u5E26", cat: "\u4F4F\u623F", score: 4 },
+      { kw: "\u7F51\u8D39", cat: "\u4F4F\u623F", score: 4 },
+      { kw: "\u8BDD\u8D39", cat: "\u4F4F\u623F", score: 3 },
+      { kw: "home", cat: "\u4F4F\u623F", score: 3 },
+      { kw: "house", cat: "\u4F4F\u623F", score: 3 },
+      // 娱乐
+      { kw: "movie", cat: "\u5A31\u4E50", score: 5 },
+      { kw: "\u7535\u5F71", cat: "\u5A31\u4E50", score: 5 },
+      { kw: "game", cat: "\u5A31\u4E50", score: 4 },
+      { kw: "\u6E38\u620F", cat: "\u5A31\u4E50", score: 4 },
+      { kw: "\u82F1\u96C4", cat: "\u5A31\u4E50", score: 3 },
+      { kw: "\u8054\u76DF", cat: "\u5A31\u4E50", score: 3 },
+      { kw: "\u70B9\u5361", cat: "\u5A31\u4E50", score: 4 },
+      { kw: "steam", cat: "\u5A31\u4E50", score: 5 },
+      { kw: "\u738B\u8005", cat: "\u5A31\u4E50", score: 3 },
+      { kw: "\u539F\u795E", cat: "\u5A31\u4E50", score: 3 },
+      { kw: "switch", cat: "\u5A31\u4E50", score: 4 },
+      { kw: "ps5", cat: "\u5A31\u4E50", score: 4 },
+      { kw: "xbox", cat: "\u5A31\u4E50", score: 4 },
+      { kw: "ktv", cat: "\u5A31\u4E50", score: 5 },
+      { kw: "music", cat: "\u5A31\u4E50", score: 3 },
+      { kw: "\u97F3\u4E50", cat: "\u5A31\u4E50", score: 3 },
+      { kw: "concert", cat: "\u5A31\u4E50", score: 5 },
+      { kw: "\u6F14\u5531\u4F1A", cat: "\u5A31\u4E50", score: 5 },
+      { kw: "\u65C5\u6E38", cat: "\u5A31\u4E50", score: 3 },
+      { kw: "travel", cat: "\u5A31\u4E50", score: 3 },
+      { kw: "\u9152\u5E97", cat: "\u5A31\u4E50", score: 4 },
+      { kw: "hotel", cat: "\u5A31\u4E50", score: 4 },
+      { kw: "\u5065\u8EAB", cat: "\u5A31\u4E50", score: 3 },
+      { kw: "gym", cat: "\u5A31\u4E50", score: 3 },
+      // 医疗
+      { kw: "hospital", cat: "\u533B\u7597", score: 5 },
+      { kw: "\u533B\u9662", cat: "\u533B\u7597", score: 5 },
+      { kw: "doctor", cat: "\u533B\u7597", score: 4 },
+      { kw: "\u533B\u751F", cat: "\u533B\u7597", score: 4 },
+      { kw: "\u836F", cat: "\u533B\u7597", score: 4 },
+      { kw: "\u770B\u75C5", cat: "\u533B\u7597", score: 4 },
+      { kw: "\u4F53\u68C0", cat: "\u533B\u7597", score: 5 },
+      { kw: "\u8BCA\u6240", cat: "\u533B\u7597", score: 4 },
+      { kw: "health", cat: "\u533B\u7597", score: 3 },
+      { kw: "medical", cat: "\u533B\u7597", score: 3 },
+      // 教育
+      { kw: "\u5B66\u8D39", cat: "\u6559\u80B2", score: 5 },
+      { kw: "tuition", cat: "\u6559\u80B2", score: 5 },
+      { kw: "\u8BFE\u7A0B", cat: "\u6559\u80B2", score: 4 },
+      { kw: "course", cat: "\u6559\u80B2", score: 4 },
+      { kw: "\u57F9\u8BAD", cat: "\u6559\u80B2", score: 4 },
+      { kw: "\u4E66", cat: "\u6559\u80B2", score: 3 },
+      { kw: "book", cat: "\u6559\u80B2", score: 3 },
+      { kw: "learn", cat: "\u6559\u80B2", score: 3 },
+      { kw: "\u6559\u80B2", cat: "\u6559\u80B2", score: 3 },
+      { kw: "education", cat: "\u6559\u80B2", score: 3 },
+      // 收入
+      { kw: "wage", cat: "\u6536\u5165", score: 5 },
+      { kw: "salary", cat: "\u6536\u5165", score: 5 },
+      { kw: "\u5DE5\u8D44", cat: "\u6536\u5165", score: 5 },
+      { kw: "bonus", cat: "\u6536\u5165", score: 5 },
+      { kw: "\u5956\u91D1", cat: "\u6536\u5165", score: 5 },
+      { kw: "\u517C\u804C", cat: "\u6536\u5165", score: 4 },
+      { kw: "\u7EA2\u5305", cat: "\u6536\u5165", score: 5 },
+      { kw: "refund", cat: "\u6536\u5165", score: 4 },
+      { kw: "\u9000\u6B3E", cat: "\u6536\u5165", score: 4 },
+      { kw: "income", cat: "\u6536\u5165", score: 3 },
+      { kw: "\u7406\u8D22", cat: "\u6536\u5165", score: 2 },
+      { kw: "\u5229\u606F", cat: "\u6536\u5165", score: 4 },
+      // 投资
+      { kw: "stock", cat: "\u6295\u8D44", score: 5 },
+      { kw: "\u80A1\u7968", cat: "\u6295\u8D44", score: 5 },
+      { kw: "fund", cat: "\u6295\u8D44", score: 5 },
+      { kw: "\u57FA\u91D1", cat: "\u6295\u8D44", score: 5 },
+      { kw: "investment", cat: "\u6295\u8D44", score: 5 },
+      { kw: "\u6295\u8D44", cat: "\u6295\u8D44", score: 5 },
+      { kw: "\u5206\u7EA2", cat: "\u6295\u8D44", score: 5 },
+      { kw: "dividend", cat: "\u6295\u8D44", score: 5 },
+      { kw: "crypto", cat: "\u6295\u8D44", score: 5 },
+      { kw: "btc", cat: "\u6295\u8D44", score: 5 },
+      { kw: "eth", cat: "\u6295\u8D44", score: 5 },
+      { kw: "\u503A\u5238", cat: "\u6295\u8D44", score: 4 }
+    ];
+  }
+});
+
+// src/js/ai/aiFallback.js
+async function aiClassify(note, category) {
+  if (!note) return null;
+  const input = `${note}${category ? " [" + category + "]" : ""}`;
+  const systemPrompt = `\u4F60\u662F\u4E00\u4E2A\u8BB0\u8D26\u5206\u7C7B\u52A9\u624B\u3002\u8BF7\u6839\u636E\u4EA4\u6613\u5907\u6CE8\u5BF9\u652F\u51FA\u8FDB\u884C\u5206\u7C7B\u3002
+
+\u89C4\u5219\uFF1A
+1. gCategory \u5FC5\u987B\u4ECE\u4EE5\u4E0B\u5217\u8868\u4E2D\u7CBE\u786E\u9009\u62E9\u4E00\u4E2A\uFF1A${VALID_CATEGORIES.join("\u3001")}
+2. gSubCategory \u662F\u7EC6\u5206\u63CF\u8FF0\uFF08\u5982"\u5496\u5561"\u3001"\u6253\u8F66"\u3001"\u8D85\u5E02"\uFF09\uFF0C\u4E0D\u80FD\u4E3A\u7A7A
+3. tags \u662F\u4ECE\u5907\u6CE8\u4E2D\u63D0\u53D6\u7684\u5173\u952E\u5B9E\u4F53\u8BCD\u6570\u7EC4\uFF08\u5982["Starbucks", "\u62FF\u94C1"]\uFF09\uFF0C\u6700\u591A 5 \u4E2A
+4. confidence \u662F\u7F6E\u4FE1\u5EA6\uFF080-1\uFF09\uFF0C\u57FA\u4E8E\u5206\u7C7B\u660E\u786E\u7A0B\u5EA6
+
+\u8FD4\u56DE\u7EAF JSON\uFF08\u4E0D\u8981 markdown \u4EE3\u7801\u5757\uFF09\uFF1A
+{"gCategory":"\u9910\u996E","gSubCategory":"\u5496\u5561","tags":["Starbucks","\u62FF\u94C1"],"confidence":0.9}`;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5e3);
+    const response = await fetch(API_CONFIG.url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${API_CONFIG.apiKey}`
+      },
+      body: JSON.stringify({
+        model: API_CONFIG.model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: input }
+        ],
+        temperature: 0.1,
+        max_tokens: 200
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (!response.ok) {
+      console.warn("[aiFallback] API \u8BF7\u6C42\u5931\u8D25:", response.status);
+      return null;
+    }
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) {
+      console.warn("[aiFallback] API \u8FD4\u56DE\u7A7A\u5185\u5BB9");
+      return null;
+    }
+    let result;
+    try {
+      const cleaned = content.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+      result = JSON.parse(cleaned);
+    } catch {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          result = JSON.parse(jsonMatch[0]);
+        } catch {
+          return null;
+        }
+      } else {
+        return null;
+      }
+    }
+    if (!VALID_CATEGORIES.includes(result.gCategory)) {
+      result.gCategory = "\u5176\u4ED6";
+    }
+    return {
+      gCategory: result.gCategory || "\u5176\u4ED6",
+      gSubCategory: result.gSubCategory || "\u5176\u4ED6",
+      tags: Array.isArray(result.tags) ? result.tags.slice(0, 5) : [],
+      confidence: typeof result.confidence === "number" ? result.confidence : 0.7
+    };
+  } catch (e) {
+    if (e.name === "AbortError") {
+      console.warn("[aiFallback] \u8BF7\u6C42\u8D85\u65F6");
+    } else {
+      console.warn("[aiFallback] \u8BF7\u6C42\u5F02\u5E38:", e.message);
+    }
+    return null;
+  }
+}
+function incrementClassifyCount() {
+  _totalClassifyCount++;
+}
+function incrementAICallCount() {
+  _aiCallCount++;
+}
+var API_CONFIG, VALID_CATEGORIES, _aiCallCount, _totalClassifyCount;
+var init_aiFallback = __esm({
+  "src/js/ai/aiFallback.js"() {
+    API_CONFIG = {
+      url: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+      apiKey: "sk-ws-H.RXXRDMI.kAmh.MEUCIQC8UkugPqeYQuFuiMSiEvoLrLlKDnxRiDLfZEURSWDSVQIgJEwPLrTCL_suzChFX0X-ArTKSsThgGthBY3xZm420eg",
+      model: "deepseek-v4"
+    };
+    VALID_CATEGORIES = ["\u9910\u996E", "\u4EA4\u901A", "\u8D2D\u7269", "\u4F4F\u623F", "\u5A31\u4E50", "\u533B\u7597", "\u6559\u80B2", "\u6536\u5165", "\u6295\u8D44", "\u5176\u4ED6"];
+    _aiCallCount = 0;
+    _totalClassifyCount = 0;
+  }
+});
+
+// src/js/ai/categorizer.js
+async function categorize(note, category, type) {
+  incrementClassifyCount();
+  const baseResult = {
+    gCategory: "\u5176\u4ED6",
+    gSubCategory: "\u5176\u4ED6",
+    tags: [],
+    confidence: 0,
+    source: "none",
+    aiUsed: false,
+    userOverride: false,
+    matchedRule: ""
+  };
+  if (!note && !category) return baseResult;
+  const searchText = note || category || "";
+  const merchantResult = matchMerchant(searchText);
+  if (merchantResult) {
+    return {
+      ...baseResult,
+      gCategory: merchantResult.gCategory,
+      gSubCategory: merchantResult.matchedMerchant,
+      tags: [merchantResult.matchedMerchant],
+      confidence: 0.95,
+      source: "merchant",
+      matchedRule: `\u5546\u6237\u5339\u914D: ${merchantResult.matchedMerchant}`
+    };
+  }
+  const ruleResult = matchByRule(searchText);
+  if (ruleResult) {
+    return {
+      ...baseResult,
+      gCategory: ruleResult.gCategory,
+      gSubCategory: ruleResult.gSubCategory,
+      tags: ruleResult.matchedKeywords || [],
+      confidence: 0.85,
+      source: "rule",
+      matchedRule: `\u5173\u952E\u8BCD\u5339\u914D: ${(ruleResult.matchedKeywords || []).slice(0, 3).join(", ")}`
+    };
+  }
+  const memoryResult = recall(searchText);
+  if (memoryResult && memoryResult.confidence >= 0.6) {
+    return {
+      ...baseResult,
+      gCategory: memoryResult.gCategory,
+      gSubCategory: "\u8BB0\u5FC6\u5339\u914D",
+      tags: [],
+      confidence: memoryResult.confidence,
+      source: "user",
+      matchedRule: `\u5386\u53F2\u8BB0\u5FC6: ${memoryResult.gCategory}`
+    };
+  }
+  const scoreResult = score(searchText);
+  if (scoreResult) {
+    const scoreConfidence = Math.min(scoreResult.score / 15, 0.85);
+    return {
+      ...baseResult,
+      gCategory: scoreResult.gCategory,
+      gSubCategory: "\u8BC4\u5206\u5339\u914D",
+      tags: [],
+      confidence: scoreConfidence,
+      source: "rule",
+      matchedRule: `\u8BC4\u5206: ${scoreResult.gCategory} (${scoreResult.score}\u5206)`
+    };
+  }
+  const aiResult = await aiClassify(note || category || "", category);
+  incrementAICallCount();
+  if (aiResult) {
+    return {
+      ...baseResult,
+      gCategory: aiResult.gCategory,
+      gSubCategory: aiResult.gSubCategory || "AI\u5206\u7C7B",
+      tags: aiResult.tags || [],
+      confidence: aiResult.confidence || 0.7,
+      source: "ai",
+      aiUsed: true,
+      matchedRule: "AI \u515C\u5E95\u5206\u7C7B"
+    };
+  }
+  if (category && type) {
+    const catInfer = _inferFromCategory(category, type);
+    if (catInfer) {
+      return {
+        ...baseResult,
+        gCategory: catInfer.gCategory,
+        gSubCategory: category,
+        tags: [category],
+        confidence: 0.7,
+        source: "rule",
+        matchedRule: `\u4ECE\u7C7B\u522B\u63A8\u65AD: ${category}`
+      };
+    }
+  }
+  return {
+    ...baseResult,
+    gCategory: "\u5176\u4ED6",
+    gSubCategory: "\u672A\u5206\u7C7B",
+    tags: [],
+    confidence: 0,
+    source: "none",
+    matchedRule: "\u65E0\u6CD5\u5206\u7C7B"
+  };
+}
+function _inferFromCategory(category, type) {
+  if (!category) return null;
+  const map = {
+    // 支出类
+    "Food": { gCategory: "\u9910\u996E" },
+    "Shop": { gCategory: "\u8D2D\u7269" },
+    "Parents": { gCategory: "\u5176\u4ED6" },
+    "Car": { gCategory: "\u4EA4\u901A" },
+    "Health": { gCategory: "\u533B\u7597" },
+    "Home": { gCategory: "\u4F4F\u623F" },
+    "Fun": { gCategory: "\u5A31\u4E50" },
+    "Travel": { gCategory: "\u5A31\u4E50" },
+    // 收入类
+    "Wage": { gCategory: "\u6536\u5165" },
+    "\u517C\u804C": { gCategory: "\u6536\u5165" },
+    "\u7EA2\u5305": { gCategory: "\u6536\u5165" },
+    "\u7406\u8D22": { gCategory: "\u6295\u8D44" },
+    // 通用
+    "\u5176\u4ED6": { gCategory: "\u5176\u4ED6" },
+    // Legacy aliases
+    "\u9910\u996E": { gCategory: "\u9910\u996E" },
+    "\u8D2D\u7269": { gCategory: "\u8D2D\u7269" },
+    "\u4EA4\u901A": { gCategory: "\u4EA4\u901A" },
+    "\u5A31\u4E50": { gCategory: "\u5A31\u4E50" },
+    "\u533B\u7597": { gCategory: "\u533B\u7597" },
+    "\u6559\u80B2": { gCategory: "\u6559\u80B2" },
+    "\u5DE5\u8D44": { gCategory: "\u6536\u5165" },
+    "\u6295\u8D44": { gCategory: "\u6295\u8D44" }
+  };
+  const lower = category.toLowerCase();
+  for (const [key, val] of Object.entries(map)) {
+    if (key.toLowerCase() === lower) return val;
+  }
+  if (type === "\u6536\u5165") return { gCategory: "\u6536\u5165" };
+  if (type === "\u652F\u51FA") return { gCategory: "\u5176\u4ED6" };
+  return null;
+}
+var init_categorizer = __esm({
+  "src/js/ai/categorizer.js"() {
+    init_merchantEngine();
+    init_ruleEngine();
+    init_userMemoryEngine();
+    init_scoringEngine();
+    init_aiFallback();
+    init_aiFallback();
+  }
+});
+
 // src/js/pages/transactions.js
 var transactions_exports = {};
 __export(transactions_exports, {
@@ -3820,12 +4819,16 @@ function _rowHtml(tx) {
   const timeDisplay = formatTxDateTime(tx.date);
   const isEditing = _editingTxId === tx.id;
   const editCls = isEditing ? " time-editing" : "";
+  const storageTag = _storageTagHtml(tx);
+  const gCatLabel = tx.gCategory ? _gCategoryBadge(tx) : "";
+  const sourceTag = _sourceTagHtml(tx);
   return `<div class="tx-row${editCls}" data-tx-id="${tx.id}">
     <div class="tx-icon" style="background:${bg}">${icon}</div>
     <div class="tx-info">
       <div class="tx-name">${esc(tx.category)}${tx.note ? " \xB7 " + esc(tx.note) : ""}${isLoss ? " \xB7 \u4E8F\u635F" : ""}</div>
       <div class="tx-meta">
         <span class="tx-time-pill${isEditing ? " editing" : ""}" data-tx-id="${tx.id}" data-tx-time="${esc(tx.date)}" title="\u70B9\u51FB\u4FEE\u6539\u65F6\u95F4">\u{1F550} ${esc(timeDisplay)}</span>
+        ${gCatLabel}${sourceTag}${storageTag}
       </div>
     </div>
     <div class="tx-amount ${cls}">${sign}\xA5${fmt(Math.abs(tx.amount))}</div>
@@ -4154,10 +5157,6 @@ function _renderCatGrid() {
   });
   const customInput = document.getElementById("txCategoryCustom");
   if (customInput) customInput.classList.toggle("show", _isCustomCat);
-  if (!_isCustomCat && !items.find((c) => c.v === _selectedCat)) {
-    _selectedCat = items[0].v;
-    _renderCatGrid();
-  }
 }
 function _selectCategory(v) {
   if (v === "__custom__") {
@@ -4177,17 +5176,13 @@ function _getSelectedCategory() {
   if (_isCustomCat) return document.getElementById("txCategoryCustom")?.value.trim() || "";
   return _selectedCat;
 }
-function saveQuickTx() {
+async function saveQuickTx() {
   let amount = parseFloat(_keypadVal);
   const category = _getSelectedCategory();
   const dateRaw = document.getElementById("txDate")?.value || "";
   const note = document.getElementById("txNote")?.value.trim() || "";
   if (isNaN(amount) || amount === 0) {
     showToast(t("toastInvalidAmount"));
-    return;
-  }
-  if (!category) {
-    showToast(t("toastNeedCategory"));
     return;
   }
   if (!dateRaw) {
@@ -4197,13 +5192,23 @@ function saveQuickTx() {
   const date = dateRaw.length === 16 ? dateRaw + ":00" : dateRaw;
   const allowsNegative = _quickType === "\u6536\u5165" && category === "\u7406\u8D22";
   if (!allowsNegative) amount = Math.abs(amount);
+  const classifyResult = await categorize(note, category, _quickType);
+  const finalCategory = category || classifyResult.gCategory || "\u5176\u4ED6";
   const tx = {
     id: `t${Date.now()}${Math.random().toString(36).slice(2, 8)}`,
     date,
     type: _quickType,
     amount,
-    category,
-    note
+    category: finalCategory,
+    note,
+    gCategory: classifyResult.gCategory || "\u5176\u4ED6",
+    gSubCategory: classifyResult.gSubCategory || "\u5176\u4ED6",
+    tags: classifyResult.tags || [],
+    confidence: classifyResult.confidence || 0,
+    source: classifyResult.source || "none",
+    aiUsed: classifyResult.aiUsed || false,
+    userOverride: false,
+    matchedRule: classifyResult.matchedRule || ""
   };
   const { added, duplicates } = addTransactions([tx]);
   closeTxModal();
@@ -4269,10 +5274,18 @@ function openEditTx(txId) {
   const options = ALL_CATS.map(
     (c) => `<option value="${esc(c)}" ${tx.category === c ? "selected" : ""}>${getCatIcon(c)} ${esc(c)}</option>`
   ).join("");
+  const gCat = tx.gCategory || "";
+  const sourceTag = tx.source ? `<span class="tx-source-tag" title="${esc(tx.matchedRule || "")}">${_sourceLabel(tx.source)}</span>` : "";
   const content = document.getElementById("txDetailContent");
   if (!content) return;
   content.innerHTML = `
     <div style="padding:4px 0 16px;font-size:17px;font-weight:800">\u7F16\u8F91\u8BB0\u5F55</div>
+    <div class="field"><label class="field-label">\u667A\u80FD\u5206\u7C7B</label>
+      <div style="display:flex;align-items:center;gap:8px;padding:4px 0">
+        <span style="font-size:14px;font-weight:700;background:var(--color-surface-2);padding:4px 12px;border-radius:var(--r-sm)">${esc(gCat)}</span>
+        ${sourceTag}
+      </div>
+    </div>
     <div class="field">
       <label class="field-label">\u6536\u652F\u7C7B\u578B</label>
       <div class="segmented" style="width:100%">
@@ -4291,6 +5304,8 @@ function openEditTx(txId) {
       <button class="btn btn-primary" id="editSave">\u4FDD\u5B58</button>
     </div>`;
   let editType = tx.type;
+  const origCategory = tx.category;
+  const origNote = tx.note || "";
   document.getElementById("editTypeExp")?.addEventListener("click", function() {
     editType = "\u652F\u51FA";
     this.classList.add("active");
@@ -4310,7 +5325,13 @@ function openEditTx(txId) {
       showToast(t("toastInvalidAmount"));
       return;
     }
-    updateTransaction(tx.id, { type: editType, category: newCat, amount: newAmt, note: newNote });
+    const patch = { type: editType, category: newCat, amount: newAmt, note: newNote };
+    if (newCat !== origCategory || newNote !== origNote) {
+      patch.userOverride = true;
+      const effectiveCat = tx.gCategory || normalizeCategory(newCat);
+      learn(newNote || newCat, effectiveCat);
+    }
+    updateTransaction(tx.id, patch);
     closeTxDetail();
     showToast(t("toastTxUpdated"));
     render();
@@ -4649,12 +5670,67 @@ function _exportCSV(kind) {
       return;
     }
     const rows = [
-      ["\u65F6\u95F4", "\u6536\u652F", "\u7C7B\u522B", "\u91D1\u989D", "\u5907\u6CE8"].join(","),
-      ...[...txs].sort((a, b) => new Date(a.date) - new Date(b.date)).map((t2) => [t2.date, t2.type, t2.category, t2.amount, t2.note || ""].map(_csvEscape).join(","))
+      ["\u65F6\u95F4", "\u6536\u652F", "\u7C7B\u522B", "\u91D1\u989D", "\u5907\u6CE8", "\u667A\u80FD\u5206\u7C7B", "\u5206\u7C7B\u6765\u6E90"].join(","),
+      ...[...txs].sort((a, b) => new Date(a.date) - new Date(b.date)).map((t2) => [t2.date, t2.type, t2.category, t2.amount, t2.note || "", t2.gCategory || "", t2.source || ""].map(_csvEscape).join(","))
     ];
     _download(`Roadster_\u8BB0\u8D26\u6570\u636E_${stamp}.csv`, "\uFEFF" + rows.join("\n"), "text/csv;charset=utf-8");
     showToast(t("toastExportDone"));
   }
+}
+function _gCategoryBadge(tx) {
+  if (!tx.gCategory || tx.gCategory === "\u5176\u4ED6") return "";
+  const colorMap = {
+    "\u9910\u996E": "#ff9500",
+    "\u4EA4\u901A": "#5ac8fa",
+    "\u8D2D\u7269": "#ff2d55",
+    "\u4F4F\u623F": "#af52de",
+    "\u5A31\u4E50": "#30d158",
+    "\u533B\u7597": "#ff3b30",
+    "\u6559\u80B2": "#5856d6",
+    "\u6536\u5165": "#34c759",
+    "\u6295\u8D44": "#ffd60a",
+    "\u5176\u4ED6": "#8e8e93"
+  };
+  const color = colorMap[tx.gCategory] || "#8e8e93";
+  const sourceLabel = _sourceLabel(tx.source);
+  return `<span class="tx-gcat-badge" style="background:${color}22;color:${color};border:1px solid ${color}44;font-size:11px;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:600;display:inline-flex;align-items:center;gap:3px">
+    ${esc(tx.gCategory)}
+    ${sourceLabel ? `<span style="font-size:9px;opacity:0.7">${sourceLabel}</span>` : ""}
+  </span>`;
+}
+function _sourceLabel(source) {
+  if (!source) return "";
+  const map = {
+    "merchant": "\u{1F3EA} \u5546\u6237",
+    "rule": "\u{1F4CF} \u89C4\u5219",
+    "user": "\u{1F9E0} \u8BB0\u5FC6",
+    "ai": "\u{1F916} AI",
+    "none": ""
+  };
+  return map[source] || "";
+}
+function _sourceTagHtml(tx) {
+  const source = tx.source;
+  if (!source || source === "none") return "";
+  const map = {
+    "ai": { icon: "\u{1F916}", label: "AI\u5206\u7C7B", color: "#af52de" },
+    "rule": { icon: "\u26A1", label: "\u81EA\u52A8", color: "#5ac8fa" },
+    "merchant": { icon: "\u{1F3EA}", label: "\u81EA\u52A8", color: "#34c759" },
+    "user": { icon: "\u270B", label: "\u624B\u52A8", color: "#ff9500" }
+  };
+  const cfg = map[source];
+  if (!cfg) return "";
+  return `<span class="tx-tag tx-tag--source" style="background:${cfg.color}18;color:${cfg.color};border:1px solid ${cfg.color}33;font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.85">${cfg.icon} ${cfg.label}</span>`;
+}
+function _storageTagHtml(tx) {
+  const status = tx.syncStatus;
+  if (status === "synced") {
+    return '<span class="tx-tag tx-tag--storage" style="background:rgba(52,199,89,.12);color:#34c759;border:1px solid rgba(52,199,89,.2);font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.75">\u2601\uFE0F \u4E91\u7AEF</span>';
+  }
+  if (status === "pending_upload") {
+    return '<span class="tx-tag tx-tag--storage" style="background:rgba(255,149,0,.12);color:#ff9500;border:1px solid rgba(255,149,0,.2);font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.75">\u{1F4E4} \u5F85\u540C\u6B65</span>';
+  }
+  return '<span class="tx-tag tx-tag--storage" style="background:rgba(142,142,147,.12);color:var(--color-label-3);border:1px solid rgba(142,142,147,.18);font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.75">\u{1F4BB} \u672C\u5730</span>';
 }
 var _filterType, _expandedMonths, _quickType, _keypadVal, _selectedCat, _isCustomCat, _currentView, _calYear, _calMonth, _selectedCalDay, _editingTxId, HEADER_MAP;
 var init_transactions = __esm({
@@ -4665,6 +5741,8 @@ var init_transactions = __esm({
     init_router();
     init_config();
     init_router();
+    init_categorizer();
+    init_userMemoryEngine();
     _filterType = "";
     _expandedMonths = /* @__PURE__ */ new Set();
     _quickType = "\u652F\u51FA";
@@ -5718,11 +6796,11 @@ var _subscribers2 = /* @__PURE__ */ new Set();
   } catch (e) {
     console.warn("[auth] Could not set persistence:", e.message);
   }
-  onAuthStateChanged(_auth, (user) => {
-    _user = user;
+  onAuthStateChanged(_auth, (user2) => {
+    _user = user2;
     _subscribers2.forEach((cb) => {
       try {
-        cb(user);
+        cb(user2);
       } catch (e) {
         console.error("[auth] subscriber error", e);
       }
@@ -5976,6 +7054,9 @@ function _parseTime(t2) {
 // src/js/sync/syncManager.js
 init_config();
 init_versionManager();
+import { getFirestore as getFirestore4, doc as doc3, setDoc as setDoc3, serverTimestamp as serverTimestamp3 } from "firebase/firestore";
+var _db4 = getFirestore4(_app);
+var LS_LAST_SYNC = "roadster:lastSync";
 var _autoSyncTimer = null;
 var _lastSyncTime = null;
 var _isSyncing = false;
@@ -5990,6 +7071,8 @@ function _notify(status, detail) {
 }
 function init() {
   console.log("[syncManager] \u521D\u59CB\u5316\u540C\u6B65\u7BA1\u7406\u5668");
+  const saved = localStorage.getItem(LS_LAST_SYNC);
+  if (saved) _lastSyncTime = parseInt(saved, 10);
   _maybeStartAutoSync();
 }
 async function syncOnLogin(uid2) {
@@ -6000,6 +7083,7 @@ async function syncOnLogin(uid2) {
   try {
     const cloud = await downloadAll(uid2);
     console.log(`[syncManager] \u4E91\u7AEF\u6570\u636E\uFF1A${cloud.transactions.length} \u6761\u4EA4\u6613, ${cloud.assets.length} \u4E2A\u8D44\u4EA7`);
+    markAllPendingUpload();
     const localTxs = getTransactionsRaw();
     const localAssets = getAssetsRaw();
     console.log(`[syncManager] \u672C\u5730\u6570\u636E\uFF1A${localTxs.length} \u6761\u4EA4\u6613, ${localAssets.length} \u4E2A\u8D44\u4EA7`);
@@ -6014,19 +7098,24 @@ async function syncOnLogin(uid2) {
     const pendingTxs = getPendingUploads(txResult.merged);
     const pendingAssets = getPendingUploads(assetResult.merged);
     let uploadedCount = 0;
+    let needMarkSynced = true;
     if (pendingTxs.length > 0 || pendingAssets.length > 0) {
       if (pendingTxs.length > 0) addBatchToQueue(uid2, pendingTxs, "transactions");
       if (pendingAssets.length > 0) addBatchToQueue(uid2, pendingAssets, "assets");
       const result = await processQueue();
       uploadedCount = result.success;
-      if (result.success > 0) {
-        _markUploadedSynced();
-      }
       if (result.failed > 0) {
         console.warn(`[syncManager] ${result.failed} \u6761\u4E0A\u4F20\u5931\u8D25\uFF0C\u5C06\u5728\u4E0B\u6B21\u81EA\u52A8\u540C\u6B65\u91CD\u8BD5`);
       }
+      if (result.success === 0 && result.failed > 0) {
+        needMarkSynced = false;
+      }
+    }
+    if (needMarkSynced) {
+      _markUploadedSynced();
     }
     _lastSyncTime = Date.now();
+    _persistLastSync(user.uid);
     _isSyncing = false;
     startAutoSync();
     const totalMerged = txResult.stats.added + assetResult.stats.added;
@@ -6051,8 +7140,8 @@ async function syncOnLogin(uid2) {
 function startAutoSync() {
   stopAutoSync();
   _autoSyncTimer = setInterval(async () => {
-    const user = getCurrentUser();
-    if (!user || _isSyncing) return;
+    const user2 = getCurrentUser();
+    if (!user2 || _isSyncing) return;
     const queueSize = getQueueSize();
     if (queueSize === 0) return;
     console.log(`[syncManager] \u81EA\u52A8\u540C\u6B65\uFF1A\u5904\u7406 ${queueSize} \u6761\u5F85\u4E0A\u4F20\u8BB0\u5F55`);
@@ -6061,6 +7150,7 @@ function startAutoSync() {
       await processQueue();
       _markUploadedSynced();
       _lastSyncTime = Date.now();
+      _persistLastSync(user2.uid);
     } catch (err) {
       console.error("[syncManager] \u81EA\u52A8\u540C\u6B65\u5931\u8D25:", err);
     } finally {
@@ -6083,24 +7173,26 @@ function syncOnLogout() {
   _notify("idle");
 }
 async function manualSync() {
-  const user = getCurrentUser();
-  if (!user || _isSyncing) return { uploaded: 0 };
+  const user2 = getCurrentUser();
+  if (!user2 || _isSyncing) return { uploaded: 0 };
   _isSyncing = true;
   _notify("pending", { phase: "manual" });
   try {
+    markAllPendingUpload();
+    _enqueuePendingLocal(user2.uid);
     let uploadedCount = 0;
     if (getQueueSize() > 0) {
       const result = await processQueue();
       uploadedCount = result.success;
-      _markUploadedSynced();
-    }
-    _enqueuePendingLocal(user.uid);
-    if (getQueueSize() > 0) {
-      const result = await processQueue();
-      uploadedCount += result.success;
-      _markUploadedSynced();
+      if (result.success > 0) {
+        _markUploadedSynced();
+      }
+      if (result.failed > 0) {
+        console.warn(`[syncManager] \u624B\u52A8\u540C\u6B65\uFF1A${result.failed} \u6761\u4E0A\u4F20\u5931\u8D25\uFF0C\u5C06\u5728\u4E0B\u6B21\u81EA\u52A8\u540C\u6B65\u91CD\u8BD5`);
+      }
     }
     _lastSyncTime = Date.now();
+    _persistLastSync(user2.uid);
     _isSyncing = false;
     _notify("synced", { uploaded: uploadedCount });
     return { uploaded: uploadedCount };
@@ -6111,18 +7203,29 @@ async function manualSync() {
     return { uploaded: 0 };
   }
 }
+function getLastSyncTime() {
+  return _lastSyncTime;
+}
 function _enqueuePendingLocal(uid2) {
   const pendingTxs = getPendingTransactions();
   const pendingAssets = getPendingAssets();
   if (pendingTxs.length > 0) addBatchToQueue(uid2, pendingTxs, "transactions");
   if (pendingAssets.length > 0) addBatchToQueue(uid2, pendingAssets, "assets");
 }
+async function _persistLastSync(uid2) {
+  localStorage.setItem(LS_LAST_SYNC, String(_lastSyncTime));
+  try {
+    await setDoc3(doc3(_db4, userDocPath(uid2)), { updatedAt: serverTimestamp3() }, { merge: true });
+  } catch (err) {
+    console.warn("[syncManager] \u5199\u5165\u540C\u6B65\u65F6\u95F4\u6233\u5931\u8D25:", err.message);
+  }
+}
 function _markUploadedSynced() {
   markAllSynced();
 }
 function _maybeStartAutoSync() {
-  const user = getCurrentUser();
-  if (user) startAutoSync();
+  const user2 = getCurrentUser();
+  if (user2) startAutoSync();
 }
 
 // src/js/main.js
@@ -6144,8 +7247,8 @@ window.__rdstr_refreshChartsForTheme = function() {
 initStore();
 init();
 window.__rdstr_onStoreWrite = function(key) {
-  const user = getCurrentUser();
-  if (!user) return;
+  const user2 = getCurrentUser();
+  if (!user2) return;
   if (key === "rdstr_tx" || key === "rdstr_assets") {
   }
 };
@@ -6239,8 +7342,8 @@ function switchAuthMode(mode) {
   }
 }
 function renderLoggedInSection() {
-  const user = getCurrentUser();
-  if (!user) return;
+  const user2 = getCurrentUser();
+  if (!user2) return;
   clearAuthError();
   document.getElementById("authTabBar").style.display = "none";
   document.getElementById("loggedInSection").style.display = "";
@@ -6250,20 +7353,29 @@ function renderLoggedInSection() {
   document.getElementById("authPasswordField").style.display = "none";
   document.getElementById("resetSection").style.display = "none";
   document.getElementById("authModeDesc").textContent = "\u5DF2\u767B\u5F55";
-  const initial = (user.displayName || user.email || "?")[0].toUpperCase();
+  const emailField = document.querySelector(".field:has(#authEmail)");
+  if (emailField) emailField.style.display = "none";
+  const emailPrefix = user2.email ? user2.email.split("@")[0] : "";
+  const nickname = user2.displayName || emailPrefix || "\u7528\u6237";
+  const initial = (nickname || "?")[0].toUpperCase();
   document.getElementById("authUserCard").innerHTML = `
     <div class="auth-avatar">${initial}</div>
     <div>
-      <div class="auth-user-name">${_esc2(user.displayName || "\u7528\u6237")}</div>
-      <div class="auth-user-email">${_esc2(user.email)}</div>
+      <div class="auth-user-name">${_esc2(nickname)}</div>
     </div>`;
-  _updateSyncStatusRow(user.uid);
+  _updateSyncStatusRow(user2.uid);
 }
 async function _updateSyncStatusRow(uid2) {
   const row = document.getElementById("syncStatusRow");
   if (!row) return;
   row.innerHTML = `<span><span class="sync-dot sync-dot--pending"></span>\u68C0\u67E5\u540C\u6B65\u72B6\u6001\u2026</span>`;
-  const lastSync = await getLastSyncDate(uid2);
+  let lastSync = null;
+  const localTs = getLastSyncTime();
+  if (localTs) {
+    lastSync = new Date(localTs);
+  } else {
+    lastSync = await getLastSyncDate(uid2);
+  }
   if (lastSync) {
     row.innerHTML = `<span><span class="sync-dot sync-dot--ok"></span>\u4E91\u7AEF\u5DF2\u540C\u6B65</span>
       <span style="color:var(--color-label-4);font-size:11px">${lastSync.toLocaleString("zh-CN")}</span>`;
@@ -6335,11 +7447,26 @@ document.getElementById("signOutBtn")?.addEventListener("click", async () => {
   closeAuthModal();
 });
 document.getElementById("manualSyncBtn")?.addEventListener("click", async () => {
-  const user = getCurrentUser();
-  if (!user) return;
-  const { uploaded } = await manualSync();
-  showToast(uploaded > 0 ? (t("syncedCount") || "\u5DF2\u540C\u6B65{n}\u6761").replace("{n}", uploaded) : t("synced") || "\u5DF2\u540C\u6B65");
-  _updateSyncStatusRow(user.uid);
+  const user2 = getCurrentUser();
+  if (!user2) return;
+  const btn = document.getElementById("manualSyncBtn");
+  const origText = btn?.innerHTML;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin">\u21BB</span> \u540C\u6B65\u4E2D\u2026';
+  }
+  try {
+    const { uploaded } = await manualSync();
+    showToast(uploaded > 0 ? (t("syncedCount") || "\u5DF2\u540C\u6B65{n}\u6761").replace("{n}", uploaded) : t("synced") || "\u5DF2\u540C\u6B65");
+    _updateSyncStatusRow(user2.uid);
+  } catch (err) {
+    showToast("\u540C\u6B65\u5931\u8D25");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origText;
+    }
+  }
 });
 function setAuthLoading(on) {
   const btn = document.getElementById("authSubmitBtn");
@@ -6372,11 +7499,11 @@ function _esc2(s) {
   return d.innerHTML;
 }
 var _hasLoadedCloudOnce = false;
-onAuthChange(async (user) => {
-  _renderAuthButton(user);
-  if (user && !_hasLoadedCloudOnce) {
+onAuthChange(async (user2) => {
+  _renderAuthButton(user2);
+  if (user2 && !_hasLoadedCloudOnce) {
     _hasLoadedCloudOnce = true;
-    const result = await syncOnLogin(user.uid);
+    const result = await syncOnLogin(user2.uid);
     if (result.merged > 0) {
       showToast(t("toastCloudLoaded", { n: result.merged }));
     }
@@ -6385,25 +7512,25 @@ onAuthChange(async (user) => {
     if (currentPage() === "assets") render3();
     if (currentPage() === "transactions") render();
   }
-  if (!user && _hasLoadedCloudOnce) {
+  if (!user2 && _hasLoadedCloudOnce) {
     _hasLoadedCloudOnce = false;
     syncOnLogout();
   }
   const modal = document.getElementById("authModal");
   if (modal?.classList.contains("open")) {
-    user ? renderLoggedInSection() : switchAuthMode("login");
+    user2 ? renderLoggedInSection() : switchAuthMode("login");
   }
 });
-function _renderAuthButton(user) {
+function _renderAuthButton(user2) {
   const desktopSlot = document.getElementById("authBtnDesktop");
   const mobileSlot = document.getElementById("authBtnMobile");
   if (!desktopSlot) return;
-  if (user) {
-    const initial = (user.displayName || user.email || "?")[0].toUpperCase();
+  if (user2) {
+    const initial = (user2.displayName || user2.email || "?")[0].toUpperCase();
     const html = `<button class="auth-avatar-btn" data-auth-trigger
         style="width:32px;height:32px;border-radius:50%;background:var(--grad-brand);
                color:#fff;border:none;font-size:13px;font-weight:800;cursor:pointer"
-        title="${_esc2(user.email)}">${initial}</button>`;
+        title="${_esc2(user2.email)}">${initial}</button>`;
     desktopSlot.innerHTML = html;
     mobileSlot.innerHTML = html.replace(/32px/g, "30px");
   } else {

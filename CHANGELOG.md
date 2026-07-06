@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### `v2.1.2` — 同步时间优先级修正
+- **修复**：同步时间不更新的根因——`_updateSyncStatusRow` 优先读 Firestore 旧值，因 `serverTimestamp()` 写入延迟导致本地 fallback 永不触发；现改为优先读取本地时间戳，Firestore 仅作冷启动兜底
+
+### `v2.1.1` — 同步时间修复 + 头像面板 UI 修复
+- **修复**：手动同步后时间不更新（`_updateSyncStatusRow` 仅读 Firestore `getLastSyncDate`，而 v2.1 不再写入该文档；现改为同步成功后向 `users/{uid}/data/finance` 写入 `updatedAt`，并 fallback 至本地 `getLastSyncTime()`）
+- **修复**：头像面板登录态仍显示邮箱输入框（`renderLoggedInSection` 遗漏隐藏 `.field:has(#authEmail)`）
+
 ---
 
 ## 2026-07-06

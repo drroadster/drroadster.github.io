@@ -23,7 +23,7 @@ import {
 import { syncToCloud, onSyncStatus, getLastSyncDate } from './db.js';
 
 // v2.1: Delta Sync 引擎
-import { init as initSync, syncOnLogin, syncOnLogout, manualSync, onSyncStatus as onSyncStatusV21 } from './sync/syncManager.js';
+import { init as initSync, syncOnLogin, syncOnLogout, manualSync, getLastSyncTime, onSyncStatus as onSyncStatusV21 } from './sync/syncManager.js';
 
 import { nowAsDatetimeLocal, pad2 } from './utils.js';
 
@@ -205,13 +205,18 @@ function renderLoggedInSection() {
   document.getElementById('authPasswordField').style.display = 'none';
   document.getElementById('resetSection').style.display    = 'none';
   document.getElementById('authModeDesc').textContent      = '已登录';
+  
+  // 隐藏邮箱输入框（整个 .field 元素）
+  const emailField = document.querySelector('.field:has(#authEmail)');
+  if (emailField) emailField.style.display = 'none';
 
-  const initial = (user.displayName || user.email || '?')[0].toUpperCase();
+  const emailPrefix = user.email ? user.email.split('@')[0] : '';
+  const nickname = user.displayName || emailPrefix || '用户';
+  const initial = (nickname || '?')[0].toUpperCase();
   document.getElementById('authUserCard').innerHTML = `
     <div class="auth-avatar">${initial}</div>
     <div>
-      <div class="auth-user-name">${_esc(user.displayName || '用户')}</div>
-      <div class="auth-user-email">${_esc(user.email)}</div>
+      <div class="auth-user-name">${_esc(nickname)}</div>
     </div>`;
 
   _updateSyncStatusRow(user.uid);
@@ -221,7 +226,18 @@ async function _updateSyncStatusRow(uid) {
   const row = document.getElementById('syncStatusRow');
   if (!row) return;
   row.innerHTML = `<span><span class="sync-dot sync-dot--pending"></span>检查同步状态…</span>`;
-  const lastSync = await getLastSyncDate(uid);
+
+  // 优先使用本地时间戳（刚完成的同步一定是最新的）
+  // Firestore serverTimestamp 写入后有延迟，立即读回可能拿到旧值
+  let lastSync = null;
+  const localTs = getLastSyncTime();
+  if (localTs) {
+    lastSync = new Date(localTs);
+  } else {
+    // 无本地记录时（如首次加载），fallback 到 Firestore
+    lastSync = await getLastSyncDate(uid);
+  }
+
   if (lastSync) {
     row.innerHTML = `<span><span class="sync-dot sync-dot--ok"></span>云端已同步</span>
       <span style="color:var(--color-label-4);font-size:11px">${lastSync.toLocaleString('zh-CN')}</span>`;
@@ -290,11 +306,20 @@ document.getElementById('signOutBtn')?.addEventListener('click', async () => {
 document.getElementById('manualSyncBtn')?.addEventListener('click', async () => {
   const user = getCurrentUser();
   if (!user) return;
-  const { uploaded } = await manualSync();
-  showToast(uploaded > 0
-    ? (t('syncedCount') || '已同步{n}条').replace('{n}', uploaded)
-    : (t('synced') || '已同步'));
-  _updateSyncStatusRow(user.uid);
+  const btn = document.getElementById('manualSyncBtn');
+  const origText = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin">↻</span> 同步中…'; }
+  try {
+    const { uploaded } = await manualSync();
+    showToast(uploaded > 0
+      ? (t('syncedCount') || '已同步{n}条').replace('{n}', uploaded)
+      : (t('synced') || '已同步'));
+    _updateSyncStatusRow(user.uid);
+  } catch (err) {
+    showToast('同步失败');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+  }
 });
 
 function setAuthLoading(on) {
