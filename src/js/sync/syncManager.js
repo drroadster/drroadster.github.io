@@ -6,7 +6,7 @@
 //  • 初始化同步系统
 //  • 登录后执行完整 Merge 流程
 //  • 后台自动同步（定时处理上传队列）
-//  • 退出登录时清理队列，保留本地数据
+//  • 退出登录时清除本地数据与上传队列
 //
 //  完整同步流程：
 //  下载云端 → 读取本地 → Diff → Merge → 写回本地 → 上传新增
@@ -145,7 +145,7 @@ export async function syncOnLogin(uid) {
     _markUploadedSynced();
 
     _lastSyncTime = Date.now();
-    _persistLastSync(user.uid);
+    _persistLastSync(uid);
     _isSyncing = false;
 
     // 启动后台自动同步
@@ -186,6 +186,22 @@ export function startAutoSync() {
     const user = getCurrentUser();
     if (!user || _isSyncing) return;
 
+    // 先下载云端数据并合并到本地（Download-First 策略）
+    try {
+      const cloud = await downloadAll(user.uid);
+      const localTxs = store.getTransactionsRaw();
+      const localAssets = store.getAssetsRaw();
+      const txResult = merge(cloud.transactions, localTxs, 'id');
+      const assetResult = merge(cloud.assets, localAssets, 'id');
+      store.replaceAllTransactions(txResult.merged);
+      store.replaceAllAssets(assetResult.merged);
+    } catch (e) {
+      console.warn('[syncManager] 自动同步-下载失败:', e.message);
+    }
+
+    // 将本地待同步记录加入上传队列
+    _enqueuePendingLocal(user.uid);
+
     const queueSize = getQueueSize();
     if (queueSize === 0) return;
 
@@ -224,12 +240,23 @@ export function stopAutoSync() {
  * 保留本地数据，清空上传队列，停止自动同步。
  */
 export function syncOnLogout() {
-  console.log('[syncManager] 退出登录：保留本地数据，清空同步队列');
+  console.log('[syncManager] 退出登录：清除本地数据和同步队列');
   stopAutoSync();
   clearQueue();
   _lastSyncTime = null;
 
-  // 重新加载本地数据，移除云端合并数据
+  // 清除 localStorage 中的交易和资产数据
+  const dataKeys = ['rdstr_tx', 'rdstr_assets', 'rdstr_asset_history', 'roadster:lastSync'];
+  dataKeys.forEach(key => localStorage.removeItem(key));
+
+  // 清除 Firestore 离线缓存
+  Object.keys(localStorage).forEach(key => {
+    if (key.startsWith('firestore_')) {
+      localStorage.removeItem(key);
+    }
+  });
+
+  // 重新加载（此时 localStorage 已清，内存变为空数组）
   store.reloadFromStorage();
 
   _notify('idle');
@@ -251,27 +278,7 @@ export async function manualSync() {
   _notify('pending', { phase: 'manual' });
 
   try {
-    // 1. 先将本地所有 syncStatus === 'local' 的记录标记为 pending_upload
-    store.markAllPendingUpload();
-    
-    // 2. 将待上传记录加入队列
-    _enqueuePendingLocal(user.uid);
-
-    // 3. 处理上传队列
-    let uploadedCount = 0;
-    if (getQueueSize() > 0) {
-      const result = await processQueue();
-      uploadedCount = result.success;
-
-      // 4. 无论成功与否，都将本地记录标记为 synced，避免失败项在下一次同步中被重复入队
-      _markUploadedSynced();
-
-      if (result.failed > 0) {
-        console.warn(`[syncManager] 手动同步：${result.failed} 条上传失败（已本地同步兜底），错误详情:`, result.failures.map(f => f.error));
-      }
-    }
-
-    // 5. 下载云端新增数据并合并到本地
+    // 1. 先下载云端数据并合并到本地（Download-First 策略：优先同步云端删除/更新，再上传本地变更）
     let downloadedCount = 0;
     try {
       const cloud = await downloadAll(user.uid);
@@ -291,6 +298,26 @@ export async function manualSync() {
       }
     } catch (downloadErr) {
       console.warn('[syncManager] 下载云端数据失败，跳过:', downloadErr.message);
+    }
+
+    // 2. 将本地所有 syncStatus === 'local' 的记录标记为 pending_upload
+    store.markAllPendingUpload();
+
+    // 3. 将待上传记录加入队列
+    _enqueuePendingLocal(user.uid);
+
+    // 4. 处理上传队列
+    let uploadedCount = 0;
+    if (getQueueSize() > 0) {
+      const result = await processQueue();
+      uploadedCount = result.success;
+
+      // 5. 无论成功与否，都将本地记录标记为 synced，避免失败项在下一次同步中被重复入队
+      _markUploadedSynced();
+
+      if (result.failed > 0) {
+        console.warn(`[syncManager] 手动同步：${result.failed} 条上传失败（已本地同步兜底），错误详情:`, result.failures.map(f => f.error));
+      }
     }
 
     _lastSyncTime = Date.now();

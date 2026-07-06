@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### `v2.1.6` — 退出登录清除数据 + 自动刷新 UI + 自动入队修复 + Download-First 多端冲突方案
+- **修复**：多端冲突 — A 设备删除记录后，B 设备打开旧版本自动上传覆盖云端删除（根因：旧版 sync 先上传再下载）
+- **策略**：`manualSync()` 和 `startAutoSync` 改为 Download-First 流程：先下载云端 → merge → 再上传本地变更，确保多端删除/更新优先同步到本地再上传
+- **上传时间戳**：uploadQueue 统一使用 `FieldValue.serverTimestamp()` 写入 `updatedAt`，以服务端时间为准避免本地时钟偏差
+- **修复**：退出登录后云端数据仍然显示（根因：`syncOnLogout` 仅从 localStorage 重读，但 localStorage 中已是 Merge 后的混合数据，从未被清除）
+- **修改**：`syncOnLogout()` 退出时清除 `rdstr_tx` / `rdstr_assets` / `rdstr_asset_history` / `roadster:lastSync` 及 Firestore 离线缓存，再 `reloadFromStorage`
+- **修复**：退出后页面不自动刷新（根因：退出分支缺少 render 调用）
+- **新增**：退出分支增加 `renderOverview()` / `renderAssets()` / `renderTransactions()` 调用
+- **修复**：`startAutoSync()` 缺少 `_enqueuePendingLocal()` 调用，导致登录后新增记录不会自动入队上传（只有手动同步才能触发）
+- **新增**：自动同步 30s 轮询中先调用 `_enqueuePendingLocal()` 将本地待同步记录入队，再处理上传
+
+### `v2.1.5` — 退出清除云端 + 同步反馈 (`6360d7e`)
+- **新增**：退出登录后自动清除云端合并数据，恢复本地数据（`syncOnLogout` 调用 `store.reloadFromStorage()`）
+- **新增**：手动同步完成后告知上传/新增条数（Toast 格式：「上传 X 条，新增 Y 条」）
+- **修改**：`manualSync()` 增加下载+合并步骤，返回 `{ uploaded, downloaded }` 统计
+
+### `v2.1.4` — 来源标签失效修复 (`fc36e43`)
+- **修复**：1297 条存量交易 `source` 字段为 undefined，分类标签全部消失
+- **修改**：`_sourceTagHtml()` 当 `source` 为空时默认显示 ✋手动 标签（`const effectiveSource = source || 'user'`）
+- **修复**：CI 部署最后一步失败（GitHub Pages 服务端临时故障），空提交 `fc36e43` 触发重部署
+
+### `v2.1.3` — Firestore 权限 + 同步死循环修复 (`0261066`)
+- **修复**：上传队列积压 26+ 条数据全部 Firestore 写入失败（permission-denied），根因为安全规则未覆盖 transactions 和 assets 子集合
+- **修复**：上传失败后不调用 `_markUploadedSynced()` 导致死循环——全部失败 → success=0 → 不 markSynced → 下次同步再次入队
+- **新增**：`uploadQueue.js` 输出 `err.code` 错误码便于排查
+- **新增**：同步按钮 handler 检查 `isSyncing()` 显示「同步进行中」提示
+- **新增**：导出 `isSyncing()`, `getQueueSize()` from syncManager
+- **修改**：Firestore 安全规则新增 `transactions` 和 `assets` 子集合授权
+
 ### `v2.1.2` — 同步时间优先级修正
 - **修复**：同步时间不更新的根因——`_updateSyncStatusRow` 优先读 Firestore 旧值，因 `serverTimestamp()` 写入延迟导致本地 fallback 永不触发；现改为优先读取本地时间戳，Firestore 仅作冷启动兜底
 

@@ -6797,11 +6797,11 @@ var _subscribers2 = /* @__PURE__ */ new Set();
   } catch (e) {
     console.warn("[auth] Could not set persistence:", e.message);
   }
-  onAuthStateChanged(_auth, (user2) => {
-    _user = user2;
+  onAuthStateChanged(_auth, (user) => {
+    _user = user;
     _subscribers2.forEach((cb) => {
       try {
-        cb(user2);
+        cb(user);
       } catch (e) {
         console.error("[auth] subscriber error", e);
       }
@@ -7111,7 +7111,7 @@ async function syncOnLogin(uid2) {
     }
     _markUploadedSynced();
     _lastSyncTime = Date.now();
-    _persistLastSync(user.uid);
+    _persistLastSync(uid2);
     _isSyncing = false;
     startAutoSync();
     const totalMerged = txResult.stats.added + assetResult.stats.added;
@@ -7136,8 +7136,20 @@ async function syncOnLogin(uid2) {
 function startAutoSync() {
   stopAutoSync();
   _autoSyncTimer = setInterval(async () => {
-    const user2 = getCurrentUser();
-    if (!user2 || _isSyncing) return;
+    const user = getCurrentUser();
+    if (!user || _isSyncing) return;
+    try {
+      const cloud = await downloadAll(user.uid);
+      const localTxs = getTransactionsRaw();
+      const localAssets = getAssetsRaw();
+      const txResult = merge(cloud.transactions, localTxs, "id");
+      const assetResult = merge(cloud.assets, localAssets, "id");
+      replaceAllTransactions(txResult.merged);
+      replaceAllAssets(assetResult.merged);
+    } catch (e) {
+      console.warn("[syncManager] \u81EA\u52A8\u540C\u6B65-\u4E0B\u8F7D\u5931\u8D25:", e.message);
+    }
+    _enqueuePendingLocal(user.uid);
     const queueSize = getQueueSize();
     if (queueSize === 0) return;
     console.log(`[syncManager] \u81EA\u52A8\u540C\u6B65\uFF1A\u5904\u7406 ${queueSize} \u6761\u5F85\u4E0A\u4F20\u8BB0\u5F55`);
@@ -7146,7 +7158,7 @@ function startAutoSync() {
       await processQueue();
       _markUploadedSynced();
       _lastSyncTime = Date.now();
-      _persistLastSync(user2.uid);
+      _persistLastSync(user.uid);
     } catch (err) {
       console.error("[syncManager] \u81EA\u52A8\u540C\u6B65\u5931\u8D25:", err);
     } finally {
@@ -7162,33 +7174,29 @@ function stopAutoSync() {
   }
 }
 function syncOnLogout() {
-  console.log("[syncManager] \u9000\u51FA\u767B\u5F55\uFF1A\u4FDD\u7559\u672C\u5730\u6570\u636E\uFF0C\u6E05\u7A7A\u540C\u6B65\u961F\u5217");
+  console.log("[syncManager] \u9000\u51FA\u767B\u5F55\uFF1A\u6E05\u9664\u672C\u5730\u6570\u636E\u548C\u540C\u6B65\u961F\u5217");
   stopAutoSync();
   clearQueue();
   _lastSyncTime = null;
+  const dataKeys = ["rdstr_tx", "rdstr_assets", "rdstr_asset_history", "roadster:lastSync"];
+  dataKeys.forEach((key) => localStorage.removeItem(key));
+  Object.keys(localStorage).forEach((key) => {
+    if (key.startsWith("firestore_")) {
+      localStorage.removeItem(key);
+    }
+  });
   reloadFromStorage();
   _notify("idle");
 }
 async function manualSync() {
-  const user2 = getCurrentUser();
-  if (!user2 || _isSyncing) return { uploaded: 0, downloaded: 0 };
+  const user = getCurrentUser();
+  if (!user || _isSyncing) return { uploaded: 0, downloaded: 0 };
   _isSyncing = true;
   _notify("pending", { phase: "manual" });
   try {
-    markAllPendingUpload();
-    _enqueuePendingLocal(user2.uid);
-    let uploadedCount = 0;
-    if (getQueueSize() > 0) {
-      const result = await processQueue();
-      uploadedCount = result.success;
-      _markUploadedSynced();
-      if (result.failed > 0) {
-        console.warn(`[syncManager] \u624B\u52A8\u540C\u6B65\uFF1A${result.failed} \u6761\u4E0A\u4F20\u5931\u8D25\uFF08\u5DF2\u672C\u5730\u540C\u6B65\u515C\u5E95\uFF09\uFF0C\u9519\u8BEF\u8BE6\u60C5:`, result.failures.map((f) => f.error));
-      }
-    }
     let downloadedCount = 0;
     try {
-      const cloud = await downloadAll(user2.uid);
+      const cloud = await downloadAll(user.uid);
       const localTxs = getTransactionsRaw();
       const localAssets = getAssetsRaw();
       const txResult = merge(cloud.transactions, localTxs, "id");
@@ -7202,8 +7210,19 @@ async function manualSync() {
     } catch (downloadErr) {
       console.warn("[syncManager] \u4E0B\u8F7D\u4E91\u7AEF\u6570\u636E\u5931\u8D25\uFF0C\u8DF3\u8FC7:", downloadErr.message);
     }
+    markAllPendingUpload();
+    _enqueuePendingLocal(user.uid);
+    let uploadedCount = 0;
+    if (getQueueSize() > 0) {
+      const result = await processQueue();
+      uploadedCount = result.success;
+      _markUploadedSynced();
+      if (result.failed > 0) {
+        console.warn(`[syncManager] \u624B\u52A8\u540C\u6B65\uFF1A${result.failed} \u6761\u4E0A\u4F20\u5931\u8D25\uFF08\u5DF2\u672C\u5730\u540C\u6B65\u515C\u5E95\uFF09\uFF0C\u9519\u8BEF\u8BE6\u60C5:`, result.failures.map((f) => f.error));
+      }
+    }
     _lastSyncTime = Date.now();
-    _persistLastSync(user2.uid);
+    _persistLastSync(user.uid);
     _isSyncing = false;
     _notify("synced", { uploaded: uploadedCount, downloaded: downloadedCount });
     return { uploaded: uploadedCount, downloaded: downloadedCount };
@@ -7238,8 +7257,8 @@ function _markUploadedSynced() {
   markAllSynced();
 }
 function _maybeStartAutoSync() {
-  const user2 = getCurrentUser();
-  if (user2) startAutoSync();
+  const user = getCurrentUser();
+  if (user) startAutoSync();
 }
 
 // src/js/main.js
@@ -7261,8 +7280,8 @@ window.__rdstr_refreshChartsForTheme = function() {
 initStore();
 init();
 window.__rdstr_onStoreWrite = function(key) {
-  const user2 = getCurrentUser();
-  if (!user2) return;
+  const user = getCurrentUser();
+  if (!user) return;
   if (key === "rdstr_tx" || key === "rdstr_assets") {
   }
 };
@@ -7356,8 +7375,8 @@ function switchAuthMode(mode) {
   }
 }
 function renderLoggedInSection() {
-  const user2 = getCurrentUser();
-  if (!user2) return;
+  const user = getCurrentUser();
+  if (!user) return;
   clearAuthError();
   document.getElementById("authTabBar").style.display = "none";
   document.getElementById("loggedInSection").style.display = "";
@@ -7369,15 +7388,15 @@ function renderLoggedInSection() {
   document.getElementById("authModeDesc").textContent = "\u5DF2\u767B\u5F55";
   const emailField = document.querySelector(".field:has(#authEmail)");
   if (emailField) emailField.style.display = "none";
-  const emailPrefix = user2.email ? user2.email.split("@")[0] : "";
-  const nickname = user2.displayName || emailPrefix || "\u7528\u6237";
+  const emailPrefix = user.email ? user.email.split("@")[0] : "";
+  const nickname = user.displayName || emailPrefix || "\u7528\u6237";
   const initial = (nickname || "?")[0].toUpperCase();
   document.getElementById("authUserCard").innerHTML = `
     <div class="auth-avatar">${initial}</div>
     <div>
       <div class="auth-user-name">${_esc2(nickname)}</div>
     </div>`;
-  _updateSyncStatusRow(user2.uid);
+  _updateSyncStatusRow(user.uid);
 }
 async function _updateSyncStatusRow(uid2) {
   const row = document.getElementById("syncStatusRow");
@@ -7461,8 +7480,8 @@ document.getElementById("signOutBtn")?.addEventListener("click", async () => {
   closeAuthModal();
 });
 document.getElementById("manualSyncBtn")?.addEventListener("click", async () => {
-  const user2 = getCurrentUser();
-  if (!user2) return;
+  const user = getCurrentUser();
+  if (!user) return;
   if (isSyncing()) {
     const qs = getQueueSize();
     showToast(qs > 0 ? `\u540C\u6B65\u8FDB\u884C\u4E2D\uFF08${qs} \u6761\u5F85\u5904\u7406\uFF09` : "\u540C\u6B65\u8FDB\u884C\u4E2D\uFF0C\u8BF7\u7A0D\u5019");
@@ -7482,7 +7501,7 @@ document.getElementById("manualSyncBtn")?.addEventListener("click", async () => 
       if (downloaded > 0) parts.push(`\u65B0\u589E ${downloaded} \u6761`);
       showToast(parts.length > 0 ? parts.join("\uFF0C") : t("synced") || "\u5DF2\u540C\u6B65");
     }
-    _updateSyncStatusRow(user2.uid);
+    _updateSyncStatusRow(user.uid);
   } catch (err) {
     showToast("\u540C\u6B65\u5931\u8D25");
   } finally {
@@ -7523,11 +7542,11 @@ function _esc2(s) {
   return d.innerHTML;
 }
 var _hasLoadedCloudOnce = false;
-onAuthChange(async (user2) => {
-  _renderAuthButton(user2);
-  if (user2 && !_hasLoadedCloudOnce) {
+onAuthChange(async (user) => {
+  _renderAuthButton(user);
+  if (user && !_hasLoadedCloudOnce) {
     _hasLoadedCloudOnce = true;
-    const result = await syncOnLogin(user2.uid);
+    const result = await syncOnLogin(user.uid);
     if (result.merged > 0) {
       showToast(t("toastCloudLoaded", { n: result.merged }));
     }
@@ -7536,25 +7555,28 @@ onAuthChange(async (user2) => {
     if (currentPage() === "assets") render3();
     if (currentPage() === "transactions") render();
   }
-  if (!user2 && _hasLoadedCloudOnce) {
+  if (!user && _hasLoadedCloudOnce) {
     _hasLoadedCloudOnce = false;
     syncOnLogout();
+    render2();
+    if (currentPage() === "assets") render3();
+    if (currentPage() === "transactions") render();
   }
   const modal = document.getElementById("authModal");
   if (modal?.classList.contains("open")) {
-    user2 ? renderLoggedInSection() : switchAuthMode("login");
+    user ? renderLoggedInSection() : switchAuthMode("login");
   }
 });
-function _renderAuthButton(user2) {
+function _renderAuthButton(user) {
   const desktopSlot = document.getElementById("authBtnDesktop");
   const mobileSlot = document.getElementById("authBtnMobile");
   if (!desktopSlot) return;
-  if (user2) {
-    const initial = (user2.displayName || user2.email || "?")[0].toUpperCase();
+  if (user) {
+    const initial = (user.displayName || user.email || "?")[0].toUpperCase();
     const html = `<button class="auth-avatar-btn" data-auth-trigger
         style="width:32px;height:32px;border-radius:50%;background:var(--grad-brand);
                color:#fff;border:none;font-size:13px;font-weight:800;cursor:pointer"
-        title="${_esc2(user2.email)}">${initial}</button>`;
+        title="${_esc2(user.email)}">${initial}</button>`;
     desktopSlot.innerHTML = html;
     mobileSlot.innerHTML = html.replace(/32px/g, "30px");
   } else {

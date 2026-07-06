@@ -381,6 +381,9 @@ onAuthChange(async (user) => {
   if (!user && _hasLoadedCloudOnce) {
     _hasLoadedCloudOnce = false;
     syncOnLogout();
+    renderOverview();
+    if (currentPage() === 'assets')       renderAssets();
+    if (currentPage() === 'transactions') renderTransactions();
   }
 
   // If the auth modal happens to be open, refresh its content
