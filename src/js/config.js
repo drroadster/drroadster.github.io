@@ -15,9 +15,28 @@ export const FIREBASE_CONFIG = {
   measurementId:     "G-0BML53ZJCJ",
 };
 
-// ── Firestore paths ───────────────────────────────────
-/** Returns the single finance document ref for a given user. */
+// ── Firestore paths (Delta Sync v2.1) ─────────────────
+// 旧版单文档路径（保留兼容）
 export const userDocPath = (uid) => `users/${uid}/data/finance`;
+
+// 新版独立文档路径
+export const COLLECTIONS = {
+  /** users/{uid}/transactions */
+  transactions: (uid) => `users/${uid}/transactions`,
+  /** users/{uid}/assets */
+  assets: (uid) => `users/${uid}/assets`,
+  /** users/{uid}/settings */
+  settings: (uid) => `users/${uid}/settings`,
+  /** Firestore doc/collection 构造辅助 */
+  userDoc: (uid, collection, itemId) => `users/${uid}/${collection}/${itemId}`,
+};
+
+// ── Sync configuration ────────────────────────────────
+export const SYNC = {
+  maxRetries: 3,           // 上传失败最大重试次数
+  retryDelayMs: 2000,      // 重试基础延迟（ms），实际使用指数退避
+  autoSyncInterval: 30000, // 后台自动同步间隔（30 秒）
+};
 
 // ── localStorage keys ─────────────────────────────────
 export const LS = {

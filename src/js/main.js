@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-//  ROADSTER v2.0 · main.js
+//  ROADSTER v2.1 · main.js
 //  Application entry point. Wires every module together.
 //  Load order matters: config has no deps, then theme/i18n,
 //  then auth/db (Firebase), then store, then router, then
@@ -20,7 +20,10 @@ import {
   onAuthChange, getCurrentUser, registerWithEmail, loginWithEmail,
   logout, sendReset,
 } from './auth.js';
-import { syncToCloud, loadCloudData, onSyncStatus, getLastSyncDate, scheduleSyncToCloud } from './db.js';
+import { syncToCloud, onSyncStatus, getLastSyncDate } from './db.js';
+
+// v2.1: Delta Sync 引擎
+import { init as initSync, syncOnLogin, syncOnLogout, manualSync, onSyncStatus as onSyncStatusV21 } from './sync/syncManager.js';
 
 import { nowAsDatetimeLocal, pad2 } from './utils.js';
 
@@ -53,11 +56,19 @@ window.__rdstr_refreshChartsForTheme = function () {
 
 initStore();
 
-// Whenever any store write happens, schedule a debounced cloud sync
-// (only takes effect if a user is logged in — see scheduleSyncToCloud).
-window.__rdstr_onStoreWrite = function () {
+// v2.1: 初始化 Delta Sync 引擎
+initSync();
+
+// Whenever any store write happens, notify sync engine
+// (v2.1: 不再每次写入都触发全量上传，改为由 syncManager 管理上传队列)
+window.__rdstr_onStoreWrite = function (key) {
   const user = getCurrentUser();
-  if (user) scheduleSyncToCloud(user.uid);
+  if (!user) return;
+  // 将变更记录加入上传队列（异步，不阻塞 UI）
+  if (key === 'rdstr_tx' || key === 'rdstr_assets') {
+    // syncManager 通过 store.subscribe 自动感知变更并入队
+    // 此处保留 hook 供手动同步场景使用
+  }
 };
 
 // ════════════════════════════════════════════════════
@@ -243,9 +254,7 @@ document.getElementById('authSubmitBtn')?.addEventListener('click', async () => 
   try {
     if (_authMode === 'register') {
       await registerWithEmail(email, pwd, name);
-      // Auto-sync local data on first register
-      const user = getCurrentUser();
-      if (user) await syncToCloud(user.uid);
+      // v2.1: 注册成功后由 onAuthChange 自动触发 syncOnLogin 执行 Merge 上传
       showToast(t('toastRegisterOk'));
     } else {
       await loginWithEmail(email, pwd);
@@ -272,6 +281,7 @@ document.getElementById('sendResetBtn')?.addEventListener('click', async () => {
 });
 
 document.getElementById('signOutBtn')?.addEventListener('click', async () => {
+  // v2.1: 退出登录时同步状态由 onAuthChange 中的 syncOnLogout() 统一处理
   await logout();
   showToast(t('toastLogoutOk'));
   closeAuthModal();
@@ -280,7 +290,10 @@ document.getElementById('signOutBtn')?.addEventListener('click', async () => {
 document.getElementById('manualSyncBtn')?.addEventListener('click', async () => {
   const user = getCurrentUser();
   if (!user) return;
-  await syncToCloud(user.uid);
+  const { uploaded } = await manualSync();
+  showToast(uploaded > 0
+    ? (t('syncedCount') || '已同步{n}条').replace('{n}', uploaded)
+    : (t('synced') || '已同步'));
   _updateSyncStatusRow(user.uid);
 });
 
@@ -305,11 +318,9 @@ function _esc(s) { const d = document.createElement('div'); d.textContent = s ??
 //  6. AUTH STATE INTEGRATION (login persistence + auto-restore)
 // ════════════════════════════════════════════════════
 //
-//  This is the fix for the "登录缓存" bug from v1: Firebase's
-//  browserLocalPersistence (set in auth.js) means onAuthChange
-//  fires with the *restored* user on every page load — no manual
-//  token storage or rehydration needed on our end. We just react
-//  to it here.
+//  v2.1 Delta Sync: 登录后不再直接覆盖本地数据，而是执行完整 Merge 流程。
+//  Firebase browserLocalPersistence (set in auth.js) 确保登录状态
+//  跨页面刷新持久化，onAuthChange 自动触发。
 
 let _hasLoadedCloudOnce = false;
 
@@ -318,8 +329,22 @@ onAuthChange(async (user) => {
 
   if (user && !_hasLoadedCloudOnce) {
     _hasLoadedCloudOnce = true;
-    const { merged } = await loadCloudData(user.uid);
-    if (merged > 0) showToast(t('toastCloudLoaded', { n: merged }));
+    // v2.1: 使用 Delta Sync 引擎执行 Merge 流程
+    const result = await syncOnLogin(user.uid);
+    if (result.merged > 0) {
+      showToast(t('toastCloudLoaded', { n: result.merged }));
+    }
+    // Merge 完成后刷新 UI
+    reloadFromStorage();
+    renderOverview();
+    if (currentPage() === 'assets')       renderAssets();
+    if (currentPage() === 'transactions') renderTransactions();
+  }
+
+  // 退出登录时清理同步状态
+  if (!user && _hasLoadedCloudOnce) {
+    _hasLoadedCloudOnce = false;
+    syncOnLogout();
   }
 
   // If the auth modal happens to be open, refresh its content
