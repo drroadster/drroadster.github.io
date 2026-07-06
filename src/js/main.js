@@ -438,6 +438,15 @@ window.__rdstr_onCloudDataLoaded = function () {
   if (currentPage() === 'assets')       renderAssets();
   if (currentPage() === 'transactions') renderTransactions();
 };
+
+// auto-sync / manualSync 同步完成后若数据有变更，自动刷新页面 UI
+window.addEventListener('rdstr:dataChanged', () => {
+  reloadFromStorage();
+  renderOverview();
+  if (currentPage() === 'assets')       renderAssets();
+  if (currentPage() === 'transactions') renderTransactions();
+  if (currentPage() === 'analysis')     renderAnalysis();
+});
 window.__rdstr_onSyncSuccess = function () { /* status banner already shows this */ };
 window.__rdstr_onSyncError   = function (msg) { console.warn('[sync] failed:', msg); };
 

@@ -701,6 +701,10 @@ export function openTxDetail(txId) {
       <span style="font-size:13px;color:var(--color-label-3);font-weight:700">📝 备注</span>
       <span style="font-size:13.5px;font-weight:700;text-align:right">${esc(tx.note)}</span>
     </div>` : ''}
+    <div class="flex-between" style="padding:11px 2px">
+      <span style="font-size:13px;color:var(--color-label-3);font-weight:700">🔑 哈希值</span>
+      <span style="font-size:12px;font-weight:600;font-family:monospace;color:var(--color-label-3)">${_txHash(tx)}</span>
+    </div>
     <div class="btn-row">
       <button class="btn btn-secondary" id="txDetailClose">关闭</button>
       <button class="btn btn-danger" id="txDetailDelete">🗑️ 删除</button>
@@ -1259,4 +1263,20 @@ function _storageTagHtml(tx) {
   }
   // syncStatus === 'local' 或空（未登录/新记录）
   return '<span class="tx-tag tx-tag--storage" style="background:rgba(142,142,147,.12);color:var(--color-label-3);border:1px solid rgba(142,142,147,.18);font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.75">💻 本地</span>';
+}
+
+/**
+ * 交易唯一哈希值（djb2，32-bit hex）。
+ * 基于 id+date+type+amount+category+note 生成，任意字段不同则哈希不同。
+ * @param {Transaction} tx
+ * @returns {string}
+ */
+function _txHash(tx) {
+  const raw = `${tx.id}|${tx.date}|${tx.type}|${tx.amount}|${tx.category}|${tx.note || ''}`;
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) {
+    hash = ((hash << 5) - hash) + raw.charCodeAt(i);
+    hash |= 0;
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0').toUpperCase();
 }

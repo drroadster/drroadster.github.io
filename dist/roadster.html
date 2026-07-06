@@ -5249,6 +5249,10 @@ function openTxDetail(txId) {
       <span style="font-size:13px;color:var(--color-label-3);font-weight:700">\u{1F4DD} \u5907\u6CE8</span>
       <span style="font-size:13.5px;font-weight:700;text-align:right">${esc(tx.note)}</span>
     </div>` : ""}
+    <div class="flex-between" style="padding:11px 2px">
+      <span style="font-size:13px;color:var(--color-label-3);font-weight:700">\u{1F511} \u54C8\u5E0C\u503C</span>
+      <span style="font-size:12px;font-weight:600;font-family:monospace;color:var(--color-label-3)">${_txHash(tx)}</span>
+    </div>
     <div class="btn-row">
       <button class="btn btn-secondary" id="txDetailClose">\u5173\u95ED</button>
       <button class="btn btn-danger" id="txDetailDelete">\u{1F5D1}\uFE0F \u5220\u9664</button>
@@ -5732,6 +5736,15 @@ function _storageTagHtml(tx) {
     return '<span class="tx-tag tx-tag--storage" style="background:rgba(255,149,0,.12);color:#ff9500;border:1px solid rgba(255,149,0,.2);font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.75">\u{1F4E4} \u5F85\u540C\u6B65</span>';
   }
   return '<span class="tx-tag tx-tag--storage" style="background:rgba(142,142,147,.12);color:var(--color-label-3);border:1px solid rgba(142,142,147,.18);font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.75">\u{1F4BB} \u672C\u5730</span>';
+}
+function _txHash(tx) {
+  const raw = `${tx.id}|${tx.date}|${tx.type}|${tx.amount}|${tx.category}|${tx.note || ""}`;
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) {
+    hash = (hash << 5) - hash + raw.charCodeAt(i);
+    hash |= 0;
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0").toUpperCase();
 }
 var _filterType, _expandedMonths, _quickType, _keypadVal, _selectedCat, _isCustomCat, _currentView, _calYear, _calMonth, _selectedCalDay, _editingTxId, HEADER_MAP;
 var init_transactions = __esm({
@@ -7146,6 +7159,10 @@ function startAutoSync() {
       const assetResult = merge(cloud.assets, localAssets, "id");
       replaceAllTransactions(txResult.merged);
       replaceAllAssets(assetResult.merged);
+      const hasChanges = txResult.stats.deleted > 0 || txResult.stats.updated > 0 || txResult.stats.added > 0 || assetResult.stats.deleted > 0 || assetResult.stats.updated > 0 || assetResult.stats.added > 0;
+      if (hasChanges) {
+        window.dispatchEvent(new CustomEvent("rdstr:dataChanged"));
+      }
     } catch (e) {
       console.warn("[syncManager] \u81EA\u52A8\u540C\u6B65-\u4E0B\u8F7D\u5931\u8D25:", e.message);
     }
@@ -7203,9 +7220,14 @@ async function manualSync() {
       const assetResult = merge(cloud.assets, localAssets, "id");
       replaceAllTransactions(txResult.merged);
       replaceAllAssets(assetResult.merged);
+      const txChanged = txResult.stats.added + txResult.stats.updated + txResult.stats.deleted;
+      const assetChanged = assetResult.stats.added + assetResult.stats.updated + assetResult.stats.deleted;
       downloadedCount = txResult.stats.added + assetResult.stats.added;
       if (downloadedCount > 0 || txResult.stats.updated > 0 || assetResult.stats.updated > 0) {
         console.log(`[syncManager] \u624B\u52A8\u540C\u6B65\uFF1A\u4E91\u7AEF\u65B0\u589E ${downloadedCount} \u6761\uFF0C\u66F4\u65B0 ${txResult.stats.updated + assetResult.stats.updated} \u6761`);
+      }
+      if (txChanged > 0 || assetChanged > 0) {
+        window.dispatchEvent(new CustomEvent("rdstr:dataChanged"));
       }
     } catch (downloadErr) {
       console.warn("[syncManager] \u4E0B\u8F7D\u4E91\u7AEF\u6570\u636E\u5931\u8D25\uFF0C\u8DF3\u8FC7:", downloadErr.message);
@@ -7610,6 +7632,13 @@ window.__rdstr_onCloudDataLoaded = function() {
   if (currentPage() === "assets") render3();
   if (currentPage() === "transactions") render();
 };
+window.addEventListener("rdstr:dataChanged", () => {
+  reloadFromStorage();
+  render2();
+  if (currentPage() === "assets") render3();
+  if (currentPage() === "transactions") render();
+  if (currentPage() === "analysis") render4();
+});
 window.__rdstr_onSyncSuccess = function() {
 };
 window.__rdstr_onSyncError = function(msg) {

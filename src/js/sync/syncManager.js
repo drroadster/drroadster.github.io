@@ -195,6 +195,14 @@ export function startAutoSync() {
       const assetResult = merge(cloud.assets, localAssets, 'id');
       store.replaceAllTransactions(txResult.merged);
       store.replaceAllAssets(assetResult.merged);
+
+      // merge 产生变更时通知 UI 刷新（解决跨设备删除/更新后页面不刷新的问题）
+      const hasChanges =
+        txResult.stats.deleted > 0 || txResult.stats.updated > 0 || txResult.stats.added > 0 ||
+        assetResult.stats.deleted > 0 || assetResult.stats.updated > 0 || assetResult.stats.added > 0;
+      if (hasChanges) {
+        window.dispatchEvent(new CustomEvent('rdstr:dataChanged'));
+      }
     } catch (e) {
       console.warn('[syncManager] 自动同步-下载失败:', e.message);
     }
@@ -291,10 +299,19 @@ export async function manualSync() {
       store.replaceAllTransactions(txResult.merged);
       store.replaceAllAssets(assetResult.merged);
 
+      // 统计变更量（新增 + 更新 + 删除）
+      const txChanged = txResult.stats.added + txResult.stats.updated + txResult.stats.deleted;
+      const assetChanged = assetResult.stats.added + assetResult.stats.updated + assetResult.stats.deleted;
+
       downloadedCount = txResult.stats.added + assetResult.stats.added;
 
       if (downloadedCount > 0 || txResult.stats.updated > 0 || assetResult.stats.updated > 0) {
         console.log(`[syncManager] 手动同步：云端新增 ${downloadedCount} 条，更新 ${txResult.stats.updated + assetResult.stats.updated} 条`);
+      }
+
+      // 有任意变更（含删除）时通知 UI 刷新
+      if (txChanged > 0 || assetChanged > 0) {
+        window.dispatchEvent(new CustomEvent('rdstr:dataChanged'));
       }
     } catch (downloadErr) {
       console.warn('[syncManager] 下载云端数据失败，跳过:', downloadErr.message);
