@@ -8,7 +8,7 @@
 
 import { initTheme, setTheme, getTheme } from './theme.js';
 import { initI18n, toggleLang, t } from './i18n.js';
-import { initStore, mergeFromCloud, addTransactions, getDrafts, clearDrafts } from './store.js';
+import { initStore, mergeFromCloud, addTransactions, getDrafts, clearDrafts, isLoading, getSyncSource, getTransactions } from './store.js';
 import { initRouter, navigate, onNavigate, fabAction, showToast, currentPage } from './router.js';
 
 import { initOverviewPage,     render as renderOverview }     from './pages/overview.js';
@@ -212,6 +212,22 @@ function renderLoggedInSection() {
     <div>
       <div class="auth-user-name">${_esc(nickname)}</div>
     </div>`;
+
+  _updateSyncBadge();
+}
+
+function _updateSyncBadge() {
+  const el = document.getElementById('syncStatusRow');
+  if (!el) return;
+  const src = getSyncSource();
+  if (src === 0) {
+    el.innerHTML = '<span>📋 本地模式</span>';
+  } else if (isLoading()) {
+    el.innerHTML = '<span>☁️ 同步中…</span>';
+  } else {
+    const n = getTransactions().length;
+    el.innerHTML = `<span>☁️ 云端 · ${n} 条</span>`;
+  }
 }
 
 document.getElementById('tabLogin')?.addEventListener('click', () => switchAuthMode('login'));
@@ -384,6 +400,7 @@ onAuthChange(async (user) => {
     // 启动 onSnapshot 监听
     onLoginSync(user.uid, (cloudRecords) => {
       mergeFromCloud(cloudRecords);
+      _updateSyncBadge();
       renderAllPages();
     });
   }

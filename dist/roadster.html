@@ -1505,6 +1505,9 @@ body::after {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Spin utility */
+.spin { display: inline-block; animation: spin .8s linear infinite; }
+
 /* ── Fade up entrance ── */
 .fade-up {
   opacity: 0; transform: translateY(16px);
@@ -2126,7 +2129,7 @@ body::after {
 
 
 <!-- Version -->
-<div class="version-badge">v2026070706</div>
+<div class="version-badge">v2026070711</div>
 <script type="module">
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -2771,6 +2774,7 @@ function _emit(channel) {
 function setSyncAdapter(adapter) {
   _syncAdapter = adapter;
   _isLoggedIn = true;
+  _loading = true;
   console.log("[store] sync adapter set, logged in mode");
 }
 function clearSyncAdapter() {
@@ -2853,6 +2857,7 @@ function mergeFromCloud(cloudRecords) {
     }
   }
   _transactions = [...inMemory.values()];
+  _loading = false;
   _emit("transactions");
 }
 function switchToLocalMode() {
@@ -3099,6 +3104,15 @@ function importAssetSnapshots(snaps) {
 function getTransactions() {
   return [..._transactions].filter((t2) => t2.deleted !== true).sort((a, b) => new Date(b.date) - new Date(a.date));
 }
+function isLoading() {
+  return _loading;
+}
+function getSyncSource() {
+  return _isLoggedIn ? 1 : 0;
+}
+function isLoggedIn() {
+  return _isLoggedIn;
+}
 function addTransactions(items) {
   const arr = Array.isArray(items) ? items : [items];
   const existing = new Set(_transactions.map(_fp));
@@ -3203,7 +3217,7 @@ function _persist(key, value) {
     console.warn("[store] localStorage write failed:", key, e);
   }
 }
-var _transactions, _assets, _history, _drafts, _isLoggedIn, _syncAdapter, _subs, _fp;
+var _transactions, _assets, _history, _drafts, _isLoggedIn, _loading, _syncAdapter, _subs, _fp;
 var init_store = __esm({
   "src/js/store.js"() {
     init_config();
@@ -3213,6 +3227,7 @@ var init_store = __esm({
     _history = [];
     _drafts = [];
     _isLoggedIn = false;
+    _loading = false;
     _syncAdapter = null;
     _subs = /* @__PURE__ */ new Map([
       ["transactions", /* @__PURE__ */ new Set()],
@@ -4762,8 +4777,13 @@ function render() {
   const el = document.getElementById("fullTxList");
   if (!el) return;
   if (!txs.length) {
-    el.innerHTML = `<div class="empty-state"><div class="empty-icon">\u{1F50D}</div>
+    if (isLoading()) {
+      el.innerHTML = `<div class="empty-state"><div class="empty-icon spin">\u21BB</div>
+      <div class="empty-text">\u52A0\u8F7D\u4E2D\u2026</div></div>`;
+    } else {
+      el.innerHTML = `<div class="empty-state"><div class="empty-icon">\u{1F50D}</div>
       <div class="empty-text">\u6CA1\u6709\u5339\u914D\u7684\u8BB0\u5F55</div></div>`;
+    }
     return;
   }
   if (q) {
@@ -5754,12 +5774,9 @@ function _sourceTagHtml(tx) {
   return `<span class="tx-tag tx-tag--source" style="background:${cfg.color}18;color:${cfg.color};border:1px solid ${cfg.color}33;font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.85">${cfg.icon} ${cfg.label}</span>`;
 }
 function _storageTagHtml(tx) {
-  const status = tx.syncStatus;
-  if (status === "synced") {
+  const loggedIn = isLoggedIn();
+  if (loggedIn) {
     return '<span class="tx-tag tx-tag--storage" style="background:rgba(52,199,89,.12);color:#34c759;border:1px solid rgba(52,199,89,.2);font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.75">\u2601\uFE0F \u4E91\u7AEF</span>';
-  }
-  if (status === "pending_upload") {
-    return '<span class="tx-tag tx-tag--storage" style="background:rgba(255,149,0,.12);color:#ff9500;border:1px solid rgba(255,149,0,.2);font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.75">\u{1F4E4} \u5F85\u540C\u6B65</span>';
   }
   return '<span class="tx-tag tx-tag--storage" style="background:rgba(142,142,147,.12);color:var(--color-label-3);border:1px solid rgba(142,142,147,.18);font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.75">\u{1F4BB} \u672C\u5730</span>';
 }
@@ -7167,6 +7184,20 @@ function renderLoggedInSection() {
     <div>
       <div class="auth-user-name">${_esc2(nickname)}</div>
     </div>`;
+  _updateSyncBadge();
+}
+function _updateSyncBadge() {
+  const el = document.getElementById("syncStatusRow");
+  if (!el) return;
+  const src = getSyncSource();
+  if (src === 0) {
+    el.innerHTML = "<span>\u{1F4CB} \u672C\u5730\u6A21\u5F0F</span>";
+  } else if (isLoading()) {
+    el.innerHTML = "<span>\u2601\uFE0F \u540C\u6B65\u4E2D\u2026</span>";
+  } else {
+    const n = getTransactions().length;
+    el.innerHTML = `<span>\u2601\uFE0F \u4E91\u7AEF \xB7 ${n} \u6761</span>`;
+  }
 }
 document.getElementById("tabLogin")?.addEventListener("click", () => switchAuthMode("login"));
 document.getElementById("tabRegister")?.addEventListener("click", () => switchAuthMode("register"));
@@ -7334,6 +7365,7 @@ onAuthChange(async (user) => {
     }
     onLoginSync(user.uid, (cloudRecords) => {
       mergeFromCloud(cloudRecords);
+      _updateSyncBadge();
       renderAllPages();
     });
   }

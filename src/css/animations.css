@@ -72,6 +72,9 @@
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Spin utility */
+.spin { display: inline-block; animation: spin .8s linear infinite; }
+
 /* ── Fade up entrance ── */
 .fade-up {
   opacity: 0; transform: translateY(16px);

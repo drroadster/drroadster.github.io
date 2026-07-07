@@ -33,6 +33,9 @@ let _drafts = [];
 /** 是否已登录 */
 let _isLoggedIn = false;
 
+/** 登录后等待云端数据首次到达 */
+let _loading = false;
+
 /**
  * Sync adapter — 由 syncManager 注入。
  * 登录时提供 Firestore 读写方法；退出时清空。
@@ -80,6 +83,7 @@ export function subscribe(channel, cb) {
 export function setSyncAdapter(adapter) {
   _syncAdapter = adapter;
   _isLoggedIn = true;
+  _loading = true; // 等待 onSnapshot 推送首批数据
   console.log('[store] sync adapter set, logged in mode');
 }
 
@@ -189,6 +193,7 @@ export function mergeFromCloud(cloudRecords) {
   }
 
   _transactions = [...inMemory.values()];
+  _loading = false; // 云端数据已到达
   _emit('transactions');
 }
 
@@ -550,6 +555,17 @@ export function getTransactions() {
     .filter(t => t.deleted !== true)
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 }
+
+/** @returns {boolean} */
+export function isLoading() { return _loading; }
+/** @param {boolean} v */
+export function setLoading(v) { _loading = v; }
+
+/** @returns {number} 当前同步源类型：0=未登录本地, 1=云端 */
+export function getSyncSource() { return _isLoggedIn ? 1 : 0; }
+
+/** @returns {boolean} 是否已登录 */
+export function isLoggedIn() { return _isLoggedIn; }
 
 /**
  * Add one or more transactions (deduplicated by fingerprint).

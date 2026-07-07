@@ -8,7 +8,7 @@
 import {
   getTransactions, addTransactions, updateTransaction, deleteTransaction,
   deleteByCategory, renormalizeAllCategories, clearTransactions,
-  txFingerprint, normalizeCategory,
+  txFingerprint, normalizeCategory, isLoading, isLoggedIn,
 } from '../store.js';
 import { fmt, esc, formatTxDateTime, nowAsDatetimeLocal, pad2,
          normalizeDate, splitCSVLine, splitCSVLines, parseMoney } from '../utils.js';
@@ -80,8 +80,13 @@ export function render() {
   if (!el) return;
 
   if (!txs.length) {
-    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div>
+    if (isLoading()) {
+      el.innerHTML = `<div class="empty-state"><div class="empty-icon spin">↻</div>
+      <div class="empty-text">加载中…</div></div>`;
+    } else {
+      el.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div>
       <div class="empty-text">没有匹配的记录</div></div>`;
+    }
     return;
   }
 
@@ -1248,20 +1253,17 @@ function _sourceTagHtml(tx) {
 }
 
 /**
- * 存储位置标签 HTML（新功能 1）
+ * 存储位置标签 HTML（v2.3：基于登录状态，不再依赖 tx.syncStatus）
  * @param {Transaction} tx
  * @returns {string}
  */
 function _storageTagHtml(tx) {
-  const status = tx.syncStatus;
+  // v2.3: 登录 = 云端，未登录 = 本地
+  const loggedIn = isLoggedIn();
 
-  if (status === 'synced') {
+  if (loggedIn) {
     return '<span class="tx-tag tx-tag--storage" style="background:rgba(52,199,89,.12);color:#34c759;border:1px solid rgba(52,199,89,.2);font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.75">☁️ 云端</span>';
   }
-  if (status === 'pending_upload') {
-    return '<span class="tx-tag tx-tag--storage" style="background:rgba(255,149,0,.12);color:#ff9500;border:1px solid rgba(255,149,0,.2);font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.75">📤 待同步</span>';
-  }
-  // syncStatus === 'local' 或空（未登录/新记录）
   return '<span class="tx-tag tx-tag--storage" style="background:rgba(142,142,147,.12);color:var(--color-label-3);border:1px solid rgba(142,142,147,.18);font-size:10.5px;padding:1px 5px;border-radius:3px;margin-left:5px;font-weight:500;display:inline-flex;align-items:center;gap:2px;opacity:0.75">💻 本地</span>';
 }
 
