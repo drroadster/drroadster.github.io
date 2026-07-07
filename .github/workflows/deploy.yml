@@ -41,6 +41,7 @@ jobs:
           mkdir _site
           cp dist/roadster.html _site/index.html
           cp roadster-icon.svg _site/
+          cp roadster-icon.png _site/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
