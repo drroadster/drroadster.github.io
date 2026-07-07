@@ -2776,7 +2776,8 @@ function _newSyncMeta(type) {
     deviceId: getDeviceId(),
     version: 1,
     deleted: false,
-    syncStatus: "local"
+    syncStatus: "local",
+    origin: "local"
   };
 }
 function updateTx(id, changes) {
@@ -2813,22 +2814,6 @@ function updateAsset(id, changes) {
 function deleteAssetV21(id) {
   return updateAsset(id, { deleted: true });
 }
-function getTransactionsRaw() {
-  return [..._transactions];
-}
-function getAssetsRaw() {
-  return [..._assets];
-}
-function replaceAllTransactions(items) {
-  _transactions = items;
-  _persist(LS.TX, _transactions);
-  _emit("transactions");
-}
-function replaceAllAssets(items) {
-  _assets = items;
-  _persist(LS.ASSETS, _assets);
-  _emit("assets");
-}
 function getPendingTransactions() {
   return _transactions.filter(
     (t2) => t2.syncStatus !== "synced" && t2.deleted !== true
@@ -2850,29 +2835,6 @@ function markAllPendingUpload() {
   _assets.forEach((a) => {
     if (a.syncStatus === "local" && a.deleted !== true) {
       a.syncStatus = "pending_upload";
-      assetChanged = true;
-    }
-  });
-  if (txChanged) {
-    _persist(LS.TX, _transactions);
-    _emit("transactions");
-  }
-  if (assetChanged) {
-    _persist(LS.ASSETS, _assets);
-    _emit("assets");
-  }
-}
-function markAllSynced() {
-  let txChanged = false, assetChanged = false;
-  _transactions.forEach((t2) => {
-    if (t2.syncStatus !== "synced" && t2.deleted !== true) {
-      t2.syncStatus = "synced";
-      txChanged = true;
-    }
-  });
-  _assets.forEach((a) => {
-    if (a.syncStatus !== "synced" && a.deleted !== true) {
-      a.syncStatus = "synced";
       assetChanged = true;
     }
   });
@@ -2909,6 +2871,60 @@ function addTransactions(items) {
     _emit("transactions");
   }
   return { added, duplicates };
+}
+function addCloudTransactions(items) {
+  const existing = new Set(_transactions.map((t2) => t2.id));
+  let added = 0;
+  for (const item of items) {
+    if (existing.has(item.id)) continue;
+    _transactions.push({ ...item, origin: "cloud", syncStatus: "synced" });
+    existing.add(item.id);
+    added++;
+  }
+  if (added > 0) {
+    _persist(LS.TX, _transactions);
+    _emit("transactions");
+  }
+  return added;
+}
+function removeCloudData() {
+  const before = _transactions.length;
+  _transactions = _transactions.filter((t2) => t2.origin !== "cloud");
+  const removed = before - _transactions.length;
+  if (removed > 0) {
+    _persist(LS.TX, _transactions);
+    _emit("transactions");
+  }
+  return removed;
+}
+function markBatchAsSynced(ids) {
+  const idSet = new Set(ids);
+  let changed = false;
+  _transactions.forEach((t2) => {
+    if (idSet.has(t2.id) && t2.syncStatus === "local") {
+      t2.syncStatus = "synced";
+      t2.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+      changed = true;
+    }
+  });
+  if (changed) {
+    _persist(LS.TX, _transactions);
+    _emit("transactions");
+  }
+}
+function getLocalTransactions() {
+  return _transactions.filter((t2) => t2.origin === "local" && t2.deleted !== true);
+}
+function findDuplicates(cloudItems) {
+  const local = getLocalTransactions();
+  const dupes = [];
+  for (const ci of cloudItems) {
+    const match = local.find(
+      (li) => li.date === ci.date && li.note === ci.note && li.amount === ci.amount && li.type === ci.type
+    );
+    if (match) dupes.push({ cloud: ci, local: match });
+  }
+  return dupes;
 }
 function updateTransaction(id, patch) {
   return updateTx(id, patch);
@@ -7019,69 +7035,13 @@ function getQueueSize() {
   return _queue.length;
 }
 
-// src/js/sync/mergeEngine.js
-function merge(cloudItems, localItems, idField = "id") {
-  const stats = { added: 0, updated: 0, deleted: 0, unchanged: 0 };
-  const localMap = /* @__PURE__ */ new Map();
-  localItems.forEach((item) => {
-    if (item[idField] != null) localMap.set(item[idField], item);
-  });
-  const resultMap = /* @__PURE__ */ new Map();
-  for (const cloudItem of cloudItems) {
-    const id = cloudItem[idField];
-    if (id == null) continue;
-    const localItem = localMap.get(id);
-    if (cloudItem.deleted === true) {
-      if (localItem) stats.deleted++;
-      localMap.delete(id);
-      continue;
-    }
-    if (!localItem) {
-      resultMap.set(id, { ...cloudItem, syncStatus: "synced" });
-      stats.added++;
-    } else {
-      const cloudTime = _parseTime(cloudItem.updatedAt || cloudItem.createdAt);
-      const localTime = _parseTime(localItem.updatedAt || localItem.createdAt);
-      if (cloudTime > localTime) {
-        resultMap.set(id, { ...cloudItem, syncStatus: "synced" });
-        stats.updated++;
-      } else {
-        resultMap.set(id, localItem);
-        stats.unchanged++;
-      }
-    }
-    localMap.delete(id);
-  }
-  for (const [id, localItem] of localMap) {
-    if (localItem.deleted === true) continue;
-    resultMap.set(id, localItem);
-    stats.unchanged++;
-  }
-  return {
-    merged: Array.from(resultMap.values()),
-    stats
-  };
-}
-function getPendingUploads(items, idField = "id") {
-  return items.filter(
-    (item) => item.syncStatus !== "synced" && item.deleted !== true
-  );
-}
-function _parseTime(t2) {
-  if (!t2) return 0;
-  if (typeof t2.toDate === "function") return t2.toDate().getTime();
-  return new Date(t2).getTime();
-}
-
 // src/js/sync/syncManager.js
 init_config();
-init_versionManager();
 import { getFirestore as getFirestore4, doc as doc3, setDoc as setDoc3, serverTimestamp as serverTimestamp3 } from "firebase/firestore";
 var _db4 = getFirestore4(_app);
 var LS_LAST_SYNC = "roadster:lastSync";
-var _autoSyncTimer = null;
-var _lastSyncTime = null;
 var _isSyncing = false;
+var _lastSyncTime = null;
 var _statusListeners = /* @__PURE__ */ new Set();
 function _notify(status, detail) {
   _statusListeners.forEach((cb) => {
@@ -7092,175 +7052,87 @@ function _notify(status, detail) {
   });
 }
 function init() {
-  console.log("[syncManager] \u521D\u59CB\u5316\u540C\u6B65\u7BA1\u7406\u5668");
+  console.log("[syncManager] v2.2 \u624B\u52A8\u4E0A\u4F20\u6A21\u5F0F");
   const saved = localStorage.getItem(LS_LAST_SYNC);
   if (saved) _lastSyncTime = parseInt(saved, 10);
-  _maybeStartAutoSync();
 }
 async function syncOnLogin(uid2) {
-  if (!uid2 || _isSyncing) return { merged: 0, uploaded: 0 };
+  if (!uid2 || _isSyncing) return { cloudCount: 0, duplicates: [] };
   _isSyncing = true;
-  console.log("[syncManager] ===== \u767B\u5F55\u540C\u6B65\u5F00\u59CB =====");
+  console.log("[syncManager] ===== \u767B\u5F55\uFF1A\u4E0B\u8F7D\u4E91\u7AEF\u6570\u636E =====");
   _notify("pending", { phase: "download" });
   try {
     const cloud = await downloadAll(uid2);
-    console.log(`[syncManager] \u4E91\u7AEF\u6570\u636E\uFF1A${cloud.transactions.length} \u6761\u4EA4\u6613, ${cloud.assets.length} \u4E2A\u8D44\u4EA7`);
-    markAllPendingUpload();
-    const localTxs = getTransactionsRaw();
-    const localAssets = getAssetsRaw();
-    console.log(`[syncManager] \u672C\u5730\u6570\u636E\uFF1A${localTxs.length} \u6761\u4EA4\u6613, ${localAssets.length} \u4E2A\u8D44\u4EA7`);
-    _notify("pending", { phase: "merge" });
-    const txResult = merge(cloud.transactions, localTxs, "id");
-    const assetResult = merge(cloud.assets, localAssets, "id");
-    replaceAllTransactions(txResult.merged);
-    replaceAllAssets(assetResult.merged);
-    console.log(`[syncManager] \u5408\u5E76\u7ED3\u679C \u2014 \u4EA4\u6613: \u65B0\u589E${txResult.stats.added} \u66F4\u65B0${txResult.stats.updated} \u5220\u9664${txResult.stats.deleted} \u4E0D\u53D8${txResult.stats.unchanged}`);
-    console.log(`[syncManager] \u5408\u5E76\u7ED3\u679C \u2014 \u8D44\u4EA7: \u65B0\u589E${assetResult.stats.added} \u66F4\u65B0${assetResult.stats.updated} \u5220\u9664${assetResult.stats.deleted} \u4E0D\u53D8${assetResult.stats.unchanged}`);
-    _notify("pending", { phase: "upload" });
-    const pendingTxs = getPendingUploads(txResult.merged);
-    const pendingAssets = getPendingUploads(assetResult.merged);
-    let uploadedCount = 0;
-    if (pendingTxs.length > 0 || pendingAssets.length > 0) {
-      if (pendingTxs.length > 0) addBatchToQueue(uid2, pendingTxs, "transactions");
-      if (pendingAssets.length > 0) addBatchToQueue(uid2, pendingAssets, "assets");
-      const result = await processQueue();
-      uploadedCount = result.success;
-      if (result.failed > 0) {
-        console.warn(`[syncManager] ${result.failed} \u6761\u4E0A\u4F20\u5931\u8D25\uFF08\u5DF2\u672C\u5730\u540C\u6B65\u515C\u5E95\uFF09\uFF0C\u9519\u8BEF\u8BE6\u60C5:`, result.failures.map((f) => f.error));
-      }
-    }
-    _markUploadedSynced();
+    const cloudTxs = cloud.transactions || [];
+    console.log(`[syncManager] \u4E91\u7AEF\u5171 ${cloudTxs.length} \u6761\u4EA4\u6613`);
+    const duplicates = findDuplicates(cloudTxs);
+    const duplicateIds = new Set(duplicates.map((d) => d.cloud.id));
+    const nonDupes = cloudTxs.filter((tx) => !duplicateIds.has(tx.id));
+    const added = addCloudTransactions(nonDupes);
     _lastSyncTime = Date.now();
     _persistLastSync(uid2);
     _isSyncing = false;
-    startAutoSync();
-    const totalMerged = txResult.stats.added + assetResult.stats.added;
-    console.log(`[syncManager] ===== \u767B\u5F55\u540C\u6B65\u5B8C\u6210\uFF1A\u5408\u5E76 ${totalMerged} \u6761\uFF0C\u4E0A\u4F20 ${uploadedCount} \u6761 =====`);
-    _notify("synced", {
-      merged: totalMerged,
-      uploaded: uploadedCount,
-      stats: { tx: txResult.stats, asset: assetResult.stats }
-    });
-    return {
-      merged: totalMerged,
-      uploaded: uploadedCount,
-      stats: { tx: txResult.stats, asset: assetResult.stats }
-    };
+    console.log(`[syncManager] \u767B\u5F55\u5B8C\u6210\uFF1A\u65B0\u589E ${added} \u6761\uFF0C\u91CD\u590D ${duplicates.length} \u6761`);
+    _notify("synced", { added, duplicates: duplicates.length });
+    return { cloudCount: added, duplicates };
   } catch (err) {
     _isSyncing = false;
-    console.error("[syncManager] \u767B\u5F55\u540C\u6B65\u5931\u8D25:", err);
+    console.error("[syncManager] \u767B\u5F55\u5931\u8D25:", err);
     _notify("error", { message: err.message });
-    return { merged: 0, uploaded: 0 };
+    return { cloudCount: 0, duplicates: [] };
   }
 }
-function startAutoSync() {
-  stopAutoSync();
-  _autoSyncTimer = setInterval(async () => {
-    const user = getCurrentUser();
-    if (!user || _isSyncing) return;
-    try {
-      const cloud = await downloadAll(user.uid);
-      const localTxs = getTransactionsRaw();
-      const localAssets = getAssetsRaw();
-      const txResult = merge(cloud.transactions, localTxs, "id");
-      const assetResult = merge(cloud.assets, localAssets, "id");
-      replaceAllTransactions(txResult.merged);
-      replaceAllAssets(assetResult.merged);
-      const hasChanges = txResult.stats.deleted > 0 || txResult.stats.updated > 0 || txResult.stats.added > 0 || assetResult.stats.deleted > 0 || assetResult.stats.updated > 0 || assetResult.stats.added > 0;
-      if (hasChanges) {
-        window.dispatchEvent(new CustomEvent("rdstr:dataChanged"));
-      }
-    } catch (e) {
-      console.warn("[syncManager] \u81EA\u52A8\u540C\u6B65-\u4E0B\u8F7D\u5931\u8D25:", e.message);
-    }
-    _enqueuePendingLocal(user.uid);
-    const queueSize = getQueueSize();
-    if (queueSize === 0) return;
-    console.log(`[syncManager] \u81EA\u52A8\u540C\u6B65\uFF1A\u5904\u7406 ${queueSize} \u6761\u5F85\u4E0A\u4F20\u8BB0\u5F55`);
-    _isSyncing = true;
-    try {
-      await processQueue();
-      _markUploadedSynced();
-      _lastSyncTime = Date.now();
-      _persistLastSync(user.uid);
-    } catch (err) {
-      console.error("[syncManager] \u81EA\u52A8\u540C\u6B65\u5931\u8D25:", err);
-    } finally {
+async function uploadToCloud(uid2) {
+  if (!uid2 || _isSyncing) return { uploaded: 0, failed: 0 };
+  _isSyncing = true;
+  console.log("[syncManager] ===== \u624B\u52A8\u4E0A\u4F20 =====");
+  _notify("pending", { phase: "upload" });
+  try {
+    const pendingTxs = getPendingTransactions();
+    const pendingAssets = getPendingAssets();
+    const total = pendingTxs.length + pendingAssets.length;
+    if (total === 0) {
       _isSyncing = false;
+      _notify("synced", { uploaded: 0 });
+      return { uploaded: 0, failed: 0 };
     }
-  }, SYNC.autoSyncInterval);
-  console.log(`[syncManager] \u81EA\u52A8\u540C\u6B65\u5DF2\u542F\u52A8\uFF08\u95F4\u9694 ${SYNC.autoSyncInterval / 1e3}s\uFF09`);
-}
-function stopAutoSync() {
-  if (_autoSyncTimer) {
-    clearInterval(_autoSyncTimer);
-    _autoSyncTimer = null;
+    console.log(`[syncManager] \u5F85\u4E0A\u4F20\uFF1A${pendingTxs.length} \u6761\u4EA4\u6613, ${pendingAssets.length} \u4E2A\u8D44\u4EA7`);
+    markAllPendingUpload();
+    if (pendingTxs.length > 0) addBatchToQueue(uid2, pendingTxs, "transactions");
+    if (pendingAssets.length > 0) addBatchToQueue(uid2, pendingAssets, "assets");
+    const result = await processQueue();
+    if (result.success > 0) {
+      markBatchAsSynced(pendingTxs.map((t2) => t2.id));
+    }
+    _lastSyncTime = Date.now();
+    _persistLastSync(uid2);
+    _isSyncing = false;
+    console.log(`[syncManager] \u4E0A\u4F20\u5B8C\u6210\uFF1A\u6210\u529F ${result.success} \u6761\uFF0C\u5931\u8D25 ${result.failed} \u6761`);
+    _notify("synced", { uploaded: result.success, failed: result.failed });
+    return { uploaded: result.success, failed: result.failed };
+  } catch (err) {
+    _isSyncing = false;
+    console.error("[syncManager] \u4E0A\u4F20\u5931\u8D25:", err);
+    _notify("error", { message: err.message });
+    return { uploaded: 0, failed: 0 };
   }
 }
 function syncOnLogout() {
-  console.log("[syncManager] \u9000\u51FA\u767B\u5F55\uFF1A\u6E05\u9664\u672C\u5730\u6570\u636E\u548C\u540C\u6B65\u961F\u5217");
-  stopAutoSync();
+  console.log("[syncManager] \u9000\u51FA\uFF1A\u6E05\u9664\u4E91\u7AEF\u6570\u636E\uFF0C\u4FDD\u7559\u672C\u5730");
   clearQueue();
   _lastSyncTime = null;
-  const dataKeys = ["rdstr_tx", "rdstr_assets", "rdstr_asset_history", "roadster:lastSync"];
-  dataKeys.forEach((key) => localStorage.removeItem(key));
-  Object.keys(localStorage).forEach((key) => {
-    if (key.startsWith("firestore_")) {
-      localStorage.removeItem(key);
-    }
-  });
+  const removed = removeCloudData();
   reloadFromStorage();
+  localStorage.removeItem(LS_LAST_SYNC);
   _notify("idle");
+  console.log(`[syncManager] \u5DF2\u79FB\u9664\u4E91\u7AEF ${removed} \u6761\u8BB0\u5F55`);
 }
 async function manualSync() {
   const user = getCurrentUser();
   if (!user || _isSyncing) return { uploaded: 0, downloaded: 0 };
-  _isSyncing = true;
-  _notify("pending", { phase: "manual" });
-  try {
-    let downloadedCount = 0;
-    try {
-      const cloud = await downloadAll(user.uid);
-      const localTxs = getTransactionsRaw();
-      const localAssets = getAssetsRaw();
-      const txResult = merge(cloud.transactions, localTxs, "id");
-      const assetResult = merge(cloud.assets, localAssets, "id");
-      replaceAllTransactions(txResult.merged);
-      replaceAllAssets(assetResult.merged);
-      const txChanged = txResult.stats.added + txResult.stats.updated + txResult.stats.deleted;
-      const assetChanged = assetResult.stats.added + assetResult.stats.updated + assetResult.stats.deleted;
-      downloadedCount = txResult.stats.added + assetResult.stats.added;
-      if (downloadedCount > 0 || txResult.stats.updated > 0 || assetResult.stats.updated > 0) {
-        console.log(`[syncManager] \u624B\u52A8\u540C\u6B65\uFF1A\u4E91\u7AEF\u65B0\u589E ${downloadedCount} \u6761\uFF0C\u66F4\u65B0 ${txResult.stats.updated + assetResult.stats.updated} \u6761`);
-      }
-      if (txChanged > 0 || assetChanged > 0) {
-        window.dispatchEvent(new CustomEvent("rdstr:dataChanged"));
-      }
-    } catch (downloadErr) {
-      console.warn("[syncManager] \u4E0B\u8F7D\u4E91\u7AEF\u6570\u636E\u5931\u8D25\uFF0C\u8DF3\u8FC7:", downloadErr.message);
-    }
-    markAllPendingUpload();
-    _enqueuePendingLocal(user.uid);
-    let uploadedCount = 0;
-    if (getQueueSize() > 0) {
-      const result = await processQueue();
-      uploadedCount = result.success;
-      _markUploadedSynced();
-      if (result.failed > 0) {
-        console.warn(`[syncManager] \u624B\u52A8\u540C\u6B65\uFF1A${result.failed} \u6761\u4E0A\u4F20\u5931\u8D25\uFF08\u5DF2\u672C\u5730\u540C\u6B65\u515C\u5E95\uFF09\uFF0C\u9519\u8BEF\u8BE6\u60C5:`, result.failures.map((f) => f.error));
-      }
-    }
-    _lastSyncTime = Date.now();
-    _persistLastSync(user.uid);
-    _isSyncing = false;
-    _notify("synced", { uploaded: uploadedCount, downloaded: downloadedCount });
-    return { uploaded: uploadedCount, downloaded: downloadedCount };
-  } catch (err) {
-    _isSyncing = false;
-    console.error("[syncManager] \u624B\u52A8\u540C\u6B65\u5931\u8D25:", err);
-    _notify("error", { message: err.message });
-    return { uploaded: 0, downloaded: 0 };
-  }
+  const { cloudCount } = await syncOnLogin(user.uid);
+  const { uploaded } = await uploadToCloud(user.uid);
+  return { uploaded, downloaded: cloudCount };
 }
 function getLastSyncTime() {
   return _lastSyncTime;
@@ -7268,26 +7140,13 @@ function getLastSyncTime() {
 function isSyncing() {
   return _isSyncing;
 }
-function _enqueuePendingLocal(uid2) {
-  const pendingTxs = getPendingTransactions();
-  const pendingAssets = getPendingAssets();
-  if (pendingTxs.length > 0) addBatchToQueue(uid2, pendingTxs, "transactions");
-  if (pendingAssets.length > 0) addBatchToQueue(uid2, pendingAssets, "assets");
-}
 async function _persistLastSync(uid2) {
   localStorage.setItem(LS_LAST_SYNC, String(_lastSyncTime));
   try {
     await setDoc3(doc3(_db4, userDocPath(uid2)), { updatedAt: serverTimestamp3() }, { merge: true });
   } catch (err) {
-    console.warn("[syncManager] \u5199\u5165\u540C\u6B65\u65F6\u95F4\u6233\u5931\u8D25:", err.message);
+    console.warn("[syncManager] \u5199\u5165\u65F6\u95F4\u6233\u5931\u8D25:", err.message);
   }
-}
-function _markUploadedSynced() {
-  markAllSynced();
-}
-function _maybeStartAutoSync() {
-  const user = getCurrentUser();
-  if (user) startAutoSync();
 }
 
 // src/js/main.js
@@ -7577,8 +7436,12 @@ onAuthChange(async (user) => {
   if (user && !_hasLoadedCloudOnce) {
     _hasLoadedCloudOnce = true;
     const result = await syncOnLogin(user.uid);
-    if (result.merged > 0) {
-      showToast(t("toastCloudLoaded", { n: result.merged }));
+    if (result.cloudCount > 0) {
+      if (result.duplicates.length > 0) {
+        _handleDuplicates(result.duplicates);
+      } else {
+        showToast(`\u5DF2\u52A0\u8F7D\u4E91\u7AEF ${result.cloudCount} \u6761\u8BB0\u5F55`);
+      }
     }
     reloadFromStorage();
     render2();
@@ -7597,6 +7460,12 @@ onAuthChange(async (user) => {
     user ? renderLoggedInSection() : switchAuthMode("login");
   }
 });
+function _handleDuplicates(duplicates) {
+  const notes = duplicates.map(
+    (d) => `${d.cloud.note || "(\u65E0\u5907\u6CE8)"} \xA5${d.cloud.amount}`
+  ).join("\u3001");
+  showToast(`\u5DF2\u8DF3\u8FC7 ${duplicates.length} \u6761\u91CD\u590D\uFF1A${notes}`);
+}
 function _renderAuthButton(user) {
   const desktopSlot = document.getElementById("authBtnDesktop");
   const mobileSlot = document.getElementById("authBtnMobile");

@@ -23,7 +23,7 @@ import {
 import { syncToCloud, onSyncStatus, getLastSyncDate } from './db.js';
 
 // v2.1: Delta Sync 引擎
-import { init as initSync, syncOnLogin, syncOnLogout, manualSync, getLastSyncTime, onSyncStatus as onSyncStatusV21, isSyncing, getQueueSize as getSyncQueueSize } from './sync/syncManager.js';
+import { init as initSync, syncOnLogin, syncOnLogout, manualSync, uploadToCloud, getLastSyncTime, onSyncStatus as onSyncStatusV21, isSyncing, getQueueSize as getSyncQueueSize } from './sync/syncManager.js';
 
 import { nowAsDatetimeLocal, pad2 } from './utils.js';
 import { categorize } from './ai/categorizer.js';
@@ -352,12 +352,13 @@ function clearAuthError() {
 function _esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
 
 // ════════════════════════════════════════════════════
-//  6. AUTH STATE INTEGRATION (login persistence + auto-restore)
+//  6. AUTH STATE INTEGRATION (manual upload mode)
 // ════════════════════════════════════════════════════
 //
-//  v2.1 Delta Sync: 登录后不再直接覆盖本地数据，而是执行完整 Merge 流程。
-//  Firebase browserLocalPersistence (set in auth.js) 确保登录状态
-//  跨页面刷新持久化，onAuthChange 自动触发。
+//  v2.2 手动上传模式：
+//  • 登录 → 下载云端并排显示 + 重复检测
+//  • 退出 → 清除云端数据，保留本地
+//  • 用户点击"上传"按钮将本地数据推送到云端
 
 let _hasLoadedCloudOnce = false;
 
@@ -366,19 +367,24 @@ onAuthChange(async (user) => {
 
   if (user && !_hasLoadedCloudOnce) {
     _hasLoadedCloudOnce = true;
-    // v2.1: 使用 Delta Sync 引擎执行 Merge 流程
+
     const result = await syncOnLogin(user.uid);
-    if (result.merged > 0) {
-      showToast(t('toastCloudLoaded', { n: result.merged }));
+
+    if (result.cloudCount > 0) {
+      if (result.duplicates.length > 0) {
+        // 有重复记录，询问用户是否添加
+        _handleDuplicates(result.duplicates);
+      } else {
+        showToast(`已加载云端 ${result.cloudCount} 条记录`);
+      }
     }
-    // Merge 完成后刷新 UI
+
     reloadFromStorage();
     renderOverview();
     if (currentPage() === 'assets')       renderAssets();
     if (currentPage() === 'transactions') renderTransactions();
   }
 
-  // 退出登录时清理同步状态
   if (!user && _hasLoadedCloudOnce) {
     _hasLoadedCloudOnce = false;
     syncOnLogout();
@@ -387,12 +393,21 @@ onAuthChange(async (user) => {
     if (currentPage() === 'transactions') renderTransactions();
   }
 
-  // If the auth modal happens to be open, refresh its content
   const modal = document.getElementById('authModal');
   if (modal?.classList.contains('open')) {
     user ? renderLoggedInSection() : switchAuthMode('login');
   }
 });
+
+/**
+ * 处理重复记录：自动跳过，toast 提示。
+ */
+function _handleDuplicates(duplicates) {
+  const notes = duplicates.map(d =>
+    `${d.cloud.note || '(无备注)'} ¥${d.cloud.amount}`
+  ).join('、');
+  showToast(`已跳过 ${duplicates.length} 条重复：${notes}`);
+}
 
 function _renderAuthButton(user) {
   const desktopSlot = document.getElementById('authBtnDesktop');

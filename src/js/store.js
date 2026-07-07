@@ -101,13 +101,14 @@ export function reloadFromStorage() {
 function _newSyncMeta(type) {
   const now = new Date().toISOString();
   return {
-    id:        type === 'tx' ? generateTxId() : generateAssetId(),
-    createdAt: now,
-    updatedAt: now,
-    deviceId:  getDeviceId(),
-    version:   1,
-    deleted:   false,
-    syncStatus:'local',
+    id:         type === 'tx' ? generateTxId() : generateAssetId(),
+    createdAt:  now,
+    updatedAt:  now,
+    deviceId:   getDeviceId(),
+    version:    1,
+    deleted:    false,
+    syncStatus: 'local',
+    origin:     'local',
   };
 }
 
@@ -375,6 +376,73 @@ export function addTransactions(items) {
 
   if (added) { _persist(LS.TX, _transactions); _emit('transactions'); }
   return { added, duplicates };
+}
+
+/**
+ * 添加云端下载的记录（origin='cloud', syncStatus='synced'）。
+ * 已存在相同 ID 的记录会跳过。
+ * @param {Object[]} items
+ * @returns {number} added count
+ */
+export function addCloudTransactions(items) {
+  const existing = new Set(_transactions.map(t => t.id));
+  let added = 0;
+  for (const item of items) {
+    if (existing.has(item.id)) continue;
+    _transactions.push({ ...item, origin: 'cloud', syncStatus: 'synced' });
+    existing.add(item.id);
+    added++;
+  }
+  if (added > 0) { _persist(LS.TX, _transactions); _emit('transactions'); }
+  return added;
+}
+
+/**
+ * 移除所有云端来源的记录（origin='cloud'）。
+ * 用于退出登录时清理云端数据。
+ */
+export function removeCloudData() {
+  const before = _transactions.length;
+  _transactions = _transactions.filter(t => t.origin !== 'cloud');
+  const removed = before - _transactions.length;
+  if (removed > 0) { _persist(LS.TX, _transactions); _emit('transactions'); }
+  return removed;
+}
+
+/**
+ * 将指定 ID 的记录标记为已同步（syncStatus: 'local' → 'synced'）。
+ * @param {string[]} ids
+ */
+export function markBatchAsSynced(ids) {
+  const idSet = new Set(ids);
+  let changed = false;
+  _transactions.forEach(t => {
+    if (idSet.has(t.id) && t.syncStatus === 'local') {
+      t.syncStatus = 'synced';
+      t.updatedAt = new Date().toISOString();
+      changed = true;
+    }
+  });
+  if (changed) { _persist(LS.TX, _transactions); _emit('transactions'); }
+}
+
+/** 获取仅本地来源的记录（origin='local'）。 */
+export function getLocalTransactions() {
+  return _transactions.filter(t => t.origin === 'local' && t.deleted !== true);
+}
+
+/** 检测云端记录与本地记录是否重复（同日期+同备注+同金额+同类型）。 */
+export function findDuplicates(cloudItems) {
+  const local = getLocalTransactions();
+  const dupes = [];
+  for (const ci of cloudItems) {
+    const match = local.find(li =>
+      li.date === ci.date && li.note === ci.note &&
+      li.amount === ci.amount && li.type === ci.type
+    );
+    if (match) dupes.push({ cloud: ci, local: match });
+  }
+  return dupes;
 }
 
 /**
