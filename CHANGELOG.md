@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### `v2026070703` — Firestore 删除可靠性增强 + 去重工具
+- **修复**：`deleteCloudRecord` 新增 3 次指数退避重试（1s/2s/4s），失败时写入 Firestore 用户元数据 `deletedTxIds` 确保跨设备过滤
+- **修复**：`syncOnLogin` 合并读取 localStorage + Firestore 元数据中的已删除 ID，实现跨设备删除同步
+- **修复**：`syncOnLogin` 自动修复缺失 origin/syncStatus 的脏记录（补默认值 `cloud`/`synced`）
+- **修复**：init 回调添加 `.catch()` 防止未捕获异常导致静默失败
+- **新增**：`output/dedup.html` 浏览器端 Firestore 去重工具，扫描并删除「其他」分类重复记录
+
 ### `v2.1.6` — 退出登录清除数据 + 自动刷新 UI + 自动入队修复 + Download-First 多端冲突方案
 - **修复**：多端冲突 — A 设备删除记录后，B 设备打开旧版本自动上传覆盖云端删除（根因：旧版 sync 先上传再下载）
 - **策略**：`manualSync()` 和 `startAutoSync` 改为 Download-First 流程：先下载云端 → merge → 再上传本地变更，确保多端删除/更新优先同步到本地再上传

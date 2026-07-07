@@ -2112,7 +2112,7 @@ body::after {
 
 
 <!-- Version -->
-<div class="version-badge">v2026070702</div>
+<div class="version-badge">v2026070703</div>
 <script type="module">
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -7059,7 +7059,7 @@ function getQueueSize() {
 
 // src/js/sync/syncManager.js
 init_config();
-import { getFirestore as getFirestore4, doc as doc3, setDoc as setDoc3, serverTimestamp as serverTimestamp3, deleteDoc } from "firebase/firestore";
+import { getFirestore as getFirestore4, doc as doc3, getDoc as getDoc2, setDoc as setDoc3, serverTimestamp as serverTimestamp3, deleteDoc, arrayUnion } from "firebase/firestore";
 var _db4 = getFirestore4(_app);
 var LS_LAST_SYNC = "roadster:lastSync";
 var _isSyncing = false;
@@ -7079,7 +7079,11 @@ function init() {
   if (saved) _lastSyncTime = parseInt(saved, 10);
   setCloudDeleteHandler((id) => {
     const user = getCurrentUser();
-    if (user) deleteCloudRecord(user.uid, id);
+    if (user) {
+      deleteCloudRecord(user.uid, id).catch((err) => {
+        console.error("[syncManager] deleteCloudRecord \u5F02\u5E38:", err);
+      });
+    }
   });
 }
 async function syncOnLogin(uid2) {
@@ -7091,15 +7095,37 @@ async function syncOnLogin(uid2) {
     const cloud = await downloadAll(uid2);
     const cloudTxs = cloud.transactions || [];
     console.log(`[syncManager] \u4E91\u7AEF\u5171 ${cloudTxs.length} \u6761\u4EA4\u6613`);
-    const deletedIds = getDeletedCloudIds();
-    const activeCloudTxs = deletedIds.size > 0 ? cloudTxs.filter((tx) => !deletedIds.has(tx.id)) : cloudTxs;
-    if (deletedIds.size > 0) {
+    for (const tx of cloudTxs) {
+      if (!tx.origin) tx.origin = "cloud";
+      if (!tx.syncStatus) tx.syncStatus = "synced";
+    }
+    let cloudDeletedIds = /* @__PURE__ */ new Set();
+    try {
+      const userSnap = await getDoc2(doc3(_db4, userDocPath(uid2)));
+      if (userSnap.exists()) {
+        const metaIds = userSnap.data().deletedTxIds || [];
+        cloudDeletedIds = new Set(metaIds);
+        if (cloudDeletedIds.size > 0) {
+          console.log(`[syncManager] Firestore \u5143\u6570\u636E\u4E2D\u6709 ${cloudDeletedIds.size} \u6761\u8DE8\u8BBE\u5907\u5DF2\u5220\u9664\u8BB0\u5F55`);
+        }
+      }
+    } catch (err) {
+      console.warn("[syncManager] \u8BFB\u53D6 deletedTxIds \u5143\u6570\u636E\u5931\u8D25:", err.message);
+    }
+    const localDeletedIds = getDeletedCloudIds();
+    const allDeletedIds = /* @__PURE__ */ new Set([...localDeletedIds, ...cloudDeletedIds]);
+    const activeCloudTxs = allDeletedIds.size > 0 ? cloudTxs.filter((tx) => !allDeletedIds.has(tx.id)) : cloudTxs;
+    if (allDeletedIds.size > 0) {
       console.log(`[syncManager] \u5DF2\u8FC7\u6EE4 ${cloudTxs.length - activeCloudTxs.length} \u6761\u5DF2\u5220\u9664\u4E91\u7AEF\u8BB0\u5F55`);
     }
     const duplicates = findDuplicates(activeCloudTxs);
     const duplicateIds = new Set(duplicates.map((d) => d.cloud.id));
     const nonDupes = activeCloudTxs.filter((tx) => !duplicateIds.has(tx.id));
     const added = addCloudTransactions(nonDupes);
+    if (cloudDeletedIds.size > 0) {
+      _cleanupDeletedTxIds(uid2, allDeletedIds).catch(() => {
+      });
+    }
     _lastSyncTime = Date.now();
     _persistLastSync(uid2);
     _isSyncing = false;
@@ -7159,12 +7185,49 @@ function syncOnLogout() {
   console.log(`[syncManager] \u5DF2\u79FB\u9664\u4E91\u7AEF ${removed} \u6761\u8BB0\u5F55`);
 }
 async function deleteCloudRecord(uid2, id) {
-  if (!uid2) return;
+  if (!uid2 || !id) return false;
+  const MAX_RETRIES2 = 3;
+  for (let attempt = 1; attempt <= MAX_RETRIES2; attempt++) {
+    try {
+      await deleteDoc(doc3(_db4, "users", uid2, "transactions", id));
+      console.log(`[syncManager] \u5DF2\u4ECE Firestore \u5220\u9664 ${id}`);
+      return true;
+    } catch (err) {
+      if (attempt < MAX_RETRIES2) {
+        const delay = Math.pow(2, attempt - 1) * 1e3;
+        console.warn(`[syncManager] Firestore \u5220\u9664\u5931\u8D25 (${attempt}/${MAX_RETRIES2})\uFF0C${delay}ms \u540E\u91CD\u8BD5:`, err.message);
+        await new Promise((r) => setTimeout(r, delay));
+      } else {
+        console.error("[syncManager] Firestore \u5220\u9664\u6700\u7EC8\u5931\u8D25:", err.message);
+        await _addDeletedTxIdToMetadata(uid2, id);
+      }
+    }
+  }
+  return false;
+}
+async function _addDeletedTxIdToMetadata(uid2, id) {
+  if (!uid2 || !id) return;
   try {
-    await deleteDoc(doc3(_db4, "users", uid2, "transactions", id));
-    console.log(`[syncManager] \u5DF2\u4ECE Firestore \u5220\u9664 ${id}`);
+    await setDoc3(doc3(_db4, userDocPath(uid2)), {
+      deletedTxIds: arrayUnion(id),
+      updatedAt: serverTimestamp3()
+    }, { merge: true });
+    console.log(`[syncManager] \u5DF2\u5C06 ${id} \u5199\u5165 deletedTxIds \u5143\u6570\u636E`);
   } catch (err) {
-    console.warn("[syncManager] Firestore \u5220\u9664\u5931\u8D25:", err.message);
+    console.error("[syncManager] \u5199\u5165 deletedTxIds \u5931\u8D25:", err.message);
+  }
+}
+async function _cleanupDeletedTxIds(uid2, filteredIds) {
+  try {
+    const filteredArr = [...filteredIds];
+    if (filteredArr.length === 0) return;
+    await setDoc3(doc3(_db4, userDocPath(uid2)), {
+      deletedTxIds: filteredArr,
+      updatedAt: serverTimestamp3()
+    }, { merge: true });
+    console.log(`[syncManager] \u5DF2\u6E05\u7406 deletedTxIds \u5143\u6570\u636E\uFF0C\u4FDD\u7559 ${filteredArr.length} \u6761`);
+  } catch (err) {
+    console.warn("[syncManager] \u6E05\u7406 deletedTxIds \u5931\u8D25:", err.message);
   }
 }
 async function manualSync() {
