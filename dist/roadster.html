@@ -2129,7 +2129,7 @@ body::after {
 
 
 <!-- Version -->
-<div class="version-badge">v2026070711</div>
+<div class="version-badge">v2026070712</div>
 <script type="module">
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -2307,7 +2307,8 @@ var init_config = __esm({
       CUSTOM_CATS: "rdstr_custom_cats",
       MIGRATED_V2: "rdstr_migrated_v2",
       MIGRATED_V23: "rdstr_migrated_v23",
-      DRAFTS: "rdstr_drafts"
+      DRAFTS: "rdstr_drafts",
+      ASSETS_DRAFTS: "rdstr_asset_drafts"
     };
     PALETTE = [
       "#5e7ce2",
@@ -2787,7 +2788,8 @@ function initStore() {
   _history = _read(LS.ASSET_HISTORY);
   _migrateOldDataToDrafts();
   _transactions = [..._drafts];
-  _assets = [];
+  _assetDrafts = _read(LS.ASSETS_DRAFTS);
+  _assets = [..._assetDrafts];
   migrateDataV2();
 }
 function _migrateOldDataToDrafts() {
@@ -2860,10 +2862,24 @@ function mergeFromCloud(cloudRecords) {
   _loading = false;
   _emit("transactions");
 }
+function mergeAssetsFromCloud(cloudRecords) {
+  const inMemory = new Map(_assets.map((r) => [r.id, r]));
+  for (const cr of cloudRecords) {
+    if (cr.deleted) {
+      inMemory.delete(cr.id);
+    } else {
+      inMemory.set(cr.id, cr);
+    }
+  }
+  _assets = [...inMemory.values()];
+  _loading = false;
+  _emit("assets");
+}
 function switchToLocalMode() {
   _drafts = _read(LS.DRAFTS);
   _transactions = [..._drafts];
-  _assets = [];
+  _assetDrafts = _read(LS.ASSETS_DRAFTS);
+  _assets = [..._assetDrafts];
   _history = _read(LS.ASSET_HISTORY);
   _emit("transactions");
   _emit("assets");
@@ -2875,6 +2891,13 @@ function getDrafts() {
 function clearDrafts() {
   _drafts = [];
   _persist(LS.DRAFTS, []);
+}
+function getAssetDrafts() {
+  return [..._assetDrafts];
+}
+function clearAssetDrafts() {
+  _assetDrafts = [];
+  _persist(LS.ASSETS_DRAFTS, []);
 }
 function _newSyncMeta(type) {
   const now = (/* @__PURE__ */ new Date()).toISOString();
@@ -3010,9 +3033,13 @@ function addAsset(asset) {
     _assets.push(record);
     _emit("assets");
     _syncAdapter.writeAsset(record.id, record).catch((err) => {
-      console.error("[store] Firestore asset write failed:", err);
+      console.error("[store] Firestore asset write failed, saving to drafts:", err);
+      _assetDrafts.push(record);
+      _persist(LS.ASSETS_DRAFTS, _assetDrafts);
     });
   } else {
+    _assetDrafts.push(record);
+    _persist(LS.ASSETS_DRAFTS, _assetDrafts);
     _assets.push(record);
     _emit("assets");
   }
@@ -3033,6 +3060,10 @@ function updateAsset(id, changes) {
       console.error("[store] Firestore asset update failed:", err);
     });
   } else {
+    const dIdx = _assetDrafts.findIndex((d) => d.id === id);
+    if (dIdx !== -1) _assetDrafts[dIdx] = _assets[idx];
+    else _assetDrafts.push(_assets[idx]);
+    _persist(LS.ASSETS_DRAFTS, _assetDrafts);
     _emit("assets");
   }
   return true;
@@ -3048,6 +3079,8 @@ function deleteAsset(id) {
       console.error("[store] Firestore asset delete failed:", err);
     });
   } else {
+    _assetDrafts = _assetDrafts.filter((a) => a.id !== id);
+    _persist(LS.ASSETS_DRAFTS, _assetDrafts);
     _assets = _assets.filter((a) => a.id !== id);
     _emit("assets");
   }
@@ -3217,7 +3250,7 @@ function _persist(key, value) {
     console.warn("[store] localStorage write failed:", key, e);
   }
 }
-var _transactions, _assets, _history, _drafts, _isLoggedIn, _loading, _syncAdapter, _subs, _fp;
+var _transactions, _assets, _history, _drafts, _assetDrafts, _isLoggedIn, _loading, _syncAdapter, _subs, _fp;
 var init_store = __esm({
   "src/js/store.js"() {
     init_config();
@@ -3226,6 +3259,7 @@ var init_store = __esm({
     _assets = [];
     _history = [];
     _drafts = [];
+    _assetDrafts = [];
     _isLoggedIn = false;
     _loading = false;
     _syncAdapter = null;
@@ -6929,6 +6963,7 @@ function _wrapError(raw) {
 
 // src/js/sync/syncManager.js
 init_store();
+init_store();
 init_config();
 import {
   getFirestore,
@@ -6973,6 +7008,8 @@ function initSyncListeners(uid2, onData) {
   });
   const assetRef = collection(_db, COLLECTIONS.assets(uid2));
   _unsubscribeAssets = onSnapshot(assetRef, (snapshot) => {
+    const records = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    mergeAssetsFromCloud(records);
   }, (err) => {
     console.error("[syncManager] assets onSnapshot \u9519\u8BEF:", err);
   });
@@ -7043,6 +7080,34 @@ async function uploadDrafts(uid2, drafts) {
     }
   }
   console.log(`[syncManager] \u8349\u7A3F\u4E0A\u4F20\u5B8C\u6210\uFF1A${uploaded.length} \u6761\u6210\u529F, ${duplicates.length} \u6761\u91CD\u590D`);
+  return { uploaded, duplicates };
+}
+async function uploadAssetDrafts(uid2, drafts) {
+  if (!uid2 || drafts.length === 0) return { uploaded: [], duplicates: [] };
+  console.log(`[syncManager] \u4E0A\u4F20 ${drafts.length} \u4E2A\u8D44\u4EA7\u8349\u7A3F`);
+  const assetRef = collection(_db, COLLECTIONS.assets(uid2));
+  const snap = await getDocs(query(assetRef));
+  const cloudMap = /* @__PURE__ */ new Map();
+  for (const d of snap.docs) {
+    const data = d.data();
+    if (data.deleted) continue;
+    const fp = `${data.name || ""}|${data.category || ""}`;
+    cloudMap.set(fp, { id: d.id, ...data });
+  }
+  const uploaded = [];
+  const duplicates = [];
+  for (const draft of drafts) {
+    const fp = `${draft.name || ""}|${draft.category || ""}`;
+    const existing = cloudMap.get(fp);
+    if (existing) {
+      duplicates.push({ draft, cloud: existing });
+    } else {
+      const { id, ...rest } = draft;
+      await setDoc(doc(_db, COLLECTIONS.assets(uid2), id), rest);
+      uploaded.push(id);
+    }
+  }
+  console.log(`[syncManager] \u8D44\u4EA7\u8349\u7A3F\u4E0A\u4F20\u5B8C\u6210\uFF1A${uploaded.length} \u4E2A\u6210\u529F, ${duplicates.length} \u4E2A\u91CD\u590D`);
   return { uploaded, duplicates };
 }
 
@@ -7362,6 +7427,20 @@ onAuthChange(async (user) => {
       } else {
         showToast("\u5DF2\u53D6\u6D88\u4E0A\u4F20");
       }
+    }
+    const assetDrafts = getAssetDrafts();
+    if (assetDrafts.length > 0) {
+      const result = await uploadAssetDrafts(user.uid, assetDrafts).catch((err) => {
+        console.error("[main] \u8D44\u4EA7\u8349\u7A3F\u4E0A\u4F20\u5931\u8D25:", err);
+        return { uploaded: [], duplicates: [] };
+      });
+      if (result.uploaded.length > 0 || result.duplicates.length > 0) {
+        const parts = [];
+        if (result.uploaded.length > 0) parts.push(`${result.uploaded.length} \u4E2A\u8D44\u4EA7\u5DF2\u540C\u6B65`);
+        if (result.duplicates.length > 0) parts.push(`${result.duplicates.length} \u4E2A\u91CD\u590D\u5DF2\u8DF3\u8FC7`);
+        showToast(parts.join("\uFF0C"));
+      }
+      clearAssetDrafts();
     }
     onLoginSync(user.uid, (cloudRecords) => {
       mergeFromCloud(cloudRecords);

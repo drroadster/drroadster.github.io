@@ -49,6 +49,7 @@ export const LS = {
   MIGRATED_V2:  'rdstr_migrated_v2',
   MIGRATED_V23: 'rdstr_migrated_v23',
   DRAFTS:       'rdstr_drafts',
+  ASSETS_DRAFTS: 'rdstr_asset_drafts',
 };
 
 // ── Chart.js palette ──────────────────────────────────

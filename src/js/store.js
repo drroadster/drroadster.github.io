@@ -29,6 +29,8 @@ let _history      = [];
 
 /** 本地草稿（未上传的记录） */
 let _drafts = [];
+/** 资产本地草稿（未上传的资产） */
+let _assetDrafts = [];
 
 /** 是否已登录 */
 let _isLoggedIn = false;
@@ -108,7 +110,8 @@ export function initStore() {
 
   // 未登录时用草稿填充内存
   _transactions = [..._drafts];
-  _assets       = [];
+  _assetDrafts   = _read(LS.ASSETS_DRAFTS);
+  _assets       = [..._assetDrafts];
 
   // V2 类别标准化
   migrateDataV2();
@@ -198,13 +201,34 @@ export function mergeFromCloud(cloudRecords) {
 }
 
 /**
+ * 合并云端资产数据到内存（由 syncManager onSnapshot 推送时调用）。
+ * @param {Asset[]} cloudRecords
+ */
+export function mergeAssetsFromCloud(cloudRecords) {
+  const inMemory = new Map(_assets.map(r => [r.id, r]));
+
+  for (const cr of cloudRecords) {
+    if (cr.deleted) {
+      inMemory.delete(cr.id);
+    } else {
+      inMemory.set(cr.id, cr);
+    }
+  }
+
+  _assets = [...inMemory.values()];
+  _loading = false;
+  _emit('assets');
+}
+
+/**
  * 切换到本地模式（退出登录时调用）。
  * 清空云端数据，恢复草稿。
  */
 export function switchToLocalMode() {
   _drafts = _read(LS.DRAFTS);
   _transactions = [..._drafts];
-  _assets = [];
+  _assetDrafts = _read(LS.ASSETS_DRAFTS);
+  _assets = [..._assetDrafts];
   _history = _read(LS.ASSET_HISTORY);
   _emit('transactions');
   _emit('assets');
@@ -222,6 +246,17 @@ export function getDrafts() {
 export function clearDrafts() {
   _drafts = [];
   _persist(LS.DRAFTS, []);
+}
+
+/** 获取所有资产草稿 */
+export function getAssetDrafts() {
+  return [..._assetDrafts];
+}
+
+/** 清空资产草稿（上传完成后调用） */
+export function clearAssetDrafts() {
+  _assetDrafts = [];
+  _persist(LS.ASSETS_DRAFTS, []);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -435,9 +470,13 @@ export function addAsset(asset) {
     _assets.push(record);
     _emit('assets');
     _syncAdapter.writeAsset(record.id, record).catch(err => {
-      console.error('[store] Firestore asset write failed:', err);
+      console.error('[store] Firestore asset write failed, saving to drafts:', err);
+      _assetDrafts.push(record);
+      _persist(LS.ASSETS_DRAFTS, _assetDrafts);
     });
   } else {
+    _assetDrafts.push(record);
+    _persist(LS.ASSETS_DRAFTS, _assetDrafts);
     _assets.push(record);
     _emit('assets');
   }
@@ -463,6 +502,10 @@ export function updateAsset(id, changes) {
       console.error('[store] Firestore asset update failed:', err);
     });
   } else {
+    const dIdx = _assetDrafts.findIndex(d => d.id === id);
+    if (dIdx !== -1) _assetDrafts[dIdx] = _assets[idx];
+    else _assetDrafts.push(_assets[idx]);
+    _persist(LS.ASSETS_DRAFTS, _assetDrafts);
     _emit('assets');
   }
 
@@ -483,6 +526,8 @@ export function deleteAsset(id) {
       console.error('[store] Firestore asset delete failed:', err);
     });
   } else {
+    _assetDrafts = _assetDrafts.filter(a => a.id !== id);
+    _persist(LS.ASSETS_DRAFTS, _assetDrafts);
     _assets = _assets.filter(a => a.id !== id);
     _emit('assets');
   }

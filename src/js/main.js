@@ -8,7 +8,7 @@
 
 import { initTheme, setTheme, getTheme } from './theme.js';
 import { initI18n, toggleLang, t } from './i18n.js';
-import { initStore, mergeFromCloud, addTransactions, getDrafts, clearDrafts, isLoading, getSyncSource, getTransactions } from './store.js';
+import { initStore, mergeFromCloud, mergeAssetsFromCloud, addTransactions, getDrafts, clearDrafts, getAssetDrafts, clearAssetDrafts, isLoading, getSyncSource, getTransactions } from './store.js';
 import { initRouter, navigate, onNavigate, fabAction, showToast, currentPage } from './router.js';
 
 import { initOverviewPage,     render as renderOverview }     from './pages/overview.js';
@@ -22,7 +22,7 @@ import {
 } from './auth.js';
 
 // v2.3: 实时同步（onSnapshot）
-import { onLoginSync, onLogoutSync, uploadDrafts, checkDuplicates } from './sync/syncManager.js';
+import { onLoginSync, onLogoutSync, uploadDrafts, checkDuplicates, uploadAssetDrafts, checkAssetDuplicates } from './sync/syncManager.js';
 
 import { nowAsDatetimeLocal, pad2 } from './utils.js';
 import { categorize } from './ai/categorizer.js';
@@ -395,6 +395,22 @@ onAuthChange(async (user) => {
       } else {
         showToast('已取消上传');
       }
+    }
+
+    // 上传资产草稿（静默上传，去重保守处理）
+    const assetDrafts = getAssetDrafts();
+    if (assetDrafts.length > 0) {
+      const result = await uploadAssetDrafts(user.uid, assetDrafts).catch(err => {
+        console.error('[main] 资产草稿上传失败:', err);
+        return { uploaded: [], duplicates: [] };
+      });
+      if (result.uploaded.length > 0 || result.duplicates.length > 0) {
+        const parts = [];
+        if (result.uploaded.length > 0) parts.push(`${result.uploaded.length} 个资产已同步`);
+        if (result.duplicates.length > 0) parts.push(`${result.duplicates.length} 个重复已跳过`);
+        showToast(parts.join('，'));
+      }
+      clearAssetDrafts();
     }
 
     // 启动 onSnapshot 监听

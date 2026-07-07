@@ -16,6 +16,7 @@
 
 import { getCurrentUser, firebaseApp } from '../auth.js';
 import * as store from '../store.js';
+import { mergeAssetsFromCloud } from '../store.js';
 import { COLLECTIONS } from '../config.js';
 import {
   getFirestore,
@@ -91,7 +92,8 @@ export function initSyncListeners(uid, onData) {
   // 监听资产集合
   const assetRef = collection(_db, COLLECTIONS.assets(uid));
   _unsubscribeAssets = onSnapshot(assetRef, (snapshot) => {
-    // TODO: 资产实时同步（v1 优先交易）
+    const records = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    mergeAssetsFromCloud(records);
   }, (err) => {
     console.error('[syncManager] assets onSnapshot 错误:', err);
   });
@@ -207,5 +209,79 @@ export async function uploadDrafts(uid, drafts) {
   }
 
   console.log(`[syncManager] 草稿上传完成：${uploaded.length} 条成功, ${duplicates.length} 条重复`);
+  return { uploaded, duplicates };
+}
+
+// ── 资产草稿上传 ──────────────────────────────────────
+
+/**
+ * 检测资产草稿与云端的重复情况（按 name + category 去重）。
+ * @param {string} uid
+ * @param {Asset[]} drafts
+ * @returns {Promise<{draft:Asset, cloud:Asset}[]>}
+ */
+export async function checkAssetDuplicates(uid, drafts) {
+  if (!uid || drafts.length === 0) return [];
+
+  const assetRef = collection(_db, COLLECTIONS.assets(uid));
+  const snap = await getDocs(query(assetRef));
+  const cloudMap = new Map();
+
+  for (const d of snap.docs) {
+    const data = d.data();
+    if (data.deleted) continue;
+    const fp = `${data.name || ''}|${data.category || ''}`;
+    cloudMap.set(fp, { id: d.id, ...data });
+  }
+
+  const dups = [];
+  for (const draft of drafts) {
+    const fp = `${draft.name || ''}|${draft.category || ''}`;
+    const existing = cloudMap.get(fp);
+    if (existing) dups.push({ draft, cloud: existing });
+  }
+
+  return dups;
+}
+
+/**
+ * 上传资产草稿到 Firestore。
+ * @param {string} uid
+ * @param {Asset[]} drafts
+ * @returns {Promise<{ uploaded: string[], duplicates: {draft:Asset, cloud:Asset}[] }>}
+ */
+export async function uploadAssetDrafts(uid, drafts) {
+  if (!uid || drafts.length === 0) return { uploaded: [], duplicates: [] };
+
+  console.log(`[syncManager] 上传 ${drafts.length} 个资产草稿`);
+
+  const assetRef = collection(_db, COLLECTIONS.assets(uid));
+  const snap = await getDocs(query(assetRef));
+  const cloudMap = new Map();
+
+  for (const d of snap.docs) {
+    const data = d.data();
+    if (data.deleted) continue;
+    const fp = `${data.name || ''}|${data.category || ''}`;
+    cloudMap.set(fp, { id: d.id, ...data });
+  }
+
+  const uploaded = [];
+  const duplicates = [];
+
+  for (const draft of drafts) {
+    const fp = `${draft.name || ''}|${draft.category || ''}`;
+    const existing = cloudMap.get(fp);
+
+    if (existing) {
+      duplicates.push({ draft, cloud: existing });
+    } else {
+      const { id, ...rest } = draft;
+      await setDoc(doc(_db, COLLECTIONS.assets(uid), id), rest);
+      uploaded.push(id);
+    }
+  }
+
+  console.log(`[syncManager] 资产草稿上传完成：${uploaded.length} 个成功, ${duplicates.length} 个重复`);
   return { uploaded, duplicates };
 }
