@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roadster · 快捷记账</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:system-ui,sans-serif;background:#0f0f12;color:#fff;display:flex;
+       align-items:center;justify-content:center;min-height:100dvh;text-align:center}
+  .box{padding:32px 24px}
+  .icon{font-size:40px;margin-bottom:12px}
+  .msg{font-size:15px;opacity:0.8;margin-bottom:4px}
+  .detail{font-size:13px;opacity:0.5}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="icon" id="iconEl"></div>
+  <div class="msg" id="msgEl">正在处理…</div>
+  <div class="detail" id="detailEl"></div>
+</div>
+<script>
+(function() {
+  const p = new URLSearchParams(location.search);
+  const amount = parseFloat(p.get('amount'));
+  const note   = p.get('note') || '';
+  const type   = p.get('type') || '支出';
+  const date   = p.get('date') || new Date().toISOString().slice(0,10);
+
+  const iconEl  = document.getElementById('iconEl');
+  const msgEl   = document.getElementById('msgEl');
+  const detailEl = document.getElementById('detailEl');
+
+  if (!amount || isNaN(amount)) {
+    iconEl.textContent = '⚠️';
+    msgEl.textContent  = '缺少金额参数';
+    detailEl.textContent = '请在快捷指令中设置 amount 参数';
+    return;
+  }
+
+  // 构造交易记录
+  const tx = {
+    id:        'sc_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+    date:      date,
+    type:      type,
+    amount:    amount,
+    category:  note || '其他',
+    note:      note,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    deleted:   false,
+    version:   1,
+    source:    'shortcut',
+  };
+
+  // 写入 localStorage 等待队列
+  try {
+    const pending = JSON.parse(localStorage.getItem('rdstr_shortcut_queue') || '[]');
+    pending.push(tx);
+    localStorage.setItem('rdstr_shortcut_queue', JSON.stringify(pending));
+
+    iconEl.textContent = '✅';
+    msgEl.textContent  = '已记录';
+    detailEl.textContent = `${type} ¥${amount.toFixed(2)} ${note}`;
+  } catch(e) {
+    iconEl.textContent = '❌';
+    msgEl.textContent  = '存储失败';
+    detailEl.textContent = '请打开 Roadster 手动记账';
+  }
+})();
+</script>
+</body>
+</html>

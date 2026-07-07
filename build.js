@@ -159,6 +159,13 @@ if (fs.existsSync(iconSrc)) {
   fs.copyFileSync(iconSrc, path.join(DIST, 'roadster-icon.svg'));
 }
 
+// Copy add.html (快捷指令轻量捕获页)
+const addSrc = path.join(ROOT, 'add.html');
+if (fs.existsSync(addSrc)) {
+  fs.copyFileSync(addSrc, path.join(DIST, 'add.html'));
+  log('   Copied add.html (shortcut capture page)');
+}
+
 const stat = fs.statSync(outPath);
 log(`✅ Built dist/roadster.html (${(stat.size / 1024).toFixed(1)} KB)`);
 log('   Open it directly in a browser, or host the dist/ folder anywhere.');

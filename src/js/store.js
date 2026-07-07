@@ -115,6 +115,50 @@ export function initStore() {
 
   // V2 类别标准化
   migrateDataV2();
+
+  // 消费快捷指令添加队列（add.html 写入）
+  _consumeShortcutQueue();
+}
+
+/**
+ * 消费 add.html 写入的快捷指令记账队列。
+ * 将待处理记录转为正式交易，支持去重和类别标准化。
+ * @returns {{ added: number, skipped: number }}
+ */
+function _consumeShortcutQueue() {
+  try {
+    const raw = localStorage.getItem('rdstr_shortcut_queue');
+    if (!raw) return { added: 0, skipped: 0 };
+
+    const queue = JSON.parse(raw);
+    localStorage.removeItem('rdstr_shortcut_queue');
+
+    if (!Array.isArray(queue) || queue.length === 0) return { added: 0, skipped: 0 };
+
+    const existing = new Set(_transactions.map(txFingerprint));
+    let added = 0, skipped = 0;
+
+    for (const item of queue) {
+      const fp = txFingerprint(item);
+      if (existing.has(fp)) { skipped++; continue; }
+
+      // 当前处于 init 阶段，_drafts 与 _transactions 是同一份引用
+      _drafts.push(item);
+      _transactions.push(item);
+      existing.add(fp);
+      added++;
+    }
+
+    if (added > 0) {
+      _persist(LS.DRAFTS, _drafts);
+      _emit('transactions');
+    }
+
+    return { added, skipped };
+  } catch (e) {
+    console.warn('[store] 快捷指令队列消费失败:', e);
+    return { added: 0, skipped: 0 };
+  }
 }
 
 /**
