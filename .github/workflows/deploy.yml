@@ -42,6 +42,7 @@ jobs:
           cp dist/roadster.html _site/index.html
           cp roadster-icon.svg _site/
           cp roadster-icon.png _site/
+          cp add.html _site/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
