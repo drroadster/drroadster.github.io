@@ -29,6 +29,9 @@ import { generateTxId, generateAssetId, getDeviceId, nextVersion } from './sync/
 let _transactions = [];
 /** @type {Asset[]} */
 let _assets       = [];
+
+/** 云端记录删除回调（由 syncManager 注册） */
+let _onCloudDelete = null;
 /** @type {Snapshot[]} */
 let _history      = [];
 
@@ -166,7 +169,18 @@ export function updateTx(id, changes) {
  * @returns {boolean}
  */
 export function deleteTx(id) {
+  // 若删除的是云端记录，记录 ID 防止下次登录重新下载，并触发 Firestore 删除
+  const tx = _transactions.find(t => t.id === id);
+  if (tx && tx.origin === 'cloud') {
+    markCloudDeleted(id);
+    _onCloudDelete?.(id);
+  }
   return updateTx(id, { deleted: true });
+}
+
+/** 注册云端记录删除回调（由 syncManager 调用） */
+export function setCloudDeleteHandler(fn) {
+  _onCloudDelete = fn;
 }
 
 // ── Assets (ID-level) ────────────────────────────────
@@ -407,6 +421,27 @@ export function removeCloudData() {
   const removed = before - _transactions.length;
   if (removed > 0) { _persist(LS.TX, _transactions); _emit('transactions'); }
   return removed;
+}
+
+// ── 已删除云端 ID 集合（防止换终端重新下载） ────────
+const LS_DELETED_CLOUD = 'roadster:deletedCloudIds';
+
+/** 标记一条云端记录已被用户删除。 */
+function markCloudDeleted(id) {
+  const ids = getDeletedCloudIds();
+  ids.add(id);
+  localStorage.setItem(LS_DELETED_CLOUD, JSON.stringify([...ids]));
+}
+
+/** 获取所有被用户标记删除的云端记录 ID */
+export function getDeletedCloudIds() {
+  try { return new Set(JSON.parse(localStorage.getItem(LS_DELETED_CLOUD) || '[]')); }
+  catch { return new Set(); }
+}
+
+/** 清空已删除云端 ID 集合（退出登录时调用） */
+export function clearDeletedCloudIds() {
+  localStorage.removeItem(LS_DELETED_CLOUD);
 }
 
 /**

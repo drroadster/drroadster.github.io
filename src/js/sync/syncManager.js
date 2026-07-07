@@ -28,7 +28,7 @@ import * as store from '../store.js';
 import { downloadAll } from './downloadQueue.js';
 import { addBatchToQueue, processQueue, clearQueue, getQueueSize } from './uploadQueue.js';
 import { SYNC, userDocPath } from '../config.js';
-import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 
 const _db = getFirestore(firebaseApp);
 const LS_LAST_SYNC = 'roadster:lastSync';
@@ -57,6 +57,12 @@ export function init() {
   console.log('[syncManager] v2.2 手动上传模式');
   const saved = localStorage.getItem(LS_LAST_SYNC);
   if (saved) _lastSyncTime = parseInt(saved, 10);
+
+  // 注册云端记录删除回调：删除本地云端记录时同步删除 Firestore 文档
+  store.setCloudDeleteHandler((id) => {
+    const user = getCurrentUser();
+    if (user) deleteCloudRecord(user.uid, id);
+  });
 }
 
 // ── 登录同步 ──────────────────────────────────────────
@@ -79,12 +85,21 @@ export async function syncOnLogin(uid) {
     const cloudTxs = cloud.transactions || [];
     console.log(`[syncManager] 云端共 ${cloudTxs.length} 条交易`);
 
+    // 过滤用户已删除的云端记录
+    const deletedIds = store.getDeletedCloudIds();
+    const activeCloudTxs = deletedIds.size > 0
+      ? cloudTxs.filter(tx => !deletedIds.has(tx.id))
+      : cloudTxs;
+    if (deletedIds.size > 0) {
+      console.log(`[syncManager] 已过滤 ${cloudTxs.length - activeCloudTxs.length} 条已删除云端记录`);
+    }
+
     // 检测重复
-    const duplicates = store.findDuplicates(cloudTxs);
+    const duplicates = store.findDuplicates(activeCloudTxs);
     const duplicateIds = new Set(duplicates.map(d => d.cloud.id));
 
     // 非重复记录添加为云端来源
-    const nonDupes = cloudTxs.filter(tx => !duplicateIds.has(tx.id));
+    const nonDupes = activeCloudTxs.filter(tx => !duplicateIds.has(tx.id));
     const added = store.addCloudTransactions(nonDupes);
 
     _lastSyncTime = Date.now();
@@ -177,6 +192,21 @@ export function syncOnLogout() {
   _notify('idle');
 
   console.log(`[syncManager] 已移除云端 ${removed} 条记录`);
+}
+
+/**
+ * 从 Firestore 中删除一条云端记录（配合本地删除，防止换终端重新下载）。
+ * @param {string} uid
+ * @param {string} id
+ */
+export async function deleteCloudRecord(uid, id) {
+  if (!uid) return;
+  try {
+    await deleteDoc(doc(_db, 'users', uid, 'transactions', id));
+    console.log(`[syncManager] 已从 Firestore 删除 ${id}`);
+  } catch (err) {
+    console.warn('[syncManager] Firestore 删除失败:', err.message);
+  }
 }
 
 // ── 手动同步（保留） ──────────────────────────────────
