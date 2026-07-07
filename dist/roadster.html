@@ -2112,7 +2112,7 @@ body::after {
 
 
 <!-- Version -->
-<div class="version-badge">v2026.07.06</div>
+<div class="version-badge">v2026070702</div>
 <script type="module">
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -2795,7 +2795,15 @@ function updateTx(id, changes) {
   return true;
 }
 function deleteTx(id) {
+  const tx = _transactions.find((t2) => t2.id === id);
+  if (tx && tx.origin === "cloud") {
+    markCloudDeleted(id);
+    _onCloudDelete?.(id);
+  }
   return updateTx(id, { deleted: true });
+}
+function setCloudDeleteHandler(fn) {
+  _onCloudDelete = fn;
 }
 function updateAsset(id, changes) {
   const idx = _assets.findIndex((a) => a.id === id);
@@ -2896,6 +2904,18 @@ function removeCloudData() {
     _emit("transactions");
   }
   return removed;
+}
+function markCloudDeleted(id) {
+  const ids = getDeletedCloudIds();
+  ids.add(id);
+  localStorage.setItem(LS_DELETED_CLOUD, JSON.stringify([...ids]));
+}
+function getDeletedCloudIds() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(LS_DELETED_CLOUD) || "[]"));
+  } catch {
+    return /* @__PURE__ */ new Set();
+  }
 }
 function markBatchAsSynced(ids) {
   const idSet = new Set(ids);
@@ -3202,13 +3222,14 @@ function _persist(key, value) {
     console.warn("[store] localStorage write failed:", key, e);
   }
 }
-var _transactions, _assets, _history, _subs, MIGRATED_V21_KEY, _fp;
+var _transactions, _assets, _onCloudDelete, _history, _subs, LS_DELETED_CLOUD, MIGRATED_V21_KEY, _fp;
 var init_store = __esm({
   "src/js/store.js"() {
     init_config();
     init_versionManager();
     _transactions = [];
     _assets = [];
+    _onCloudDelete = null;
     _history = [];
     _subs = /* @__PURE__ */ new Map([
       ["transactions", /* @__PURE__ */ new Set()],
@@ -3216,6 +3237,7 @@ var init_store = __esm({
       ["history", /* @__PURE__ */ new Set()],
       ["any", /* @__PURE__ */ new Set()]
     ]);
+    LS_DELETED_CLOUD = "roadster:deletedCloudIds";
     MIGRATED_V21_KEY = "rdstr_migrated_v21";
     _fp = txFingerprint;
   }
@@ -7037,7 +7059,7 @@ function getQueueSize() {
 
 // src/js/sync/syncManager.js
 init_config();
-import { getFirestore as getFirestore4, doc as doc3, setDoc as setDoc3, serverTimestamp as serverTimestamp3 } from "firebase/firestore";
+import { getFirestore as getFirestore4, doc as doc3, setDoc as setDoc3, serverTimestamp as serverTimestamp3, deleteDoc } from "firebase/firestore";
 var _db4 = getFirestore4(_app);
 var LS_LAST_SYNC = "roadster:lastSync";
 var _isSyncing = false;
@@ -7055,6 +7077,10 @@ function init() {
   console.log("[syncManager] v2.2 \u624B\u52A8\u4E0A\u4F20\u6A21\u5F0F");
   const saved = localStorage.getItem(LS_LAST_SYNC);
   if (saved) _lastSyncTime = parseInt(saved, 10);
+  setCloudDeleteHandler((id) => {
+    const user = getCurrentUser();
+    if (user) deleteCloudRecord(user.uid, id);
+  });
 }
 async function syncOnLogin(uid2) {
   if (!uid2 || _isSyncing) return { cloudCount: 0, duplicates: [] };
@@ -7065,9 +7091,14 @@ async function syncOnLogin(uid2) {
     const cloud = await downloadAll(uid2);
     const cloudTxs = cloud.transactions || [];
     console.log(`[syncManager] \u4E91\u7AEF\u5171 ${cloudTxs.length} \u6761\u4EA4\u6613`);
-    const duplicates = findDuplicates(cloudTxs);
+    const deletedIds = getDeletedCloudIds();
+    const activeCloudTxs = deletedIds.size > 0 ? cloudTxs.filter((tx) => !deletedIds.has(tx.id)) : cloudTxs;
+    if (deletedIds.size > 0) {
+      console.log(`[syncManager] \u5DF2\u8FC7\u6EE4 ${cloudTxs.length - activeCloudTxs.length} \u6761\u5DF2\u5220\u9664\u4E91\u7AEF\u8BB0\u5F55`);
+    }
+    const duplicates = findDuplicates(activeCloudTxs);
     const duplicateIds = new Set(duplicates.map((d) => d.cloud.id));
-    const nonDupes = cloudTxs.filter((tx) => !duplicateIds.has(tx.id));
+    const nonDupes = activeCloudTxs.filter((tx) => !duplicateIds.has(tx.id));
     const added = addCloudTransactions(nonDupes);
     _lastSyncTime = Date.now();
     _persistLastSync(uid2);
@@ -7126,6 +7157,15 @@ function syncOnLogout() {
   localStorage.removeItem(LS_LAST_SYNC);
   _notify("idle");
   console.log(`[syncManager] \u5DF2\u79FB\u9664\u4E91\u7AEF ${removed} \u6761\u8BB0\u5F55`);
+}
+async function deleteCloudRecord(uid2, id) {
+  if (!uid2) return;
+  try {
+    await deleteDoc(doc3(_db4, "users", uid2, "transactions", id));
+    console.log(`[syncManager] \u5DF2\u4ECE Firestore \u5220\u9664 ${id}`);
+  } catch (err) {
+    console.warn("[syncManager] Firestore \u5220\u9664\u5931\u8D25:", err.message);
+  }
 }
 async function manualSync() {
   const user = getCurrentUser();
