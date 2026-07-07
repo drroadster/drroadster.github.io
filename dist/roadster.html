@@ -2044,11 +2044,11 @@ body::after {
       <input class="field-input" id="authName" placeholder="你的名字" autocomplete="name">
     </div>
     <div class="field"><label class="field-label" data-i18n="authEmail">邮箱</label>
-      <input class="field-input" id="authEmail" type="email" placeholder="your@email.com" autocomplete="email"></div>
+      <input class="field-input" id="authEmail" type="email" placeholder="your@email.com"></div>
     <div class="field" id="authPasswordField">
       <label class="field-label" data-i18n="authPassword">密码</label>
       <div style="position:relative">
-        <input class="field-input" id="authPassword" type="password" placeholder="至少 6 位" autocomplete="current-password" style="padding-right:48px">
+        <input class="field-input" id="authPassword" type="password" placeholder="至少 6 位" style="padding-right:48px">
         <button id="pwdEyeBtn" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px">👁️</button>
       </div>
     </div>
@@ -2129,7 +2129,7 @@ body::after {
 
 
 <!-- Version -->
-<div class="version-badge">v2026070712</div>
+<div class="version-badge">v2026070713</div>
 <script type="module">
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -7212,6 +7212,8 @@ function switchAuthMode(mode) {
     els.modeDesc.textContent = t("authLoginDesc");
     els.tabLogin.classList.add("active");
     els.tabReg.classList.remove("active");
+    document.getElementById("authEmail").setAttribute("autocomplete", "email");
+    document.getElementById("authPassword").setAttribute("autocomplete", "current-password");
   } else if (mode === "register") {
     els.nameField.style.display = "";
     els.pwdField.style.display = "";
@@ -7241,6 +7243,10 @@ function renderLoggedInSection() {
   document.getElementById("authModeDesc").textContent = "\u5DF2\u767B\u5F55";
   const emailField = document.querySelector(".field:has(#authEmail)");
   if (emailField) emailField.style.display = "none";
+  const emailInput = document.getElementById("authEmail");
+  const pwdInput = document.getElementById("authPassword");
+  if (emailInput) emailInput.removeAttribute("autocomplete");
+  if (pwdInput) pwdInput.removeAttribute("autocomplete");
   const emailPrefix = user.email ? user.email.split("@")[0] : "";
   const nickname = user.displayName || emailPrefix || "\u7528\u6237";
   const initial = (nickname || "?")[0].toUpperCase();

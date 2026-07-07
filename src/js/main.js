@@ -171,6 +171,9 @@ function switchAuthMode(mode) {
     els.submitBtn.querySelector('span').textContent = t('authLogin');
     els.modeDesc.textContent = t('authLoginDesc');
     els.tabLogin.classList.add('active'); els.tabReg.classList.remove('active');
+    // 仅在登录表单可见时启用 autocomplete，避免 Safari 已登录状态下弹窗
+    document.getElementById('authEmail').setAttribute('autocomplete', 'email');
+    document.getElementById('authPassword').setAttribute('autocomplete', 'current-password');
   } else if (mode === 'register') {
     els.nameField.style.display = '';
     els.pwdField.style.display  = '';
@@ -203,6 +206,12 @@ function renderLoggedInSection() {
   // 隐藏邮箱输入框（整个 .field 元素）
   const emailField = document.querySelector('.field:has(#authEmail)');
   if (emailField) emailField.style.display = 'none';
+
+  // 移除 autocomplete 属性，防止 Safari 已登录时弹出密码自动填充
+  const emailInput = document.getElementById('authEmail');
+  const pwdInput = document.getElementById('authPassword');
+  if (emailInput) emailInput.removeAttribute('autocomplete');
+  if (pwdInput) pwdInput.removeAttribute('autocomplete');
 
   const emailPrefix = user.email ? user.email.split('@')[0] : '';
   const nickname = user.displayName || emailPrefix || '用户';
