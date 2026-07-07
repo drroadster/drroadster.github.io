@@ -2068,6 +2068,20 @@ body::after {
   </div>
 </div>
 
+<!-- Upload Confirmation Modal -->
+<div class="sheet-overlay" id="uploadConfirmModal">
+  <div class="sheet glass" style="text-align:center">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">上传本地数据到云端</div>
+    <div id="uploadConfirmBody" style="font-size:13px;color:var(--color-label-2);line-height:1.6;margin-bottom:18px"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="uploadCancelBtn">取消</button>
+      <button class="btn btn-primary" id="uploadConfirmBtn">确认上传</button>
+    </div>
+    <div id="uploadResult" style="font-size:12px;color:var(--color-success);margin-top:14px;font-weight:600;min-height:18px"></div>
+  </div>
+</div>
+
 <!-- Time Picker Popover -->
 <div class="time-popover" id="timePopover">
   <div class="time-popover-arrow"></div>
@@ -2112,7 +2126,7 @@ body::after {
 
 
 <!-- Version -->
-<div class="version-badge">v2026070703</div>
+<div class="version-badge">v2026070706</div>
 <script type="module">
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -2288,7 +2302,9 @@ var init_config = __esm({
       THEME: "rdstr_theme",
       LANG: "rdstr_lang",
       CUSTOM_CATS: "rdstr_custom_cats",
-      MIGRATED_V2: "rdstr_migrated_v2"
+      MIGRATED_V2: "rdstr_migrated_v2",
+      MIGRATED_V23: "rdstr_migrated_v23",
+      DRAFTS: "rdstr_drafts"
     };
     PALETTE = [
       "#5e7ce2",
@@ -2386,7 +2402,7 @@ var init_config = __esm({
       // Insurance special case — goes under Parents (common usage for family insurance)
       { canon: "Parents", kw: /保险|insurance/i }
     ];
-    APP_VERSION = "2.1.0";
+    APP_VERSION = "2.3.0";
   }
 });
 
@@ -2752,20 +2768,108 @@ function _emit(channel) {
     }
   });
 }
-function initStore() {
-  _transactions = _read(LS.TX);
-  _assets = _read(LS.ASSETS);
-  _history = _read(LS.ASSET_HISTORY);
-  migrateDataV2();
-  migrateDataV21();
+function setSyncAdapter(adapter) {
+  _syncAdapter = adapter;
+  _isLoggedIn = true;
+  console.log("[store] sync adapter set, logged in mode");
 }
-function reloadFromStorage() {
-  _transactions = _read(LS.TX);
-  _assets = _read(LS.ASSETS);
+function clearSyncAdapter() {
+  _syncAdapter = null;
+  _isLoggedIn = false;
+  console.log("[store] sync adapter cleared, logged out mode");
+}
+function initStore() {
+  _drafts = _read(LS.DRAFTS);
+  _history = _read(LS.ASSET_HISTORY);
+  _migrateOldDataToDrafts();
+  _transactions = [..._drafts];
+  _assets = [];
+  migrateDataV2();
+}
+function _migrateOldDataToDrafts() {
+  try {
+    if (localStorage.getItem(LS.MIGRATED_V23)) return;
+  } catch {
+    return;
+  }
+  const oldTx = _read("rdstr_tx");
+  const oldAssets = _read("rdstr_assets");
+  const clean = (arr) => arr.map((item) => {
+    const { origin, syncStatus, ...rest } = item;
+    return rest;
+  });
+  const cleanedTx = clean(oldTx).filter((t2) => !t2.deleted);
+  const cleanedAssets = clean(oldAssets).filter((a) => !a.deleted);
+  if (cleanedTx.length > 0 || cleanedAssets.length > 0) {
+    _drafts = cleanedTx;
+    _persist(LS.DRAFTS, _drafts);
+    console.log(`[store] \u5DF2\u8FC1\u79FB\u65E7\u6570\u636E\u5230 drafts\uFF1A${cleanedTx.length} \u6761\u4EA4\u6613, ${cleanedAssets.length} \u4E2A\u8D44\u4EA7`);
+  }
+  try {
+    localStorage.removeItem("rdstr_tx");
+  } catch {
+  }
+  try {
+    localStorage.removeItem("rdstr_assets");
+  } catch {
+  }
+  try {
+    localStorage.setItem(LS.MIGRATED_V23, "1");
+  } catch {
+  }
+}
+function migrateDataV2() {
+  try {
+    if (localStorage.getItem(LS.MIGRATED_V2)) return 0;
+  } catch {
+    return 0;
+  }
+  let changed = 0;
+  _transactions.forEach((t2) => {
+    const raw = t2.category || "";
+    const norm = normalizeCategory(raw);
+    if (norm !== raw) {
+      t2.category = norm;
+      changed++;
+    }
+  });
+  if (changed) {
+    _persist(LS.DRAFTS, _transactions);
+    _emit("transactions");
+  }
+  try {
+    localStorage.setItem(LS.MIGRATED_V2, "1");
+  } catch {
+  }
+  return changed;
+}
+function mergeFromCloud(cloudRecords) {
+  const inMemory = new Map(_transactions.map((r) => [r.id, r]));
+  for (const cr of cloudRecords) {
+    if (cr.deleted) {
+      inMemory.delete(cr.id);
+    } else {
+      inMemory.set(cr.id, cr);
+    }
+  }
+  _transactions = [...inMemory.values()];
+  _emit("transactions");
+}
+function switchToLocalMode() {
+  _drafts = _read(LS.DRAFTS);
+  _transactions = [..._drafts];
+  _assets = [];
   _history = _read(LS.ASSET_HISTORY);
   _emit("transactions");
   _emit("assets");
   _emit("history");
+}
+function getDrafts() {
+  return [..._drafts];
+}
+function clearDrafts() {
+  _drafts = [];
+  _persist(LS.DRAFTS, []);
 }
 function _newSyncMeta(type) {
   const now = (/* @__PURE__ */ new Date()).toISOString();
@@ -2775,10 +2879,27 @@ function _newSyncMeta(type) {
     updatedAt: now,
     deviceId: getDeviceId(),
     version: 1,
-    deleted: false,
-    syncStatus: "local",
-    origin: "local"
+    deleted: false
   };
+}
+function addTx(tx) {
+  const meta = _newSyncMeta("tx");
+  const record = { ...tx, ...meta };
+  if (_syncAdapter && _isLoggedIn) {
+    _transactions.push(record);
+    _emit("transactions");
+    _syncAdapter.writeTx(record.id, record).catch((err) => {
+      console.error("[store] Firestore write failed, saving to drafts:", err);
+      _drafts.push(record);
+      _persist(LS.DRAFTS, _drafts);
+    });
+  } else {
+    _drafts.push(record);
+    _persist(LS.DRAFTS, _drafts);
+    _transactions.push(record);
+    _emit("transactions");
+  }
+  return record;
 }
 function updateTx(id, changes) {
   const idx = _transactions.findIndex((t2) => t2.id === id);
@@ -2787,23 +2908,110 @@ function updateTx(id, changes) {
     ..._transactions[idx],
     ...changes,
     updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-    version: nextVersion(_transactions[idx].version),
-    syncStatus: _transactions[idx].syncStatus === "synced" ? "local" : _transactions[idx].syncStatus
+    version: nextVersion(_transactions[idx].version)
   };
-  _persist(LS.TX, _transactions);
-  _emit("transactions");
+  if (_syncAdapter && _isLoggedIn) {
+    _emit("transactions");
+    _syncAdapter.writeTx(id, _transactions[idx]).catch((err) => {
+      console.error("[store] Firestore update failed, saving to drafts:", err);
+      const dIdx = _drafts.findIndex((d) => d.id === id);
+      if (dIdx !== -1) _drafts[dIdx] = _transactions[idx];
+      else _drafts.push(_transactions[idx]);
+      _persist(LS.DRAFTS, _drafts);
+    });
+  } else {
+    const draftIdx = _drafts.findIndex((d) => d.id === id);
+    if (draftIdx !== -1) {
+      _drafts[draftIdx] = _transactions[idx];
+      _persist(LS.DRAFTS, _drafts);
+    }
+    _emit("transactions");
+  }
   return true;
 }
 function deleteTx(id) {
-  const tx = _transactions.find((t2) => t2.id === id);
-  if (tx && tx.origin === "cloud") {
-    markCloudDeleted(id);
-    _onCloudDelete?.(id);
+  const idx = _transactions.findIndex((t2) => t2.id === id);
+  if (idx === -1) return false;
+  _transactions[idx].deleted = true;
+  _transactions[idx].updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+  if (_syncAdapter && _isLoggedIn) {
+    _emit("transactions");
+    _syncAdapter.deleteTx(id).catch((err) => {
+      console.error("[store] Firestore delete failed, marking as draft delete:", err);
+      const dIdx = _drafts.findIndex((d) => d.id === id);
+      if (dIdx !== -1) _drafts[dIdx] = _transactions[idx];
+      else _drafts.push(_transactions[idx]);
+      _persist(LS.DRAFTS, _drafts);
+    });
+  } else {
+    _drafts = _drafts.filter((d) => d.id !== id);
+    _persist(LS.DRAFTS, _drafts);
+    _transactions = _transactions.filter((t2) => t2.id !== id);
+    _emit("transactions");
   }
-  return updateTx(id, { deleted: true });
+  return true;
 }
-function setCloudDeleteHandler(fn) {
-  _onCloudDelete = fn;
+function deleteByCategory(category) {
+  let n = 0;
+  const toDelete = [];
+  _transactions.forEach((t2) => {
+    if (t2.category === category && !t2.deleted) {
+      t2.deleted = true;
+      t2.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+      toDelete.push(t2.id);
+      n++;
+    }
+  });
+  if (n === 0) return 0;
+  if (_syncAdapter && _isLoggedIn) {
+    _emit("transactions");
+    toDelete.forEach((id) => {
+      _syncAdapter.deleteTx(id).catch((err) => {
+        console.error("[store] Firestore batch delete failed:", err);
+      });
+    });
+  } else {
+    _drafts = _drafts.filter((d) => !toDelete.includes(d.id));
+    _persist(LS.DRAFTS, _drafts);
+    _transactions = _transactions.filter((t2) => !t2.deleted);
+    _emit("transactions");
+  }
+  return n;
+}
+function clearTransactions() {
+  if (_syncAdapter && _isLoggedIn) {
+    const ids = _transactions.map((t2) => t2.id);
+    _transactions = [];
+    _emit("transactions");
+    ids.forEach((id) => {
+      _syncAdapter.deleteTx(id).catch((err) => {
+        console.error("[store] Firestore clear failed:", err);
+      });
+    });
+  } else {
+    _drafts = [];
+    _persist(LS.DRAFTS, []);
+    _transactions = [];
+    _emit("transactions");
+  }
+}
+function getAssets() {
+  return [..._assets].filter((a) => a.deleted !== true);
+}
+function addAsset(asset) {
+  const meta = _newSyncMeta("asset");
+  const record = { ...asset, ...meta };
+  if (_syncAdapter && _isLoggedIn) {
+    _assets.push(record);
+    _emit("assets");
+    _syncAdapter.writeAsset(record.id, record).catch((err) => {
+      console.error("[store] Firestore asset write failed:", err);
+    });
+  } else {
+    _assets.push(record);
+    _emit("assets");
+  }
+  return record;
 }
 function updateAsset(id, changes) {
   const idx = _assets.findIndex((a) => a.id === id);
@@ -2812,205 +3020,41 @@ function updateAsset(id, changes) {
     ..._assets[idx],
     ...changes,
     updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-    version: nextVersion(_assets[idx].version),
-    syncStatus: _assets[idx].syncStatus === "synced" ? "local" : _assets[idx].syncStatus
+    version: nextVersion(_assets[idx].version)
   };
-  _persist(LS.ASSETS, _assets);
-  _emit("assets");
-  return true;
-}
-function deleteAssetV21(id) {
-  return updateAsset(id, { deleted: true });
-}
-function getPendingTransactions() {
-  return _transactions.filter(
-    (t2) => t2.syncStatus !== "synced" && t2.deleted !== true
-  );
-}
-function getPendingAssets() {
-  return _assets.filter(
-    (a) => a.syncStatus !== "synced" && a.deleted !== true
-  );
-}
-function markAllPendingUpload() {
-  let txChanged = false, assetChanged = false;
-  _transactions.forEach((t2) => {
-    if (t2.syncStatus === "local" && t2.deleted !== true) {
-      t2.syncStatus = "pending_upload";
-      txChanged = true;
-    }
-  });
-  _assets.forEach((a) => {
-    if (a.syncStatus === "local" && a.deleted !== true) {
-      a.syncStatus = "pending_upload";
-      assetChanged = true;
-    }
-  });
-  if (txChanged) {
-    _persist(LS.TX, _transactions);
-    _emit("transactions");
-  }
-  if (assetChanged) {
-    _persist(LS.ASSETS, _assets);
+  if (_syncAdapter && _isLoggedIn) {
+    _emit("assets");
+    _syncAdapter.writeAsset(id, _assets[idx]).catch((err) => {
+      console.error("[store] Firestore asset update failed:", err);
+    });
+  } else {
     _emit("assets");
   }
+  return true;
 }
-function getTransactions() {
-  return [..._transactions].filter((t2) => t2.deleted !== true).sort((a, b) => new Date(b.date) - new Date(a.date));
-}
-function addTransactions(items) {
-  const arr = Array.isArray(items) ? items : [items];
-  const existing = new Set(_transactions.map(_fp));
-  let added = 0, duplicates = 0;
-  for (const inputTx of arr) {
-    const key = _fp(inputTx);
-    if (existing.has(key)) {
-      duplicates++;
-      continue;
-    }
-    const tx = inputTx.id && inputTx.createdAt ? inputTx : { ...inputTx, ..._newSyncMeta("tx"), date: inputTx.date };
-    const normalised = { ...tx, category: normalizeCategory(tx.category || tx.note || "") };
-    _transactions.push(normalised);
-    existing.add(key);
-    added++;
+function deleteAsset(id) {
+  const idx = _assets.findIndex((a) => a.id === id);
+  if (idx === -1) return false;
+  _assets[idx].deleted = true;
+  _assets[idx].updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+  if (_syncAdapter && _isLoggedIn) {
+    _emit("assets");
+    _syncAdapter.deleteAsset(id).catch((err) => {
+      console.error("[store] Firestore asset delete failed:", err);
+    });
+  } else {
+    _assets = _assets.filter((a) => a.id !== id);
+    _emit("assets");
   }
-  if (added) {
-    _persist(LS.TX, _transactions);
-    _emit("transactions");
-  }
-  return { added, duplicates };
-}
-function addCloudTransactions(items) {
-  const existing = new Set(_transactions.map((t2) => t2.id));
-  let added = 0;
-  for (const item of items) {
-    if (existing.has(item.id)) continue;
-    _transactions.push({ ...item, origin: "cloud", syncStatus: "synced" });
-    existing.add(item.id);
-    added++;
-  }
-  if (added > 0) {
-    _persist(LS.TX, _transactions);
-    _emit("transactions");
-  }
-  return added;
-}
-function removeCloudData() {
-  const before = _transactions.length;
-  _transactions = _transactions.filter((t2) => t2.origin !== "cloud");
-  const removed = before - _transactions.length;
-  if (removed > 0) {
-    _persist(LS.TX, _transactions);
-    _emit("transactions");
-  }
-  return removed;
-}
-function markCloudDeleted(id) {
-  const ids = getDeletedCloudIds();
-  ids.add(id);
-  localStorage.setItem(LS_DELETED_CLOUD, JSON.stringify([...ids]));
-}
-function getDeletedCloudIds() {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(LS_DELETED_CLOUD) || "[]"));
-  } catch {
-    return /* @__PURE__ */ new Set();
-  }
-}
-function markBatchAsSynced(ids) {
-  const idSet = new Set(ids);
-  let changed = false;
-  _transactions.forEach((t2) => {
-    if (idSet.has(t2.id) && t2.syncStatus === "local") {
-      t2.syncStatus = "synced";
-      t2.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
-      changed = true;
-    }
-  });
-  if (changed) {
-    _persist(LS.TX, _transactions);
-    _emit("transactions");
-  }
-}
-function getLocalTransactions() {
-  return _transactions.filter((t2) => t2.origin === "local" && t2.deleted !== true);
-}
-function findDuplicates(cloudItems) {
-  const local = getLocalTransactions();
-  const dupes = [];
-  for (const ci of cloudItems) {
-    const match = local.find(
-      (li) => li.date === ci.date && li.note === ci.note && li.amount === ci.amount && li.type === ci.type
-    );
-    if (match) dupes.push({ cloud: ci, local: match });
-  }
-  return dupes;
-}
-function updateTransaction(id, patch) {
-  return updateTx(id, patch);
-}
-function deleteTransaction(id) {
-  return deleteTx(id);
-}
-function deleteByCategory(category) {
-  let n = 0;
-  _transactions.forEach((t2) => {
-    if (t2.category === category && !t2.deleted) {
-      t2.deleted = true;
-      t2.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
-      t2.syncStatus = t2.syncStatus === "synced" ? "local" : t2.syncStatus;
-      n++;
-    }
-  });
-  if (n) {
-    _persist(LS.TX, _transactions);
-    _emit("transactions");
-  }
-  return n;
-}
-function renormalizeAllCategories() {
-  let changed = 0;
-  _transactions.forEach((t2) => {
-    if (t2.deleted) return;
-    const norm = normalizeCategory(t2.category);
-    if (norm !== t2.category) {
-      t2.category = norm;
-      changed++;
-    }
-  });
-  if (changed) {
-    _persist(LS.TX, _transactions);
-    _emit("transactions");
-  }
-  return changed;
-}
-function clearTransactions() {
-  _transactions = [];
-  _persist(LS.TX, _transactions);
-  _emit("transactions");
-}
-function getAssets() {
-  return [..._assets].filter((a) => a.deleted !== true);
+  return true;
 }
 function upsertAsset(asset) {
   const idx = _assets.findIndex((a) => a.id === asset.id);
   if (idx === -1) {
-    const record = asset.id && asset.createdAt ? asset : { ...asset, ..._newSyncMeta("asset") };
-    _assets.push(record);
+    addAsset(asset);
   } else {
-    _assets[idx] = {
-      ..._assets[idx],
-      ...asset,
-      updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
-      version: nextVersion(_assets[idx].version),
-      syncStatus: _assets[idx].syncStatus === "synced" ? "local" : _assets[idx].syncStatus
-    };
+    updateAsset(asset.id, asset);
   }
-  _persist(LS.ASSETS, _assets);
-  _emit("assets");
-}
-function deleteAsset(id) {
-  return deleteAssetV21(id);
 }
 function getAssetHistory() {
   return [..._history];
@@ -3052,112 +3096,52 @@ function importAssetSnapshots(snaps) {
   }
   return added;
 }
-function migrateDataV21() {
-  try {
-    if (localStorage.getItem(MIGRATED_V21_KEY)) return { txCount: 0, assetCount: 0 };
-  } catch {
-    return { txCount: 0, assetCount: 0 };
-  }
-  const deviceId = getDeviceId();
-  const now = (/* @__PURE__ */ new Date()).toISOString();
-  let txChanged = 0, assetChanged = 0;
-  _transactions.forEach((tx) => {
-    let modified = false;
-    if (!tx.id) {
-      tx.id = generateTxId();
-      modified = true;
-    }
-    if (!tx.createdAt) {
-      tx.createdAt = tx.date || now;
-      modified = true;
-    }
-    if (!tx.updatedAt) {
-      tx.updatedAt = tx.date || now;
-      modified = true;
-    }
-    if (!tx.deviceId) {
-      tx.deviceId = deviceId;
-      modified = true;
-    }
-    if (tx.version == null) {
-      tx.version = 1;
-      modified = true;
-    }
-    if (tx.deleted == null) {
-      tx.deleted = false;
-      modified = true;
-    }
-    if (!tx.syncStatus) {
-      tx.syncStatus = "local";
-      modified = true;
-    }
-    if (modified) txChanged++;
-  });
-  _assets.forEach((asset) => {
-    let modified = false;
-    if (!asset.id) {
-      asset.id = generateAssetId();
-      modified = true;
-    }
-    if (!asset.createdAt) {
-      asset.createdAt = asset.updatedAt || now;
-      modified = true;
-    }
-    if (!asset.updatedAt) {
-      asset.updatedAt = asset.createdAt || now;
-      modified = true;
-    }
-    if (!asset.deviceId) {
-      asset.deviceId = deviceId;
-      modified = true;
-    }
-    if (asset.version == null) {
-      asset.version = 1;
-      modified = true;
-    }
-    if (asset.deleted == null) {
-      asset.deleted = false;
-      modified = true;
-    }
-    if (!asset.syncStatus) {
-      asset.syncStatus = "local";
-      modified = true;
-    }
-    if (modified) assetChanged++;
-  });
-  if (txChanged > 0) _persist(LS.TX, _transactions);
-  if (assetChanged > 0) _persist(LS.ASSETS, _assets);
-  try {
-    localStorage.setItem(MIGRATED_V21_KEY, "1");
-  } catch {
-  }
-  if (txChanged > 0 || assetChanged > 0) {
-    console.log(`[store] v2.1 \u8FC1\u79FB\u5B8C\u6210\uFF1A${txChanged} \u6761\u4EA4\u6613, ${assetChanged} \u4E2A\u8D44\u4EA7`);
-  }
-  return { txCount: txChanged, assetCount: assetChanged };
+function getTransactions() {
+  return [..._transactions].filter((t2) => t2.deleted !== true).sort((a, b) => new Date(b.date) - new Date(a.date));
 }
-function migrateDataV2() {
-  try {
-    if (localStorage.getItem(LS.MIGRATED_V2)) return 0;
-  } catch {
-    return 0;
+function addTransactions(items) {
+  const arr = Array.isArray(items) ? items : [items];
+  const existing = new Set(_transactions.map(_fp));
+  let added = 0, duplicates = 0;
+  for (const inputTx of arr) {
+    const key = _fp(inputTx);
+    if (existing.has(key)) {
+      duplicates++;
+      continue;
+    }
+    const normalised = { ...inputTx, category: normalizeCategory(inputTx.category || inputTx.note || "") };
+    addTx(normalised);
+    existing.add(key);
+    added++;
   }
+  return { added, duplicates };
+}
+function updateTransaction(id, patch) {
+  return updateTx(id, patch);
+}
+function deleteTransaction(id) {
+  return deleteTx(id);
+}
+function renormalizeAllCategories() {
   let changed = 0;
   _transactions.forEach((t2) => {
-    const raw = t2.category || "";
-    const norm = normalizeCategory(raw);
-    if (norm !== raw) {
+    if (t2.deleted) return;
+    const norm = normalizeCategory(t2.category);
+    if (norm !== t2.category) {
       t2.category = norm;
       changed++;
     }
   });
   if (changed) {
-    _persist(LS.TX, _transactions);
+    if (_syncAdapter && _isLoggedIn) {
+      _transactions.forEach((t2) => {
+        _syncAdapter.writeTx(t2.id, t2).catch(() => {
+        });
+      });
+    } else {
+      _persist(LS.DRAFTS, _drafts);
+    }
     _emit("transactions");
-  }
-  try {
-    localStorage.setItem(LS.MIGRATED_V2, "1");
-  } catch {
   }
   return changed;
 }
@@ -3215,30 +3199,27 @@ function _read(key) {
 function _persist(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
-    if (typeof window.__rdstr_onStoreWrite === "function") {
-      window.__rdstr_onStoreWrite(key);
-    }
   } catch (e) {
     console.warn("[store] localStorage write failed:", key, e);
   }
 }
-var _transactions, _assets, _onCloudDelete, _history, _subs, LS_DELETED_CLOUD, MIGRATED_V21_KEY, _fp;
+var _transactions, _assets, _history, _drafts, _isLoggedIn, _syncAdapter, _subs, _fp;
 var init_store = __esm({
   "src/js/store.js"() {
     init_config();
     init_versionManager();
     _transactions = [];
     _assets = [];
-    _onCloudDelete = null;
     _history = [];
+    _drafts = [];
+    _isLoggedIn = false;
+    _syncAdapter = null;
     _subs = /* @__PURE__ */ new Map([
       ["transactions", /* @__PURE__ */ new Set()],
       ["assets", /* @__PURE__ */ new Set()],
       ["history", /* @__PURE__ */ new Set()],
       ["any", /* @__PURE__ */ new Set()]
     ]);
-    LS_DELETED_CLOUD = "roadster:deletedCloudIds";
-    MIGRATED_V21_KEY = "rdstr_migrated_v21";
     _fp = txFingerprint;
   }
 });
@@ -6929,327 +6910,123 @@ function _wrapError(raw) {
   return wrapped;
 }
 
-// src/js/db.js
+// src/js/sync/syncManager.js
+init_store();
 init_config();
 import {
   getFirestore,
+  collection,
   doc,
-  getDoc,
   setDoc,
-  serverTimestamp,
-  enableIndexedDbPersistence
+  deleteDoc,
+  onSnapshot,
+  getDocs,
+  query
 } from "firebase/firestore";
 var _db = getFirestore(_app);
-enableIndexedDbPersistence(_db).catch((err) => {
-  if (err.code === "failed-precondition") {
-    console.warn("[db] IndexedDB persistence unavailable (multiple tabs)");
-  } else if (err.code === "unimplemented") {
-    console.warn("[db] IndexedDB persistence not supported in this browser");
-  }
-});
-var _statusCbs = /* @__PURE__ */ new Set();
-function onSyncStatus(cb) {
-  _statusCbs.add(cb);
-  return () => _statusCbs.delete(cb);
+var _unsubscribeTx = null;
+var _unsubscribeAssets = null;
+function _createAdapter(uid2) {
+  return {
+    writeTx: async (id, data) => {
+      const { id: _id, ...rest } = data;
+      await setDoc(doc(_db, COLLECTIONS.transactions(uid2), id), rest);
+    },
+    deleteTx: async (id) => {
+      await deleteDoc(doc(_db, COLLECTIONS.transactions(uid2), id));
+    },
+    writeAsset: async (id, data) => {
+      const { id: _id, ...rest } = data;
+      await setDoc(doc(_db, COLLECTIONS.assets(uid2), id), rest);
+    },
+    deleteAsset: async (id) => {
+      await deleteDoc(doc(_db, COLLECTIONS.assets(uid2), id));
+    }
+  };
 }
-async function getLastSyncDate(uid2) {
-  if (!uid2) return null;
-  try {
-    const snap = await getDoc(doc(_db, userDocPath(uid2)));
-    if (!snap.exists()) return null;
-    const ts = snap.data()?.updatedAt;
-    return ts?.toDate?.() ?? null;
-  } catch {
-    return null;
-  }
-}
-
-// src/js/sync/syncManager.js
-init_store();
-
-// src/js/sync/downloadQueue.js
-import { getFirestore as getFirestore2, collection, getDocs } from "firebase/firestore";
-var _db2 = getFirestore2(_app);
-async function downloadAll(uid2) {
-  const [transactions, assets] = await Promise.all([
-    _downloadCollection(uid2, "transactions"),
-    _downloadCollection(uid2, "assets")
-  ]);
-  return { transactions, assets };
-}
-async function _downloadCollection(uid2, collectionName) {
-  try {
-    const colRef = collection(_db2, "users", uid2, collectionName);
-    const snapshot = await getDocs(colRef);
-    const items = [];
-    snapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      if (data.updatedAt && typeof data.updatedAt.toDate === "function") {
-        data.updatedAt = data.updatedAt.toDate().toISOString();
-      }
-      if (data.createdAt && typeof data.createdAt.toDate === "function") {
-        data.createdAt = data.createdAt.toDate().toISOString();
-      }
-      items.push({ ...data, id: docSnap.id, syncStatus: "synced" });
-    });
-    return items;
-  } catch (err) {
-    console.warn(`[downloadQueue] \u4E0B\u8F7D ${collectionName} \u5931\u8D25:`, err.message);
-    return [];
-  }
-}
-
-// src/js/sync/uploadQueue.js
-import { getFirestore as getFirestore3, doc as doc2, setDoc as setDoc2, serverTimestamp as serverTimestamp2 } from "firebase/firestore";
-init_config();
-var _db3 = getFirestore3(_app);
-var MAX_RETRIES = SYNC.maxRetries;
-var _queue = [];
-function addToQueue(uid2, item, collection2) {
-  if (_queue.some((t2) => t2.item.id === item.id && t2.collection === collection2)) return;
-  _queue.push({
-    uid: uid2,
-    item,
-    collection: collection2,
-    retries: 0,
-    addedAt: Date.now()
+function initSyncListeners(uid2, onData) {
+  if (!uid2) return;
+  console.log("[syncManager] \u542F\u52A8 onSnapshot \u76D1\u542C");
+  const txRef = collection(_db, COLLECTIONS.transactions(uid2));
+  _unsubscribeTx = onSnapshot(txRef, (snapshot) => {
+    const records = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    onData(records);
+  }, (err) => {
+    console.error("[syncManager] onSnapshot \u9519\u8BEF:", err);
+  });
+  const assetRef = collection(_db, COLLECTIONS.assets(uid2));
+  _unsubscribeAssets = onSnapshot(assetRef, (snapshot) => {
+  }, (err) => {
+    console.error("[syncManager] assets onSnapshot \u9519\u8BEF:", err);
   });
 }
-function addBatchToQueue(uid2, items, collection2) {
-  items.forEach((item) => addToQueue(uid2, item, collection2));
-}
-async function processQueue(onProgress) {
-  const total = _queue.length;
-  let success = 0, failed = 0;
-  const failures = [];
-  const tasks = [..._queue];
-  for (const task of tasks) {
-    try {
-      const ref = doc2(_db3, "users", task.uid, task.collection, task.item.id);
-      const data = { ...task.item };
-      delete data.syncStatus;
-      data.updatedAt = serverTimestamp2();
-      await setDoc2(ref, data, { merge: true });
-      success++;
-      _queue = _queue.filter((t2) => t2 !== task);
-    } catch (err) {
-      task.retries++;
-      const errorDetail = err.code ? `${err.code}: ${err.message}` : err.message;
-      if (task.retries >= MAX_RETRIES) {
-        failed++;
-        failures.push({ id: task.item.id, error: errorDetail });
-        _queue = _queue.filter((t2) => t2 !== task);
-        console.error(`[uploadQueue] \u4E0A\u4F20\u5931\u8D25\uFF08\u5DF2\u91CD\u8BD5 ${MAX_RETRIES} \u6B21\uFF09:`, task.item.id, errorDetail);
-      } else {
-        const delay = 2e3 * task.retries;
-        console.warn(`[uploadQueue] \u4E0A\u4F20\u91CD\u8BD5 ${task.retries}/${MAX_RETRIES}:`, task.item.id, errorDetail);
-        await new Promise((r) => setTimeout(r, delay));
-      }
-    }
-    if (onProgress) onProgress(success + failed, total);
+function stopSyncListeners() {
+  if (_unsubscribeTx) {
+    _unsubscribeTx();
+    _unsubscribeTx = null;
   }
-  return { success, failed, failures };
-}
-function clearQueue() {
-  _queue = [];
-}
-function getQueueSize() {
-  return _queue.length;
-}
-
-// src/js/sync/syncManager.js
-init_config();
-import { getFirestore as getFirestore4, doc as doc3, getDoc as getDoc2, setDoc as setDoc3, serverTimestamp as serverTimestamp3, deleteDoc, arrayUnion } from "firebase/firestore";
-var _db4 = getFirestore4(_app);
-var LS_LAST_SYNC = "roadster:lastSync";
-var _isSyncing = false;
-var _lastSyncTime = null;
-var _statusListeners = /* @__PURE__ */ new Set();
-function _notify(status, detail) {
-  _statusListeners.forEach((cb) => {
-    try {
-      cb(status, detail);
-    } catch (_) {
-    }
-  });
-}
-function init() {
-  console.log("[syncManager] v2.2 \u624B\u52A8\u4E0A\u4F20\u6A21\u5F0F");
-  const saved = localStorage.getItem(LS_LAST_SYNC);
-  if (saved) _lastSyncTime = parseInt(saved, 10);
-  setCloudDeleteHandler((id) => {
-    const user = getCurrentUser();
-    if (user) {
-      deleteCloudRecord(user.uid, id).catch((err) => {
-        console.error("[syncManager] deleteCloudRecord \u5F02\u5E38:", err);
-      });
-    }
-  });
-}
-async function syncOnLogin(uid2) {
-  if (!uid2 || _isSyncing) return { cloudCount: 0, duplicates: [] };
-  _isSyncing = true;
-  console.log("[syncManager] ===== \u767B\u5F55\uFF1A\u4E0B\u8F7D\u4E91\u7AEF\u6570\u636E =====");
-  _notify("pending", { phase: "download" });
-  try {
-    const cloud = await downloadAll(uid2);
-    const cloudTxs = cloud.transactions || [];
-    console.log(`[syncManager] \u4E91\u7AEF\u5171 ${cloudTxs.length} \u6761\u4EA4\u6613`);
-    for (const tx of cloudTxs) {
-      if (!tx.origin) tx.origin = "cloud";
-      if (!tx.syncStatus) tx.syncStatus = "synced";
-    }
-    let cloudDeletedIds = /* @__PURE__ */ new Set();
-    try {
-      const userSnap = await getDoc2(doc3(_db4, userDocPath(uid2)));
-      if (userSnap.exists()) {
-        const metaIds = userSnap.data().deletedTxIds || [];
-        cloudDeletedIds = new Set(metaIds);
-        if (cloudDeletedIds.size > 0) {
-          console.log(`[syncManager] Firestore \u5143\u6570\u636E\u4E2D\u6709 ${cloudDeletedIds.size} \u6761\u8DE8\u8BBE\u5907\u5DF2\u5220\u9664\u8BB0\u5F55`);
-        }
-      }
-    } catch (err) {
-      console.warn("[syncManager] \u8BFB\u53D6 deletedTxIds \u5143\u6570\u636E\u5931\u8D25:", err.message);
-    }
-    const localDeletedIds = getDeletedCloudIds();
-    const allDeletedIds = /* @__PURE__ */ new Set([...localDeletedIds, ...cloudDeletedIds]);
-    const activeCloudTxs = allDeletedIds.size > 0 ? cloudTxs.filter((tx) => !allDeletedIds.has(tx.id)) : cloudTxs;
-    if (allDeletedIds.size > 0) {
-      console.log(`[syncManager] \u5DF2\u8FC7\u6EE4 ${cloudTxs.length - activeCloudTxs.length} \u6761\u5DF2\u5220\u9664\u4E91\u7AEF\u8BB0\u5F55`);
-    }
-    const duplicates = findDuplicates(activeCloudTxs);
-    const duplicateIds = new Set(duplicates.map((d) => d.cloud.id));
-    const nonDupes = activeCloudTxs.filter((tx) => !duplicateIds.has(tx.id));
-    const added = addCloudTransactions(nonDupes);
-    if (cloudDeletedIds.size > 0) {
-      _cleanupDeletedTxIds(uid2, allDeletedIds).catch(() => {
-      });
-    }
-    _lastSyncTime = Date.now();
-    _persistLastSync(uid2);
-    _isSyncing = false;
-    console.log(`[syncManager] \u767B\u5F55\u5B8C\u6210\uFF1A\u65B0\u589E ${added} \u6761\uFF0C\u91CD\u590D ${duplicates.length} \u6761`);
-    _notify("synced", { added, duplicates: duplicates.length });
-    return { cloudCount: added, duplicates };
-  } catch (err) {
-    _isSyncing = false;
-    console.error("[syncManager] \u767B\u5F55\u5931\u8D25:", err);
-    _notify("error", { message: err.message });
-    return { cloudCount: 0, duplicates: [] };
+  if (_unsubscribeAssets) {
+    _unsubscribeAssets();
+    _unsubscribeAssets = null;
   }
+  console.log("[syncManager] onSnapshot \u76D1\u542C\u5DF2\u505C\u6B62");
 }
-async function uploadToCloud(uid2) {
-  if (!uid2 || _isSyncing) return { uploaded: 0, failed: 0 };
-  _isSyncing = true;
-  console.log("[syncManager] ===== \u624B\u52A8\u4E0A\u4F20 =====");
-  _notify("pending", { phase: "upload" });
-  try {
-    const pendingTxs = getPendingTransactions();
-    const pendingAssets = getPendingAssets();
-    const total = pendingTxs.length + pendingAssets.length;
-    if (total === 0) {
-      _isSyncing = false;
-      _notify("synced", { uploaded: 0 });
-      return { uploaded: 0, failed: 0 };
-    }
-    console.log(`[syncManager] \u5F85\u4E0A\u4F20\uFF1A${pendingTxs.length} \u6761\u4EA4\u6613, ${pendingAssets.length} \u4E2A\u8D44\u4EA7`);
-    markAllPendingUpload();
-    if (pendingTxs.length > 0) addBatchToQueue(uid2, pendingTxs, "transactions");
-    if (pendingAssets.length > 0) addBatchToQueue(uid2, pendingAssets, "assets");
-    const result = await processQueue();
-    if (result.success > 0) {
-      markBatchAsSynced(pendingTxs.map((t2) => t2.id));
-    }
-    _lastSyncTime = Date.now();
-    _persistLastSync(uid2);
-    _isSyncing = false;
-    console.log(`[syncManager] \u4E0A\u4F20\u5B8C\u6210\uFF1A\u6210\u529F ${result.success} \u6761\uFF0C\u5931\u8D25 ${result.failed} \u6761`);
-    _notify("synced", { uploaded: result.success, failed: result.failed });
-    return { uploaded: result.success, failed: result.failed };
-  } catch (err) {
-    _isSyncing = false;
-    console.error("[syncManager] \u4E0A\u4F20\u5931\u8D25:", err);
-    _notify("error", { message: err.message });
-    return { uploaded: 0, failed: 0 };
+function onLoginSync(uid2, onData) {
+  const adapter = _createAdapter(uid2);
+  setSyncAdapter(adapter);
+  initSyncListeners(uid2, onData);
+}
+function onLogoutSync() {
+  stopSyncListeners();
+  clearSyncAdapter();
+  switchToLocalMode();
+}
+async function checkDuplicates(uid2, drafts) {
+  if (!uid2 || drafts.length === 0) return [];
+  const txRef = collection(_db, COLLECTIONS.transactions(uid2));
+  const snap = await getDocs(query(txRef));
+  const cloudMap = /* @__PURE__ */ new Map();
+  for (const d of snap.docs) {
+    const data = d.data();
+    if (data.deleted) continue;
+    const fp = `${(data.date || "").slice(0, 10)}|${data.note || ""}|${data.amount}`;
+    cloudMap.set(fp, { id: d.id, ...data });
   }
+  const dups = [];
+  for (const draft of drafts) {
+    const fp = `${(draft.date || "").slice(0, 10)}|${draft.note || ""}|${draft.amount}`;
+    const existing = cloudMap.get(fp);
+    if (existing) dups.push({ draft, cloud: existing });
+  }
+  return dups;
 }
-function syncOnLogout() {
-  console.log("[syncManager] \u9000\u51FA\uFF1A\u6E05\u9664\u4E91\u7AEF\u6570\u636E\uFF0C\u4FDD\u7559\u672C\u5730");
-  clearQueue();
-  _lastSyncTime = null;
-  const removed = removeCloudData();
-  reloadFromStorage();
-  localStorage.removeItem(LS_LAST_SYNC);
-  _notify("idle");
-  console.log(`[syncManager] \u5DF2\u79FB\u9664\u4E91\u7AEF ${removed} \u6761\u8BB0\u5F55`);
-}
-async function deleteCloudRecord(uid2, id) {
-  if (!uid2 || !id) return false;
-  const MAX_RETRIES2 = 3;
-  for (let attempt = 1; attempt <= MAX_RETRIES2; attempt++) {
-    try {
-      await deleteDoc(doc3(_db4, "users", uid2, "transactions", id));
-      console.log(`[syncManager] \u5DF2\u4ECE Firestore \u5220\u9664 ${id}`);
-      return true;
-    } catch (err) {
-      if (attempt < MAX_RETRIES2) {
-        const delay = Math.pow(2, attempt - 1) * 1e3;
-        console.warn(`[syncManager] Firestore \u5220\u9664\u5931\u8D25 (${attempt}/${MAX_RETRIES2})\uFF0C${delay}ms \u540E\u91CD\u8BD5:`, err.message);
-        await new Promise((r) => setTimeout(r, delay));
-      } else {
-        console.error("[syncManager] Firestore \u5220\u9664\u6700\u7EC8\u5931\u8D25:", err.message);
-        await _addDeletedTxIdToMetadata(uid2, id);
-      }
+async function uploadDrafts(uid2, drafts) {
+  if (!uid2 || drafts.length === 0) return { uploaded: [], duplicates: [] };
+  console.log(`[syncManager] \u4E0A\u4F20 ${drafts.length} \u6761\u8349\u7A3F`);
+  const txRef = collection(_db, COLLECTIONS.transactions(uid2));
+  const snap = await getDocs(query(txRef));
+  const cloudMap = /* @__PURE__ */ new Map();
+  for (const d of snap.docs) {
+    const data = d.data();
+    if (data.deleted) continue;
+    const fp = `${(data.date || "").slice(0, 10)}|${data.note || ""}|${data.amount}`;
+    cloudMap.set(fp, { id: d.id, ...data });
+  }
+  const uploaded = [];
+  const duplicates = [];
+  for (const draft of drafts) {
+    const fp = `${(draft.date || "").slice(0, 10)}|${draft.note || ""}|${draft.amount}`;
+    const existing = cloudMap.get(fp);
+    if (existing) {
+      duplicates.push({ draft, cloud: existing });
+    } else {
+      const { id, ...rest } = draft;
+      await setDoc(doc(_db, COLLECTIONS.transactions(uid2), id), rest);
+      uploaded.push(id);
     }
   }
-  return false;
-}
-async function _addDeletedTxIdToMetadata(uid2, id) {
-  if (!uid2 || !id) return;
-  try {
-    await setDoc3(doc3(_db4, userDocPath(uid2)), {
-      deletedTxIds: arrayUnion(id),
-      updatedAt: serverTimestamp3()
-    }, { merge: true });
-    console.log(`[syncManager] \u5DF2\u5C06 ${id} \u5199\u5165 deletedTxIds \u5143\u6570\u636E`);
-  } catch (err) {
-    console.error("[syncManager] \u5199\u5165 deletedTxIds \u5931\u8D25:", err.message);
-  }
-}
-async function _cleanupDeletedTxIds(uid2, filteredIds) {
-  try {
-    const filteredArr = [...filteredIds];
-    if (filteredArr.length === 0) return;
-    await setDoc3(doc3(_db4, userDocPath(uid2)), {
-      deletedTxIds: filteredArr,
-      updatedAt: serverTimestamp3()
-    }, { merge: true });
-    console.log(`[syncManager] \u5DF2\u6E05\u7406 deletedTxIds \u5143\u6570\u636E\uFF0C\u4FDD\u7559 ${filteredArr.length} \u6761`);
-  } catch (err) {
-    console.warn("[syncManager] \u6E05\u7406 deletedTxIds \u5931\u8D25:", err.message);
-  }
-}
-async function manualSync() {
-  const user = getCurrentUser();
-  if (!user || _isSyncing) return { uploaded: 0, downloaded: 0 };
-  const { cloudCount } = await syncOnLogin(user.uid);
-  const { uploaded } = await uploadToCloud(user.uid);
-  return { uploaded, downloaded: cloudCount };
-}
-function getLastSyncTime() {
-  return _lastSyncTime;
-}
-function isSyncing() {
-  return _isSyncing;
-}
-async function _persistLastSync(uid2) {
-  localStorage.setItem(LS_LAST_SYNC, String(_lastSyncTime));
-  try {
-    await setDoc3(doc3(_db4, userDocPath(uid2)), { updatedAt: serverTimestamp3() }, { merge: true });
-  } catch (err) {
-    console.warn("[syncManager] \u5199\u5165\u65F6\u95F4\u6233\u5931\u8D25:", err.message);
-  }
+  console.log(`[syncManager] \u8349\u7A3F\u4E0A\u4F20\u5B8C\u6210\uFF1A${uploaded.length} \u6761\u6210\u529F, ${duplicates.length} \u6761\u91CD\u590D`);
+  return { uploaded, duplicates };
 }
 
 // src/js/main.js
@@ -7270,13 +7047,6 @@ window.__rdstr_refreshChartsForTheme = function() {
   else if (page === "analysis") render4();
 };
 initStore();
-init();
-window.__rdstr_onStoreWrite = function(key) {
-  const user = getCurrentUser();
-  if (!user) return;
-  if (key === "rdstr_tx" || key === "rdstr_assets") {
-  }
-};
 initRouter();
 initOverviewPage();
 initTransactionsPage();
@@ -7319,6 +7089,15 @@ function closeAuthModal() {
 }
 document.getElementById("authModal")?.addEventListener("click", (e) => {
   if (e.target.id === "authModal") closeAuthModal();
+});
+document.getElementById("uploadConfirmModal")?.addEventListener("click", (e) => {
+  if (e.target.id === "uploadConfirmModal") {
+    if (_uploadResolve) {
+      _uploadResolve(false);
+      _uploadResolve = null;
+    }
+    document.getElementById("uploadConfirmModal").classList.remove("open");
+  }
 });
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-auth-trigger]");
@@ -7388,25 +7167,6 @@ function renderLoggedInSection() {
     <div>
       <div class="auth-user-name">${_esc2(nickname)}</div>
     </div>`;
-  _updateSyncStatusRow(user.uid);
-}
-async function _updateSyncStatusRow(uid2) {
-  const row = document.getElementById("syncStatusRow");
-  if (!row) return;
-  row.innerHTML = `<span><span class="sync-dot sync-dot--pending"></span>\u68C0\u67E5\u540C\u6B65\u72B6\u6001\u2026</span>`;
-  let lastSync = null;
-  const localTs = getLastSyncTime();
-  if (localTs) {
-    lastSync = new Date(localTs);
-  } else {
-    lastSync = await getLastSyncDate(uid2);
-  }
-  if (lastSync) {
-    row.innerHTML = `<span><span class="sync-dot sync-dot--ok"></span>\u4E91\u7AEF\u5DF2\u540C\u6B65</span>
-      <span style="color:var(--color-label-4);font-size:11px">${lastSync.toLocaleString("zh-CN")}</span>`;
-  } else {
-    row.innerHTML = `<span><span class="sync-dot sync-dot--pending"></span>\u4E91\u7AEF\u6682\u65E0\u6570\u636E\uFF0C\u8BF7\u70B9\u51FB\u540C\u6B65</span>`;
-  }
 }
 document.getElementById("tabLogin")?.addEventListener("click", () => switchAuthMode("login"));
 document.getElementById("tabRegister")?.addEventListener("click", () => switchAuthMode("register"));
@@ -7471,36 +7231,19 @@ document.getElementById("signOutBtn")?.addEventListener("click", async () => {
   showToast(t("toastLogoutOk"));
   closeAuthModal();
 });
-document.getElementById("manualSyncBtn")?.addEventListener("click", async () => {
-  const user = getCurrentUser();
-  if (!user) return;
-  if (isSyncing()) {
-    const qs = getQueueSize();
-    showToast(qs > 0 ? `\u540C\u6B65\u8FDB\u884C\u4E2D\uFF08${qs} \u6761\u5F85\u5904\u7406\uFF09` : "\u540C\u6B65\u8FDB\u884C\u4E2D\uFF0C\u8BF7\u7A0D\u5019");
-    return;
+document.getElementById("uploadConfirmBtn")?.addEventListener("click", () => {
+  if (_uploadResolve) {
+    _uploadResolve(true);
+    _uploadResolve = null;
+  } else {
+    document.getElementById("uploadConfirmModal").classList.remove("open");
   }
-  const btn = document.getElementById("manualSyncBtn");
-  const origText = btn?.innerHTML;
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spin">\u21BB</span> \u540C\u6B65\u4E2D\u2026';
-  }
-  try {
-    const { uploaded, downloaded } = await manualSync();
-    if (!isSyncing()) {
-      const parts = [];
-      if (uploaded > 0) parts.push(`\u4E0A\u4F20 ${uploaded} \u6761`);
-      if (downloaded > 0) parts.push(`\u65B0\u589E ${downloaded} \u6761`);
-      showToast(parts.length > 0 ? parts.join("\uFF0C") : t("synced") || "\u5DF2\u540C\u6B65");
-    }
-    _updateSyncStatusRow(user.uid);
-  } catch (err) {
-    showToast("\u540C\u6B65\u5931\u8D25");
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = origText;
-    }
+});
+document.getElementById("uploadCancelBtn")?.addEventListener("click", () => {
+  document.getElementById("uploadConfirmModal").classList.remove("open");
+  if (_uploadResolve) {
+    _uploadResolve(false);
+    _uploadResolve = null;
   }
 });
 function setAuthLoading(on) {
@@ -7533,41 +7276,82 @@ function _esc2(s) {
   d.textContent = s ?? "";
   return d.innerHTML;
 }
-var _hasLoadedCloudOnce = false;
+var _hasLoggedInOnce = false;
+var _uploadResolve = null;
 onAuthChange(async (user) => {
   _renderAuthButton(user);
-  if (user && !_hasLoadedCloudOnce) {
-    _hasLoadedCloudOnce = true;
-    const result = await syncOnLogin(user.uid);
-    if (result.cloudCount > 0) {
-      if (result.duplicates.length > 0) {
-        _handleDuplicates(result.duplicates);
+  if (user) {
+    _hasLoggedInOnce = true;
+    const drafts = getDrafts();
+    if (drafts.length > 0) {
+      const dups = await checkDuplicates(user.uid, drafts).catch((err) => {
+        console.error("[main] \u91CD\u590D\u68C0\u6D4B\u5931\u8D25:", err);
+        return [];
+      });
+      const dupCount = dups.length;
+      const newCount = drafts.length - dupCount;
+      const confirmed = await new Promise((resolve) => {
+        _uploadResolve = resolve;
+        document.getElementById("uploadResult").textContent = "";
+        document.getElementById("uploadConfirmBody").style.display = "";
+        document.getElementById("uploadCancelBtn").style.display = "";
+        document.getElementById("uploadConfirmBtn").textContent = "\u786E\u8BA4\u4E0A\u4F20";
+        document.getElementById("uploadConfirmBtn").disabled = false;
+        document.getElementById("uploadConfirmBody").innerHTML = `
+          <p>\u5171 <b>${drafts.length}</b> \u6761\u672C\u5730\u6570\u636E\u5F85\u4E0A\u4F20\u3002</p>
+          ${newCount > 0 ? `<p>\u2705 \u65B0\u589E <b>${newCount}</b> \u6761</p>` : ""}
+          ${dupCount > 0 ? `<p style="color:var(--color-danger)">\u26A0\uFE0F \u4E0E\u4E91\u7AEF\u91CD\u590D <b>${dupCount}</b> \u6761\uFF08\u5C06\u8DF3\u8FC7\uFF09</p>` : ""}
+        `;
+        document.getElementById("uploadConfirmModal").classList.add("open");
+      });
+      if (confirmed) {
+        document.getElementById("uploadConfirmBody").innerHTML = `<p>\u6B63\u5728\u4E0A\u4F20...</p>`;
+        document.getElementById("uploadCancelBtn").style.display = "none";
+        document.getElementById("uploadConfirmBtn").textContent = "\u4E0A\u4F20\u4E2D\u2026";
+        document.getElementById("uploadConfirmBtn").disabled = true;
+        const result = await uploadDrafts(user.uid, drafts).catch((err) => {
+          console.error("[main] \u8349\u7A3F\u4E0A\u4F20\u5931\u8D25:", err);
+          return { uploaded: [], duplicates: [] };
+        });
+        const msgParts = [];
+        if (result.uploaded.length > 0) msgParts.push(`${result.uploaded.length} \u6761\u5DF2\u4E0A\u4F20`);
+        if (result.duplicates.length > 0) msgParts.push(`${result.duplicates.length} \u6761\u91CD\u590D\u5DF2\u8DF3\u8FC7`);
+        document.getElementById("uploadResult").textContent = msgParts.join("\uFF0C") || "\u65E0\u6570\u636E\u4E0A\u4F20";
+        document.getElementById("uploadConfirmBody").style.display = "none";
+        document.getElementById("uploadConfirmBtn").textContent = "\u5173\u95ED";
+        document.getElementById("uploadConfirmBtn").disabled = false;
+        document.getElementById("uploadCancelBtn").style.display = "none";
+        clearDrafts();
+        await new Promise((resolve) => {
+          _uploadResolve = () => {
+            document.getElementById("uploadConfirmModal").classList.remove("open");
+            resolve();
+          };
+        });
       } else {
-        showToast(`\u5DF2\u52A0\u8F7D\u4E91\u7AEF ${result.cloudCount} \u6761\u8BB0\u5F55`);
+        showToast("\u5DF2\u53D6\u6D88\u4E0A\u4F20");
       }
     }
-    reloadFromStorage();
-    render2();
-    if (currentPage() === "assets") render3();
-    if (currentPage() === "transactions") render();
+    onLoginSync(user.uid, (cloudRecords) => {
+      mergeFromCloud(cloudRecords);
+      renderAllPages();
+    });
   }
-  if (!user && _hasLoadedCloudOnce) {
-    _hasLoadedCloudOnce = false;
-    syncOnLogout();
-    render2();
-    if (currentPage() === "assets") render3();
-    if (currentPage() === "transactions") render();
+  if (!user && _hasLoggedInOnce) {
+    _hasLoggedInOnce = false;
+    onLogoutSync();
+    renderAllPages();
   }
   const modal = document.getElementById("authModal");
   if (modal?.classList.contains("open")) {
     user ? renderLoggedInSection() : switchAuthMode("login");
   }
 });
-function _handleDuplicates(duplicates) {
-  const notes = duplicates.map(
-    (d) => `${d.cloud.note || "(\u65E0\u5907\u6CE8)"} \xA5${d.cloud.amount}`
-  ).join("\u3001");
-  showToast(`\u5DF2\u8DF3\u8FC7 ${duplicates.length} \u6761\u91CD\u590D\uFF1A${notes}`);
+function renderAllPages() {
+  render2();
+  if (currentPage() === "assets") render3();
+  if (currentPage() === "transactions") render();
+  if (currentPage() === "analysis") render4();
 }
 function _renderAuthButton(user) {
   const desktopSlot = document.getElementById("authBtnDesktop");
@@ -7588,42 +7372,6 @@ function _renderAuthButton(user) {
   desktopSlot.querySelectorAll("[data-auth-trigger]").forEach((b) => b.addEventListener("click", openAuthModal));
   mobileSlot.querySelectorAll("[data-auth-trigger]").forEach((b) => b.addEventListener("click", openAuthModal));
 }
-onSyncStatus((status, msg) => {
-  const el = document.getElementById("syncBanner");
-  if (!el) return;
-  if (status === "pending") {
-    el.textContent = "\u2601\uFE0F \u540C\u6B65\u4E2D\u2026";
-    el.classList.add("show");
-  } else if (status === "synced") {
-    el.textContent = "\u2705 \u5DF2\u540C\u6B65";
-    el.classList.add("show");
-    setTimeout(() => el.classList.remove("show"), 2500);
-  } else if (status === "error") {
-    el.textContent = "\u274C \u540C\u6B65\u5931\u8D25";
-    el.classList.add("show");
-    setTimeout(() => el.classList.remove("show"), 3500);
-  } else {
-    el.classList.remove("show");
-  }
-});
-window.__rdstr_onCloudDataLoaded = function() {
-  reloadFromStorage();
-  render2();
-  if (currentPage() === "assets") render3();
-  if (currentPage() === "transactions") render();
-};
-window.addEventListener("rdstr:dataChanged", () => {
-  reloadFromStorage();
-  render2();
-  if (currentPage() === "assets") render3();
-  if (currentPage() === "transactions") render();
-  if (currentPage() === "analysis") render4();
-});
-window.__rdstr_onSyncSuccess = function() {
-};
-window.__rdstr_onSyncError = function(msg) {
-  console.warn("[sync] failed:", msg);
-};
 (function handleUrlParams() {
   const p = new URLSearchParams(window.location.search);
   const amount = p.get("amount");

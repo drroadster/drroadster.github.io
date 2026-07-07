@@ -1,24 +1,19 @@
 // ═══════════════════════════════════════════════════════
-//  ROADSTER v2.1 · store.js
-//  Centralised reactive data store — Delta Sync 版
+//  ROADSTER v2.3 · store.js
+//  Centralised reactive data store — Realtime Sync 版
 //
-//  所有读写必须经过此模块。UI 层禁止直接操作 localStorage。
+//  所有读写必须经过此模块。UI 层禁止直接操作 localStorage / Firestore。
 //
-//  v2.1 变更：
-//  • 每条交易/资产独立记录，包含完整同步元数据：
-//    id, createdAt, updatedAt, deviceId, version, deleted, syncStatus
-//  • 新增 ID 级 CRUD 操作（getTx / addTx / updateTx / deleteTx）
-//  • 保持与 v2.0 的完全向后兼容
-//  • 自动迁移旧数据格式
+//  v2.3 变更：
+//  • 移除 origin / syncStatus 字段，数据模型简化为：在Firestore即为云端，在rdstr_drafts即为本地草稿
+//  • 引入 _syncAdapter 模式：登录时通过adapter走Firestore，未登录时走localStorage草稿
+//  • 登录状态下所有数据来自 onSnapshot 推送，localStorage 仅存草稿
+//  • 写入采用乐观更新（先写内存+emit，后台异步写Firestore）
 //
 //  架构：
-//  ┌────────────┐   mutate   ┌────────────┐  persist  ┌────────────┐
-//  │   Pages    │ ────────▶  │   Store    │ ────────▶ │localStorage│
-//  └────────────┘            └────────────┘           └────────────┘
-//                                  │ emit
-//                            ┌─────▼──────┐
-//                            │ Subscribers│ (charts, sync engine, etc.)
-//                            └────────────┘
+//  Pages/UI → mutate → store.js → if logged in: _syncAdapter → Firestore
+//                                → if logged out: rdstr_drafts → localStorage
+//
 // ═══════════════════════════════════════════════════════
 
 import { LS, ALL_CATS, CAT_KEYWORD_MAP, getAllCategories, getCustomCategories } from './config.js';
@@ -29,11 +24,22 @@ import { generateTxId, generateAssetId, getDeviceId, nextVersion } from './sync/
 let _transactions = [];
 /** @type {Asset[]} */
 let _assets       = [];
-
-/** 云端记录删除回调（由 syncManager 注册） */
-let _onCloudDelete = null;
 /** @type {Snapshot[]} */
 let _history      = [];
+
+/** 本地草稿（未上传的记录） */
+let _drafts = [];
+
+/** 是否已登录 */
+let _isLoggedIn = false;
+
+/**
+ * Sync adapter — 由 syncManager 注入。
+ * 登录时提供 Firestore 读写方法；退出时清空。
+ * @type {{ writeTx(id:string, data:Object):Promise<void>, deleteTx(id:string):Promise<void>,
+ *           writeAsset(id:string, data:Object):Promise<void>, deleteAsset(id:string):Promise<void> }|null}
+ */
+let _syncAdapter = null;
 
 // ── Change subscribers ────────────────────────────────
 /** @type {Map<string, Set<Function>>} */
@@ -65,87 +71,219 @@ export function subscribe(channel, cb) {
   return () => _subs.get(channel).delete(cb);
 }
 
-// ── Initialise ────────────────────────────────────────
-/** Load all data from localStorage. Call once at startup. */
-export function initStore() {
-  _transactions = _read(LS.TX);
-  _assets       = _read(LS.ASSETS);
-  _history      = _read(LS.ASSET_HISTORY);
+// ── Sync adapter ──────────────────────────────────────
 
-  // V2 数据迁移（类别标准化 + 添加同步元数据）
-  migrateDataV2();
-
-  // v2.1 数据迁移（为旧数据补充 sync 元数据字段）
-  migrateDataV21();
+/**
+ * 设置同步适配器（登录时由 syncManager 调用）。
+ * @param {Object} adapter
+ */
+export function setSyncAdapter(adapter) {
+  _syncAdapter = adapter;
+  _isLoggedIn = true;
+  console.log('[store] sync adapter set, logged in mode');
 }
 
 /**
- * Replace the entire store from an external source (e.g. cloud merge).
- * Used by syncManager after merge.
+ * 清除同步适配器（退出登录时调用）。
  */
-export function reloadFromStorage() {
-  _transactions = _read(LS.TX);
-  _assets       = _read(LS.ASSETS);
-  _history      = _read(LS.ASSET_HISTORY);
+export function clearSyncAdapter() {
+  _syncAdapter = null;
+  _isLoggedIn = false;
+  console.log('[store] sync adapter cleared, logged out mode');
+}
+
+// ── Initialise ────────────────────────────────────────
+
+/** Load drafts from localStorage. Call once at startup. */
+export function initStore() {
+  _drafts   = _read(LS.DRAFTS);
+  _history  = _read(LS.ASSET_HISTORY);
+
+  // 如果存在旧格式数据（rdstr_tx / rdstr_assets），迁移到 drafts
+  _migrateOldDataToDrafts();
+
+  // 未登录时用草稿填充内存
+  _transactions = [..._drafts];
+  _assets       = [];
+
+  // V2 类别标准化
+  migrateDataV2();
+}
+
+/**
+ * 从旧格式 rdstr_tx / rdstr_assets 迁移到 rdstr_drafts。
+ * 仅执行一次（guard: MIGRATED_V23）。
+ */
+function _migrateOldDataToDrafts() {
+  try {
+    if (localStorage.getItem(LS.MIGRATED_V23)) return;
+  } catch { return; }
+
+  const oldTx = _read('rdstr_tx');
+  const oldAssets = _read('rdstr_assets');
+
+  // 旧数据全部作为草稿（去掉 origin/syncStatus）
+  const clean = (arr) => arr.map(item => {
+    const { origin, syncStatus, ...rest } = item;
+    return rest;
+  });
+
+  const cleanedTx = clean(oldTx).filter(t => !t.deleted);
+  const cleanedAssets = clean(oldAssets).filter(a => !a.deleted);
+
+  if (cleanedTx.length > 0 || cleanedAssets.length > 0) {
+    _drafts = cleanedTx;
+    _persist(LS.DRAFTS, _drafts);
+    console.log(`[store] 已迁移旧数据到 drafts：${cleanedTx.length} 条交易, ${cleanedAssets.length} 个资产`);
+  }
+
+  // 清理旧 key
+  try { localStorage.removeItem('rdstr_tx'); } catch {}
+  try { localStorage.removeItem('rdstr_assets'); } catch {}
+  try { localStorage.setItem(LS.MIGRATED_V23, '1'); } catch {}
+}
+
+/**
+ * V2 data migration: normalise all categories once at startup.
+ */
+export function migrateDataV2() {
+  try {
+    if (localStorage.getItem(LS.MIGRATED_V2)) return 0;
+  } catch { return 0; }
+
+  let changed = 0;
+  _transactions.forEach(t => {
+    const raw = t.category || '';
+    const norm = normalizeCategory(raw);
+    if (norm !== raw) {
+      t.category = norm;
+      changed++;
+    }
+  });
+
+  if (changed) {
+    _persist(LS.DRAFTS, _transactions);
+    _emit('transactions');
+  }
+
+  try { localStorage.setItem(LS.MIGRATED_V2, '1'); } catch {}
+  return changed;
+}
+
+// ── Cloud merge ───────────────────────────────────────
+
+/**
+ * 合并云端数据到内存（由 syncManager onSnapshot 推送时调用）。
+ * 保留内存中未被云端覆盖的待写入记录（乐观更新保护）。
+ * @param {Transaction[]} cloudRecords
+ */
+export function mergeFromCloud(cloudRecords) {
+  const inMemory = new Map(_transactions.map(r => [r.id, r]));
+
+  for (const cr of cloudRecords) {
+    if (cr.deleted) {
+      inMemory.delete(cr.id);
+    } else {
+      inMemory.set(cr.id, cr);
+    }
+  }
+
+  _transactions = [...inMemory.values()];
+  _emit('transactions');
+}
+
+/**
+ * 切换到本地模式（退出登录时调用）。
+ * 清空云端数据，恢复草稿。
+ */
+export function switchToLocalMode() {
+  _drafts = _read(LS.DRAFTS);
+  _transactions = [..._drafts];
+  _assets = [];
+  _history = _read(LS.ASSET_HISTORY);
   _emit('transactions');
   _emit('assets');
   _emit('history');
 }
 
+// ── Drafts management ─────────────────────────────────
+
+/** 获取所有草稿 */
+export function getDrafts() {
+  return [..._drafts];
+}
+
+/** 清空草稿（上传完成后调用） */
+export function clearDrafts() {
+  _drafts = [];
+  _persist(LS.DRAFTS, []);
+}
+
 // ═══════════════════════════════════════════════════════
-//  v2.1 新增：ID 级 CRUD（带同步元数据）
+//  v2.3 ID 级 CRUD（无 origin/syncStatus）
 // ═══════════════════════════════════════════════════════
 
 /**
- * 为新记录生成完整的同步元数据。
+ * 为新记录生成同步元数据（不含 origin/syncStatus）。
  * @param {'tx'|'asset'} type
- * @returns {Object} 元数据字段
+ * @returns {Object}
  */
 function _newSyncMeta(type) {
   const now = new Date().toISOString();
   return {
-    id:         type === 'tx' ? generateTxId() : generateAssetId(),
-    createdAt:  now,
-    updatedAt:  now,
-    deviceId:   getDeviceId(),
-    version:    1,
-    deleted:    false,
-    syncStatus: 'local',
-    origin:     'local',
+    id:        type === 'tx' ? generateTxId() : generateAssetId(),
+    createdAt: now,
+    updatedAt: now,
+    deviceId:  getDeviceId(),
+    version:   1,
+    deleted:   false,
   };
 }
 
-// ── Transactions (ID-level) ──────────────────────────
+// ── Transactions ──────────────────────────────────────
 
-/**
- * 按 ID 获取单条交易。
- * @param {string} id
- * @returns {Transaction|undefined}
- */
+/** @param {string} id @returns {Transaction|undefined} */
 export function getTx(id) {
   return _transactions.find(t => t.id === id);
 }
 
 /**
- * 新增一条交易（自动生成 ID 和同步元数据）。
- * @param {Partial<Transaction>} tx - 至少包含 type, amount, category
+ * 新增一条交易。登录时乐观写入 + 后台 Firestore；未登录时写入草稿。
+ * @param {Partial<Transaction>} tx
  * @returns {Transaction}
  */
 export function addTx(tx) {
   const meta = _newSyncMeta('tx');
   const record = { ...tx, ...meta };
-  _transactions.push(record);
-  _persist(LS.TX, _transactions);
-  _emit('transactions');
+
+  if (_syncAdapter && _isLoggedIn) {
+    // 乐观更新：先写入内存
+    _transactions.push(record);
+    _emit('transactions');
+
+    // 后台写入 Firestore
+    _syncAdapter.writeTx(record.id, record).catch(err => {
+      console.error('[store] Firestore write failed, saving to drafts:', err);
+      // 兜底：写入失败时持久化到草稿，防止数据丢失
+      _drafts.push(record);
+      _persist(LS.DRAFTS, _drafts);
+    });
+  } else {
+    // 未登录：存入草稿
+    _drafts.push(record);
+    _persist(LS.DRAFTS, _drafts);
+    _transactions.push(record);
+    _emit('transactions');
+  }
+
   return record;
 }
 
 /**
- * 更新一条交易的部分字段。
- * 自动更新 updatedAt、递增 version、设置 syncStatus 为 'local'。
+ * 更新一条交易。
  * @param {string} id
  * @param {Partial<Transaction>} changes
- * @returns {boolean} 是否找到并更新
+ * @returns {boolean}
  */
 export function updateTx(id, changes) {
   const idx = _transactions.findIndex(t => t.id === id);
@@ -154,66 +292,155 @@ export function updateTx(id, changes) {
   _transactions[idx] = {
     ..._transactions[idx],
     ...changes,
-    updatedAt:  new Date().toISOString(),
-    version:    nextVersion(_transactions[idx].version),
-    syncStatus: _transactions[idx].syncStatus === 'synced' ? 'local' : _transactions[idx].syncStatus,
+    updatedAt: new Date().toISOString(),
+    version:   nextVersion(_transactions[idx].version),
   };
-  _persist(LS.TX, _transactions);
-  _emit('transactions');
+
+  if (_syncAdapter && _isLoggedIn) {
+    _emit('transactions');
+    _syncAdapter.writeTx(id, _transactions[idx]).catch(err => {
+      console.error('[store] Firestore update failed, saving to drafts:', err);
+      // 兜底：更新失败时将当前版本持久化到草稿
+      const dIdx = _drafts.findIndex(d => d.id === id);
+      if (dIdx !== -1) _drafts[dIdx] = _transactions[idx];
+      else _drafts.push(_transactions[idx]);
+      _persist(LS.DRAFTS, _drafts);
+    });
+  } else {
+    // 同步更新草稿
+    const draftIdx = _drafts.findIndex(d => d.id === id);
+    if (draftIdx !== -1) {
+      _drafts[draftIdx] = _transactions[idx];
+      _persist(LS.DRAFTS, _drafts);
+    }
+    _emit('transactions');
+  }
+
   return true;
 }
 
 /**
- * 软删除一条交易（设置 deleted=true，不物理删除）。
+ * 删除一条交易（软删除）。
  * @param {string} id
  * @returns {boolean}
  */
 export function deleteTx(id) {
-  // 若删除的是云端记录，记录 ID 防止下次登录重新下载，并触发 Firestore 删除
-  const tx = _transactions.find(t => t.id === id);
-  if (tx && tx.origin === 'cloud') {
-    markCloudDeleted(id);
-    _onCloudDelete?.(id);
+  const idx = _transactions.findIndex(t => t.id === id);
+  if (idx === -1) return false;
+
+  _transactions[idx].deleted = true;
+  _transactions[idx].updatedAt = new Date().toISOString();
+
+  if (_syncAdapter && _isLoggedIn) {
+    _emit('transactions');
+    _syncAdapter.deleteTx(id).catch(err => {
+      console.error('[store] Firestore delete failed, marking as draft delete:', err);
+      // 兜底：删除失败时将标记保存到草稿，等待网络恢复后重试
+      const dIdx = _drafts.findIndex(d => d.id === id);
+      if (dIdx !== -1) _drafts[dIdx] = _transactions[idx];
+      else _drafts.push(_transactions[idx]);
+      _persist(LS.DRAFTS, _drafts);
+    });
+  } else {
+    // 从草稿中移除
+    _drafts = _drafts.filter(d => d.id !== id);
+    _persist(LS.DRAFTS, _drafts);
+    _transactions = _transactions.filter(t => t.id !== id);
+    _emit('transactions');
   }
-  return updateTx(id, { deleted: true });
-}
 
-/** 注册云端记录删除回调（由 syncManager 调用） */
-export function setCloudDeleteHandler(fn) {
-  _onCloudDelete = fn;
+  return true;
 }
-
-// ── Assets (ID-level) ────────────────────────────────
 
 /**
- * 按 ID 获取单个资产。
- * @param {string} id
- * @returns {Asset|undefined}
+ * 删除指定分类下所有交易。
+ * @param {string} category
+ * @returns {number}
  */
+export function deleteByCategory(category) {
+  let n = 0;
+  const toDelete = [];
+  _transactions.forEach(t => {
+    if (t.category === category && !t.deleted) {
+      t.deleted = true;
+      t.updatedAt = new Date().toISOString();
+      toDelete.push(t.id);
+      n++;
+    }
+  });
+
+  if (n === 0) return 0;
+
+  if (_syncAdapter && _isLoggedIn) {
+    _emit('transactions');
+    toDelete.forEach(id => {
+      _syncAdapter.deleteTx(id).catch(err => {
+        console.error('[store] Firestore batch delete failed:', err);
+      });
+    });
+  } else {
+    _drafts = _drafts.filter(d => !toDelete.includes(d.id));
+    _persist(LS.DRAFTS, _drafts);
+    _transactions = _transactions.filter(t => !t.deleted);
+    _emit('transactions');
+  }
+
+  return n;
+}
+
+/**
+ * 清空所有交易。
+ */
+export function clearTransactions() {
+  if (_syncAdapter && _isLoggedIn) {
+    const ids = _transactions.map(t => t.id);
+    _transactions = [];
+    _emit('transactions');
+    ids.forEach(id => {
+      _syncAdapter.deleteTx(id).catch(err => {
+        console.error('[store] Firestore clear failed:', err);
+      });
+    });
+  } else {
+    _drafts = [];
+    _persist(LS.DRAFTS, []);
+    _transactions = [];
+    _emit('transactions');
+  }
+}
+
+// ── Assets ────────────────────────────────────────────
+
+/** @returns {Asset[]} */
+export function getAssets() {
+  return [..._assets].filter(a => a.deleted !== true);
+}
+
+/** @param {string} id @returns {Asset|undefined} */
 export function getAsset(id) {
   return _assets.find(a => a.id === id);
 }
 
-/**
- * 新增一个资产。
- * @param {Partial<Asset>} asset
- * @returns {Asset}
- */
+/** @param {Partial<Asset>} asset @returns {Asset} */
 export function addAsset(asset) {
   const meta = _newSyncMeta('asset');
   const record = { ...asset, ...meta };
-  _assets.push(record);
-  _persist(LS.ASSETS, _assets);
-  _emit('assets');
+
+  if (_syncAdapter && _isLoggedIn) {
+    _assets.push(record);
+    _emit('assets');
+    _syncAdapter.writeAsset(record.id, record).catch(err => {
+      console.error('[store] Firestore asset write failed:', err);
+    });
+  } else {
+    _assets.push(record);
+    _emit('assets');
+  }
+
   return record;
 }
 
-/**
- * 更新一个资产的部分字段。
- * @param {string} id
- * @param {Partial<Asset>} changes
- * @returns {boolean}
- */
+/** @param {string} id @param {Partial<Asset>} changes @returns {boolean} */
 export function updateAsset(id, changes) {
   const idx = _assets.findIndex(a => a.id === id);
   if (idx === -1) return false;
@@ -221,380 +448,63 @@ export function updateAsset(id, changes) {
   _assets[idx] = {
     ..._assets[idx],
     ...changes,
-    updatedAt:  new Date().toISOString(),
-    version:    nextVersion(_assets[idx].version),
-    syncStatus: _assets[idx].syncStatus === 'synced' ? 'local' : _assets[idx].syncStatus,
+    updatedAt: new Date().toISOString(),
+    version:   nextVersion(_assets[idx].version),
   };
-  _persist(LS.ASSETS, _assets);
-  _emit('assets');
+
+  if (_syncAdapter && _isLoggedIn) {
+    _emit('assets');
+    _syncAdapter.writeAsset(id, _assets[idx]).catch(err => {
+      console.error('[store] Firestore asset update failed:', err);
+    });
+  } else {
+    _emit('assets');
+  }
+
+  return true;
+}
+
+/** @param {string} id @returns {boolean} */
+export function deleteAsset(id) {
+  const idx = _assets.findIndex(a => a.id === id);
+  if (idx === -1) return false;
+
+  _assets[idx].deleted = true;
+  _assets[idx].updatedAt = new Date().toISOString();
+
+  if (_syncAdapter && _isLoggedIn) {
+    _emit('assets');
+    _syncAdapter.deleteAsset(id).catch(err => {
+      console.error('[store] Firestore asset delete failed:', err);
+    });
+  } else {
+    _assets = _assets.filter(a => a.id !== id);
+    _emit('assets');
+  }
+
   return true;
 }
 
 /**
- * 软删除一个资产。
- * @param {string} id
- * @returns {boolean}
- */
-export function deleteAssetV21(id) {
-  return updateAsset(id, { deleted: true });
-}
-
-// ═══════════════════════════════════════════════════════
-//  v2.1 新增：Sync Engine 专用方法
-// ═══════════════════════════════════════════════════════
-
-/**
- * 获取原始交易数组（包含所有元数据，不排序）。
- * 供 syncManager 使用，UI 层应使用 getTransactions()。
- * @returns {Transaction[]}
- */
-export function getTransactionsRaw() {
-  return [..._transactions];
-}
-
-/**
- * 获取原始资产数组（包含所有元数据）。
- * @returns {Asset[]}
- */
-export function getAssetsRaw() {
-  return [..._assets];
-}
-
-/**
- * 替换全部交易数据（用于 Merge 后回写）。
- * @param {Transaction[]} items
- */
-export function replaceAllTransactions(items) {
-  _transactions = items;
-  _persist(LS.TX, _transactions);
-  _emit('transactions');
-}
-
-/**
- * 替换全部资产数据。
- * @param {Asset[]} items
- */
-export function replaceAllAssets(items) {
-  _assets = items;
-  _persist(LS.ASSETS, _assets);
-  _emit('assets');
-}
-
-/**
- * 获取待上传的交易（syncStatus !== 'synced' 且未删除）。
- * @returns {Transaction[]}
- */
-export function getPendingTransactions() {
-  return _transactions.filter(t =>
-    t.syncStatus !== 'synced' && t.deleted !== true
-  );
-}
-
-/**
- * 获取待上传的资产。
- * @returns {Asset[]}
- */
-export function getPendingAssets() {
-  return _assets.filter(a =>
-    a.syncStatus !== 'synced' && a.deleted !== true
-  );
-}
-
-/**
- * 将所有「未同步」的记录标记为待上传（local → pending_upload）。
- * 用于登录同步前批量准备上传队列。
- */
-export function markAllPendingUpload() {
-  let txChanged = false, assetChanged = false;
-
-  _transactions.forEach(t => {
-    if (t.syncStatus === 'local' && t.deleted !== true) {
-      t.syncStatus = 'pending_upload';
-      txChanged = true;
-    }
-  });
-
-  _assets.forEach(a => {
-    if (a.syncStatus === 'local' && a.deleted !== true) {
-      a.syncStatus = 'pending_upload';
-      assetChanged = true;
-    }
-  });
-
-  if (txChanged)  { _persist(LS.TX, _transactions); _emit('transactions'); }
-  if (assetChanged) { _persist(LS.ASSETS, _assets); _emit('assets'); }
-}
-
-/**
- * 将所有记录的 syncStatus 标记为 'synced'。
- * 在上传队列全部处理完成后调用。
- */
-export function markAllSynced() {
-  let txChanged = false, assetChanged = false;
-
-  _transactions.forEach(t => {
-    if (t.syncStatus !== 'synced' && t.deleted !== true) {
-      t.syncStatus = 'synced';
-      txChanged = true;
-    }
-  });
-
-  _assets.forEach(a => {
-    if (a.syncStatus !== 'synced' && a.deleted !== true) {
-      a.syncStatus = 'synced';
-      assetChanged = true;
-    }
-  });
-
-  if (txChanged)  { _persist(LS.TX, _transactions); _emit('transactions'); }
-  if (assetChanged) { _persist(LS.ASSETS, _assets); _emit('assets'); }
-}
-
-// ═══════════════════════════════════════════════════════
-//  v2.0 兼容层（保持现有页面代码不变）
-// ═══════════════════════════════════════════════════════
-
-/** @returns {Transaction[]} sorted newest-first */
-export function getTransactions() {
-  return [..._transactions]
-    .filter(t => t.deleted !== true)
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
-}
-
-/**
- * Add one or more transactions (deduplicated by fingerprint).
- * v2.1: 自动为新记录添加同步元数据。
- * @param {Transaction|Transaction[]} items
- * @returns {{ added: number, duplicates: number }}
- */
-export function addTransactions(items) {
-  const arr      = Array.isArray(items) ? items : [items];
-  const existing = new Set(_transactions.map(_fp));
-  let added = 0, duplicates = 0;
-
-  for (const inputTx of arr) {
-    const key = _fp(inputTx);
-    if (existing.has(key)) { duplicates++; continue; }
-
-    // 如果传入的记录缺少同步元数据，自动补充
-    const tx = inputTx.id && inputTx.createdAt
-      ? inputTx
-      : { ...inputTx, ..._newSyncMeta('tx'), date: inputTx.date };
-
-    // Normalise category before storing
-    const normalised = { ...tx, category: normalizeCategory(tx.category || tx.note || '') };
-    _transactions.push(normalised);
-    existing.add(key);
-    added++;
-  }
-
-  if (added) { _persist(LS.TX, _transactions); _emit('transactions'); }
-  return { added, duplicates };
-}
-
-/**
- * 添加云端下载的记录（origin='cloud', syncStatus='synced'）。
- * 已存在相同 ID 的记录会跳过。
- * @param {Object[]} items
- * @returns {number} added count
- */
-export function addCloudTransactions(items) {
-  const existing = new Set(_transactions.map(t => t.id));
-  let added = 0;
-  for (const item of items) {
-    if (existing.has(item.id)) continue;
-    _transactions.push({ ...item, origin: 'cloud', syncStatus: 'synced' });
-    existing.add(item.id);
-    added++;
-  }
-  if (added > 0) { _persist(LS.TX, _transactions); _emit('transactions'); }
-  return added;
-}
-
-/**
- * 移除所有云端来源的记录（origin='cloud'）。
- * 用于退出登录时清理云端数据。
- */
-export function removeCloudData() {
-  const before = _transactions.length;
-  _transactions = _transactions.filter(t => t.origin !== 'cloud');
-  const removed = before - _transactions.length;
-  if (removed > 0) { _persist(LS.TX, _transactions); _emit('transactions'); }
-  return removed;
-}
-
-// ── 已删除云端 ID 集合（防止换终端重新下载） ────────
-const LS_DELETED_CLOUD = 'roadster:deletedCloudIds';
-
-/** 标记一条云端记录已被用户删除。 */
-function markCloudDeleted(id) {
-  const ids = getDeletedCloudIds();
-  ids.add(id);
-  localStorage.setItem(LS_DELETED_CLOUD, JSON.stringify([...ids]));
-}
-
-/** 获取所有被用户标记删除的云端记录 ID */
-export function getDeletedCloudIds() {
-  try { return new Set(JSON.parse(localStorage.getItem(LS_DELETED_CLOUD) || '[]')); }
-  catch { return new Set(); }
-}
-
-/** 清空已删除云端 ID 集合（退出登录时调用） */
-export function clearDeletedCloudIds() {
-  localStorage.removeItem(LS_DELETED_CLOUD);
-}
-
-/**
- * 将指定 ID 的记录标记为已同步（syncStatus: 'local' → 'synced'）。
- * @param {string[]} ids
- */
-export function markBatchAsSynced(ids) {
-  const idSet = new Set(ids);
-  let changed = false;
-  _transactions.forEach(t => {
-    if (idSet.has(t.id) && t.syncStatus === 'local') {
-      t.syncStatus = 'synced';
-      t.updatedAt = new Date().toISOString();
-      changed = true;
-    }
-  });
-  if (changed) { _persist(LS.TX, _transactions); _emit('transactions'); }
-}
-
-/** 获取仅本地来源的记录（origin='local'）。 */
-export function getLocalTransactions() {
-  return _transactions.filter(t => t.origin === 'local' && t.deleted !== true);
-}
-
-/** 检测云端记录与本地记录是否重复（同日期+同备注+同金额+同类型）。 */
-export function findDuplicates(cloudItems) {
-  const local = getLocalTransactions();
-  const dupes = [];
-  for (const ci of cloudItems) {
-    const match = local.find(li =>
-      li.date === ci.date && li.note === ci.note &&
-      li.amount === ci.amount && li.type === ci.type
-    );
-    if (match) dupes.push({ cloud: ci, local: match });
-  }
-  return dupes;
-}
-
-/**
- * Update an existing transaction by id.
- * v2.1: 委托给 updateTx，自动处理同步元数据。
- * @param {string}  id
- * @param {Partial<Transaction>} patch
- * @returns {boolean}
- */
-export function updateTransaction(id, patch) {
-  return updateTx(id, patch);
-}
-
-/**
- * Delete a transaction by id (soft delete).
- * @param {string} id
- * @returns {boolean}
- */
-export function deleteTransaction(id) {
-  return deleteTx(id);
-}
-
-/**
- * Delete all transactions in a category.
- * @param {string} category
- * @returns {number} count deleted
- */
-export function deleteByCategory(category) {
-  let n = 0;
-  _transactions.forEach(t => {
-    if (t.category === category && !t.deleted) {
-      t.deleted = true;
-      t.updatedAt = new Date().toISOString();
-      t.syncStatus = t.syncStatus === 'synced' ? 'local' : t.syncStatus;
-      n++;
-    }
-  });
-  if (n) { _persist(LS.TX, _transactions); _emit('transactions'); }
-  return n;
-}
-
-/**
- * Re-normalise all transaction categories using the keyword map.
- * @returns {number} count changed
- */
-export function renormalizeAllCategories() {
-  let changed = 0;
-  _transactions.forEach(t => {
-    if (t.deleted) return;
-    const norm = normalizeCategory(t.category);
-    if (norm !== t.category) { t.category = norm; changed++; }
-  });
-  if (changed) { _persist(LS.TX, _transactions); _emit('transactions'); }
-  return changed;
-}
-
-/** Clear all transactions. */
-export function clearTransactions() {
-  _transactions = [];
-  _persist(LS.TX, _transactions);
-  _emit('transactions');
-}
-
-// ── Assets (compat) ──────────────────────────────────
-
-/** @returns {Asset[]} */
-export function getAssets() {
-  return [..._assets].filter(a => a.deleted !== true);
-}
-
-/**
- * Add or update an asset. If an asset with the same id exists it is
- * updated; otherwise a new one is pushed.
- * v2.1: 自动补充同步元数据。
+ * Add or update an asset (compat API).
  * @param {Asset} asset
  */
 export function upsertAsset(asset) {
   const idx = _assets.findIndex(a => a.id === asset.id);
   if (idx === -1) {
-    // 新资产：补充同步元数据
-    const record = asset.id && asset.createdAt
-      ? asset
-      : { ...asset, ..._newSyncMeta('asset') };
-    _assets.push(record);
+    addAsset(asset);
   } else {
-    // 更新已有资产
-    _assets[idx] = {
-      ..._assets[idx],
-      ...asset,
-      updatedAt:  new Date().toISOString(),
-      version:    nextVersion(_assets[idx].version),
-      syncStatus: _assets[idx].syncStatus === 'synced' ? 'local' : _assets[idx].syncStatus,
-    };
+    updateAsset(asset.id, asset);
   }
-  _persist(LS.ASSETS, _assets);
-  _emit('assets');
 }
 
-/**
- * Delete an asset by id (soft delete).
- * @param {string} id
- * @returns {boolean}
- */
-export function deleteAsset(id) {
-  return deleteAssetV21(id);
-}
+// ── Asset History ─────────────────────────────────────
 
-// ── Asset History (snapshots) ─────────────────────────
-
-/** @returns {Snapshot[]} chronological */
+/** @returns {Snapshot[]} */
 export function getAssetHistory() { return [..._history]; }
 
-/**
- * Record a new snapshot of total + per-asset breakdown.
- */
 export function recordSnapshot() {
-  const total     = _assets.filter(a => !a.deleted).reduce((s, a) => s + (a.value || 0), 0);
+  const total = _assets.filter(a => !a.deleted).reduce((s, a) => s + (a.value || 0), 0);
   const breakdown = Object.fromEntries(_assets.filter(a => !a.deleted).map(a => [a.id, a.value || 0]));
 
   if (_history.length) {
@@ -631,97 +541,85 @@ export function importAssetSnapshots(snaps) {
 }
 
 // ═══════════════════════════════════════════════════════
-//  v2.1 数据迁移
+//  v2.0 兼容层（保持所有 Pages 不变）
 // ═══════════════════════════════════════════════════════
 
-const MIGRATED_V21_KEY = 'rdstr_migrated_v21';
-
-/**
- * 将 v2.0 旧格式数据迁移到 v2.1 Delta Sync 格式。
- * 为每条记录补充：createdAt, updatedAt, deviceId, version, deleted, syncStatus
- * 仅执行一次（由 MIGRATED_V21_KEY 守卫）。
- * @returns {{ txCount: number, assetCount: number }}
- */
-export function migrateDataV21() {
-  try {
-    if (localStorage.getItem(MIGRATED_V21_KEY)) return { txCount: 0, assetCount: 0 };
-  } catch { return { txCount: 0, assetCount: 0 }; }
-
-  const deviceId = getDeviceId();
-  const now = new Date().toISOString();
-  let txChanged = 0, assetChanged = 0;
-
-  // 迁移交易
-  _transactions.forEach(tx => {
-    let modified = false;
-    if (!tx.id)         { tx.id = generateTxId(); modified = true; }
-    if (!tx.createdAt)  { tx.createdAt = tx.date || now; modified = true; }
-    if (!tx.updatedAt)  { tx.updatedAt = tx.date || now; modified = true; }
-    if (!tx.deviceId)   { tx.deviceId = deviceId; modified = true; }
-    if (tx.version == null) { tx.version = 1; modified = true; }
-    if (tx.deleted == null) { tx.deleted = false; modified = true; }
-    if (!tx.syncStatus) { tx.syncStatus = 'local'; modified = true; }
-    if (modified) txChanged++;
-  });
-
-  // 迁移资产
-  _assets.forEach(asset => {
-    let modified = false;
-    if (!asset.id)         { asset.id = generateAssetId(); modified = true; }
-    if (!asset.createdAt)  { asset.createdAt = asset.updatedAt || now; modified = true; }
-    if (!asset.updatedAt)  { asset.updatedAt = asset.createdAt || now; modified = true; }
-    if (!asset.deviceId)   { asset.deviceId = deviceId; modified = true; }
-    if (asset.version == null) { asset.version = 1; modified = true; }
-    if (asset.deleted == null) { asset.deleted = false; modified = true; }
-    if (!asset.syncStatus) { asset.syncStatus = 'local'; modified = true; }
-    if (modified) assetChanged++;
-  });
-
-  // 持久化迁移结果
-  if (txChanged > 0)    _persist(LS.TX, _transactions);
-  if (assetChanged > 0) _persist(LS.ASSETS, _assets);
-
-  try { localStorage.setItem(MIGRATED_V21_KEY, '1'); } catch {}
-
-  if (txChanged > 0 || assetChanged > 0) {
-    console.log(`[store] v2.1 迁移完成：${txChanged} 条交易, ${assetChanged} 个资产`);
-  }
-
-  return { txCount: txChanged, assetCount: assetChanged };
+/** @returns {Transaction[]} sorted newest-first */
+export function getTransactions() {
+  return [..._transactions]
+    .filter(t => t.deleted !== true)
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 
-// ═══════════════════════════════════════════════════════
-//  v2.0 数据迁移（保留）
-// ═══════════════════════════════════════════════════════
-
 /**
- * V2 data migration: normalise all categories once at startup.
+ * Add one or more transactions (deduplicated by fingerprint).
+ * v2.3: 自动路由到 addTx（走 Firestore 或草稿）。
+ * @param {Transaction|Transaction[]} items
+ * @returns {{ added: number, duplicates: number }}
  */
-export function migrateDataV2() {
-  try {
-    if (localStorage.getItem(LS.MIGRATED_V2)) return 0;
-  } catch { return 0; }
+export function addTransactions(items) {
+  const arr      = Array.isArray(items) ? items : [items];
+  const existing = new Set(_transactions.map(_fp));
+  let added = 0, duplicates = 0;
 
-  let changed = 0;
-  _transactions.forEach(t => {
-    const raw = t.category || '';
-    const norm = normalizeCategory(raw);
-    if (norm !== raw) {
-      t.category = norm;
-      changed++;
-    }
-  });
+  for (const inputTx of arr) {
+    const key = _fp(inputTx);
+    if (existing.has(key)) { duplicates++; continue; }
 
-  if (changed) {
-    _persist(LS.TX, _transactions);
-    _emit('transactions');
+    const normalised = { ...inputTx, category: normalizeCategory(inputTx.category || inputTx.note || '') };
+    addTx(normalised);  // 内部已处理 emit + persist
+    existing.add(key);
+    added++;
   }
 
-  try { localStorage.setItem(LS.MIGRATED_V2, '1'); } catch {}
+  return { added, duplicates };
+}
+
+/**
+ * Update transaction by id (compat).
+ * @param {string} id
+ * @param {Partial<Transaction>} patch
+ * @returns {boolean}
+ */
+export function updateTransaction(id, patch) {
+  return updateTx(id, patch);
+}
+
+/**
+ * Delete transaction by id (compat).
+ * @param {string} id
+ * @returns {boolean}
+ */
+export function deleteTransaction(id) {
+  return deleteTx(id);
+}
+
+/**
+ * Re-normalise all transaction categories.
+ * @returns {number}
+ */
+export function renormalizeAllCategories() {
+  let changed = 0;
+  _transactions.forEach(t => {
+    if (t.deleted) return;
+    const norm = normalizeCategory(t.category);
+    if (norm !== t.category) { t.category = norm; changed++; }
+  });
+  if (changed) {
+    // 批量更新到 Firestore 或草稿
+    if (_syncAdapter && _isLoggedIn) {
+      _transactions.forEach(t => {
+        _syncAdapter.writeTx(t.id, t).catch(() => {});
+      });
+    } else {
+      _persist(LS.DRAFTS, _drafts);
+    }
+    _emit('transactions');
+  }
   return changed;
 }
 
-// ── Computed helpers (used by pages) ─────────────────
+// ── Computed helpers (used by pages) ──────────────────
 
 export function filterByPeriod(period, txs) {
   txs = txs || getTransactions();
@@ -776,33 +674,30 @@ export function normalizeCategory(raw) {
 }
 
 // ── Transaction fingerprint ───────────────────────────
+
 export function txFingerprint(tx) {
   return `${(tx.date || '').slice(0, 10)}|${tx.type}|${tx.amount}|${tx.category}`;
 }
 const _fp = txFingerprint;
 
-// ── Misc helpers ──────────────────────────────────────
-
 export function getCategory(tx) { return tx.category || '其他'; }
 
 // ── Internal persistence ──────────────────────────────
+
 function _read(key) {
   try   { return JSON.parse(localStorage.getItem(key) || '[]'); }
   catch { return []; }
 }
+
 function _persist(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
-    // Signal sync engine that local data changed
-    if (typeof window.__rdstr_onStoreWrite === 'function') {
-      window.__rdstr_onStoreWrite(key);
-    }
   } catch (e) {
     console.warn('[store] localStorage write failed:', key, e);
   }
 }
 
-// ── Type definitions (JSDoc only — no runtime cost) ───
+// ── Type definitions ──────────────────────────────────
 /**
  * @typedef {{
  *   id: string,
@@ -816,7 +711,6 @@ function _persist(key, value) {
  *   deviceId: string,
  *   version: number,
  *   deleted: boolean,
- *   syncStatus: 'local'|'pending_upload'|'synced'|'conflict',
  *   gCategory: string,
  *   gSubCategory: string,
  *   tags: string[],
@@ -837,8 +731,7 @@ function _persist(key, value) {
  *   updatedAt: string,
  *   deviceId: string,
  *   version: number,
- *   deleted: boolean,
- *   syncStatus: 'local'|'pending_upload'|'synced'|'conflict'
+ *   deleted: boolean
  * }} Asset
  *
  * @typedef {{ ts:string, total:number, breakdown:Record<string,number> }} Snapshot

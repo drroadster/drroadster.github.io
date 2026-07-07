@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-//  ROADSTER v2.1 · main.js
+//  ROADSTER v2.3 · main.js
 //  Application entry point. Wires every module together.
 //  Load order matters: config has no deps, then theme/i18n,
 //  then auth/db (Firebase), then store, then router, then
@@ -8,7 +8,7 @@
 
 import { initTheme, setTheme, getTheme } from './theme.js';
 import { initI18n, toggleLang, t } from './i18n.js';
-import { initStore, reloadFromStorage, addTransactions } from './store.js';
+import { initStore, mergeFromCloud, addTransactions, getDrafts, clearDrafts } from './store.js';
 import { initRouter, navigate, onNavigate, fabAction, showToast, currentPage } from './router.js';
 
 import { initOverviewPage,     render as renderOverview }     from './pages/overview.js';
@@ -20,10 +20,9 @@ import {
   onAuthChange, getCurrentUser, registerWithEmail, loginWithEmail,
   logout, sendReset,
 } from './auth.js';
-import { syncToCloud, onSyncStatus, getLastSyncDate } from './db.js';
 
-// v2.1: Delta Sync 引擎
-import { init as initSync, syncOnLogin, syncOnLogout, manualSync, uploadToCloud, getLastSyncTime, onSyncStatus as onSyncStatusV21, isSyncing, getQueueSize as getSyncQueueSize } from './sync/syncManager.js';
+// v2.3: 实时同步（onSnapshot）
+import { onLoginSync, onLogoutSync, uploadDrafts, checkDuplicates } from './sync/syncManager.js';
 
 import { nowAsDatetimeLocal, pad2 } from './utils.js';
 import { categorize } from './ai/categorizer.js';
@@ -56,21 +55,6 @@ window.__rdstr_refreshChartsForTheme = function () {
 // ════════════════════════════════════════════════════
 
 initStore();
-
-// v2.1: 初始化 Delta Sync 引擎
-initSync();
-
-// Whenever any store write happens, notify sync engine
-// (v2.1: 不再每次写入都触发全量上传，改为由 syncManager 管理上传队列)
-window.__rdstr_onStoreWrite = function (key) {
-  const user = getCurrentUser();
-  if (!user) return;
-  // 将变更记录加入上传队列（异步，不阻塞 UI）
-  if (key === 'rdstr_tx' || key === 'rdstr_assets') {
-    // syncManager 通过 store.subscribe 自动感知变更并入队
-    // 此处保留 hook 供手动同步场景使用
-  }
-};
 
 // ════════════════════════════════════════════════════
 //  3. ROUTER + PAGES
@@ -138,6 +122,15 @@ function closeAuthModal() {
 }
 document.getElementById('authModal')?.addEventListener('click', (e) => {
   if (e.target.id === 'authModal') closeAuthModal();
+});
+document.getElementById('uploadConfirmModal')?.addEventListener('click', (e) => {
+  if (e.target.id === 'uploadConfirmModal') {
+    if (_uploadResolve) {
+      _uploadResolve(false);
+      _uploadResolve = null;
+    }
+    document.getElementById('uploadConfirmModal').classList.remove('open');
+  }
 });
 
 // Global event delegation for all [data-auth-trigger] buttons.
@@ -219,32 +212,6 @@ function renderLoggedInSection() {
     <div>
       <div class="auth-user-name">${_esc(nickname)}</div>
     </div>`;
-
-  _updateSyncStatusRow(user.uid);
-}
-
-async function _updateSyncStatusRow(uid) {
-  const row = document.getElementById('syncStatusRow');
-  if (!row) return;
-  row.innerHTML = `<span><span class="sync-dot sync-dot--pending"></span>检查同步状态…</span>`;
-
-  // 优先使用本地时间戳（刚完成的同步一定是最新的）
-  // Firestore serverTimestamp 写入后有延迟，立即读回可能拿到旧值
-  let lastSync = null;
-  const localTs = getLastSyncTime();
-  if (localTs) {
-    lastSync = new Date(localTs);
-  } else {
-    // 无本地记录时（如首次加载），fallback 到 Firestore
-    lastSync = await getLastSyncDate(uid);
-  }
-
-  if (lastSync) {
-    row.innerHTML = `<span><span class="sync-dot sync-dot--ok"></span>云端已同步</span>
-      <span style="color:var(--color-label-4);font-size:11px">${lastSync.toLocaleString('zh-CN')}</span>`;
-  } else {
-    row.innerHTML = `<span><span class="sync-dot sync-dot--pending"></span>云端暂无数据，请点击同步</span>`;
-  }
 }
 
 document.getElementById('tabLogin')?.addEventListener('click', () => switchAuthMode('login'));
@@ -304,34 +271,18 @@ document.getElementById('signOutBtn')?.addEventListener('click', async () => {
   closeAuthModal();
 });
 
-document.getElementById('manualSyncBtn')?.addEventListener('click', async () => {
-  const user = getCurrentUser();
-  if (!user) return;
-
-  // 同步已在执行中，不重复触发
-  if (isSyncing()) {
-    const qs = getSyncQueueSize();
-    showToast(qs > 0 ? `同步进行中（${qs} 条待处理）` : '同步进行中，请稍候');
-    return;
+// Upload confirmation modal
+document.getElementById('uploadConfirmBtn')?.addEventListener('click', () => {
+  if (_uploadResolve) {
+    _uploadResolve(true);
+    _uploadResolve = null;
+  } else {
+    document.getElementById('uploadConfirmModal').classList.remove('open');
   }
-
-  const btn = document.getElementById('manualSyncBtn');
-  const origText = btn?.innerHTML;
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin">↻</span> 同步中…'; }
-  try {
-    const { uploaded, downloaded } = await manualSync();
-    if (!isSyncing()) {
-      const parts = [];
-      if (uploaded > 0) parts.push(`上传 ${uploaded} 条`);
-      if (downloaded > 0) parts.push(`新增 ${downloaded} 条`);
-      showToast(parts.length > 0 ? parts.join('，') : (t('synced') || '已同步'));
-    }
-    _updateSyncStatusRow(user.uid);
-  } catch (err) {
-    showToast('同步失败');
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = origText; }
-  }
+});
+document.getElementById('uploadCancelBtn')?.addEventListener('click', () => {
+  document.getElementById('uploadConfirmModal').classList.remove('open');
+  if (_uploadResolve) { _uploadResolve(false); _uploadResolve = null; }
 });
 
 function setAuthLoading(on) {
@@ -352,45 +303,95 @@ function clearAuthError() {
 function _esc(s) { const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
 
 // ════════════════════════════════════════════════════
-//  6. AUTH STATE INTEGRATION (manual upload mode)
+//  6. AUTH STATE INTEGRATION (v2.3 real-time sync)
 // ════════════════════════════════════════════════════
 //
-//  v2.2 手动上传模式：
-//  • 登录 → 下载云端并排显示 + 重复检测
-//  • 退出 → 清除云端数据，保留本地
-//  • 用户点击"上传"按钮将本地数据推送到云端
+//  v2.3 实时同步模式：
+//  • 登录 → 启动 onSnapshot 监听，数据自动推送到 store
+//  • 写入 → store 内部通过 sync adapter 直写 Firestore（乐观更新）
+//  • 退出 → 停止监听，清空内存，恢复本地草稿
 
-let _hasLoadedCloudOnce = false;
+let _hasLoggedInOnce = false;
+let _uploadResolve = null; // Promise resolver for upload confirmation modal
 
 onAuthChange(async (user) => {
   _renderAuthButton(user);
 
-  if (user && !_hasLoadedCloudOnce) {
-    _hasLoadedCloudOnce = true;
+  if (user) {
+    _hasLoggedInOnce = true;
 
-    const result = await syncOnLogin(user.uid);
+    // v2.3: 上传本地草稿到云端（弹窗确认 → 含重复检测）
+    const drafts = getDrafts();
+    if (drafts.length > 0) {
+      const dups = await checkDuplicates(user.uid, drafts).catch(err => {
+        console.error('[main] 重复检测失败:', err);
+        return [];
+      });
+      const dupCount = dups.length;
+      const newCount = drafts.length - dupCount;
 
-    if (result.cloudCount > 0) {
-      if (result.duplicates.length > 0) {
-        // 有重复记录，询问用户是否添加
-        _handleDuplicates(result.duplicates);
+      const confirmed = await new Promise(resolve => {
+        _uploadResolve = resolve;
+        // 重置弹窗状态
+        document.getElementById('uploadResult').textContent = '';
+        document.getElementById('uploadConfirmBody').style.display = '';
+        document.getElementById('uploadCancelBtn').style.display = '';
+        document.getElementById('uploadConfirmBtn').textContent = '确认上传';
+        document.getElementById('uploadConfirmBtn').disabled = false;
+        document.getElementById('uploadConfirmBody').innerHTML = `
+          <p>共 <b>${drafts.length}</b> 条本地数据待上传。</p>
+          ${newCount > 0 ? `<p>✅ 新增 <b>${newCount}</b> 条</p>` : ''}
+          ${dupCount > 0 ? `<p style="color:var(--color-danger)">⚠️ 与云端重复 <b>${dupCount}</b> 条（将跳过）</p>` : ''}
+        `;
+        document.getElementById('uploadConfirmModal').classList.add('open');
+      });
+
+      if (confirmed) {
+        // 进入上传中状态
+        document.getElementById('uploadConfirmBody').innerHTML = `<p>正在上传...</p>`;
+        document.getElementById('uploadCancelBtn').style.display = 'none';
+        document.getElementById('uploadConfirmBtn').textContent = '上传中…';
+        document.getElementById('uploadConfirmBtn').disabled = true;
+
+        const result = await uploadDrafts(user.uid, drafts).catch(err => {
+          console.error('[main] 草稿上传失败:', err);
+          return { uploaded: [], duplicates: [] };
+        });
+
+        // 显示结果
+        const msgParts = [];
+        if (result.uploaded.length > 0) msgParts.push(`${result.uploaded.length} 条已上传`);
+        if (result.duplicates.length > 0) msgParts.push(`${result.duplicates.length} 条重复已跳过`);
+        document.getElementById('uploadResult').textContent = msgParts.join('，') || '无数据上传';
+        document.getElementById('uploadConfirmBody').style.display = 'none';
+        document.getElementById('uploadConfirmBtn').textContent = '关闭';
+        document.getElementById('uploadConfirmBtn').disabled = false;
+        document.getElementById('uploadCancelBtn').style.display = 'none';
+        clearDrafts();
+
+        // 等待用户点关闭
+        await new Promise(resolve => {
+          _uploadResolve = () => {
+            document.getElementById('uploadConfirmModal').classList.remove('open');
+            resolve();
+          };
+        });
       } else {
-        showToast(`已加载云端 ${result.cloudCount} 条记录`);
+        showToast('已取消上传');
       }
     }
 
-    reloadFromStorage();
-    renderOverview();
-    if (currentPage() === 'assets')       renderAssets();
-    if (currentPage() === 'transactions') renderTransactions();
+    // 启动 onSnapshot 监听
+    onLoginSync(user.uid, (cloudRecords) => {
+      mergeFromCloud(cloudRecords);
+      renderAllPages();
+    });
   }
 
-  if (!user && _hasLoadedCloudOnce) {
-    _hasLoadedCloudOnce = false;
-    syncOnLogout();
-    renderOverview();
-    if (currentPage() === 'assets')       renderAssets();
-    if (currentPage() === 'transactions') renderTransactions();
+  if (!user && _hasLoggedInOnce) {
+    _hasLoggedInOnce = false;
+    onLogoutSync();
+    renderAllPages();
   }
 
   const modal = document.getElementById('authModal');
@@ -399,14 +400,11 @@ onAuthChange(async (user) => {
   }
 });
 
-/**
- * 处理重复记录：自动跳过，toast 提示。
- */
-function _handleDuplicates(duplicates) {
-  const notes = duplicates.map(d =>
-    `${d.cloud.note || '(无备注)'} ¥${d.cloud.amount}`
-  ).join('、');
-  showToast(`已跳过 ${duplicates.length} 条重复：${notes}`);
+function renderAllPages() {
+  renderOverview();
+  if (currentPage() === 'assets')       renderAssets();
+  if (currentPage() === 'transactions') renderTransactions();
+  if (currentPage() === 'analysis')     renderAnalysis();
 }
 
 function _renderAuthButton(user) {
@@ -430,41 +428,6 @@ function _renderAuthButton(user) {
   desktopSlot.querySelectorAll('[data-auth-trigger]').forEach(b => b.addEventListener('click', openAuthModal));
   mobileSlot.querySelectorAll('[data-auth-trigger]').forEach(b => b.addEventListener('click', openAuthModal));
 }
-
-// ── Sync status banner (persistent slim indicator) ────
-onSyncStatus((status, msg) => {
-  const el = document.getElementById('syncBanner');
-  if (!el) return;
-  if (status === 'pending') { el.textContent = '☁️ 同步中…'; el.classList.add('show'); }
-  else if (status === 'synced') {
-    el.textContent = '✅ 已同步'; el.classList.add('show');
-    setTimeout(() => el.classList.remove('show'), 2500);
-  } else if (status === 'error') {
-    el.textContent = '❌ 同步失败'; el.classList.add('show');
-    setTimeout(() => el.classList.remove('show'), 3500);
-  } else {
-    el.classList.remove('show');
-  }
-});
-
-// ── db.js → store.js hook for cloud-data-loaded reload ──
-window.__rdstr_onCloudDataLoaded = function () {
-  reloadFromStorage();
-  renderOverview();
-  if (currentPage() === 'assets')       renderAssets();
-  if (currentPage() === 'transactions') renderTransactions();
-};
-
-// auto-sync / manualSync 同步完成后若数据有变更，自动刷新页面 UI
-window.addEventListener('rdstr:dataChanged', () => {
-  reloadFromStorage();
-  renderOverview();
-  if (currentPage() === 'assets')       renderAssets();
-  if (currentPage() === 'transactions') renderTransactions();
-  if (currentPage() === 'analysis')     renderAnalysis();
-});
-window.__rdstr_onSyncSuccess = function () { /* status banner already shows this */ };
-window.__rdstr_onSyncError   = function (msg) { console.warn('[sync] failed:', msg); };
 
 // ════════════════════════════════════════════════════
 //  7. URL QUICK-ADD (Shortcuts / 快捷指令自动记账)

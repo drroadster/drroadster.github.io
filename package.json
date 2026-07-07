@@ -10,5 +10,8 @@
   },
   "devDependencies": {
     "esbuild": "^0.21.5"
+  },
+  "dependencies": {
+    "classic-level": "^3.0.0"
   }
 }

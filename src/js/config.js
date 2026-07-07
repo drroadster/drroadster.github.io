@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════
-//  ROADSTER v2.0 · config.js
+//  ROADSTER v2.3 · config.js
 //  Firebase project config + app-wide constants.
 //  All other modules import from here — never repeat these values.
 // ═══════════════════════════════════════════════════════
@@ -47,6 +47,8 @@ export const LS = {
   LANG:         'rdstr_lang',
   CUSTOM_CATS:  'rdstr_custom_cats',
   MIGRATED_V2:  'rdstr_migrated_v2',
+  MIGRATED_V23: 'rdstr_migrated_v23',
+  DRAFTS:       'rdstr_drafts',
 };
 
 // ── Chart.js palette ──────────────────────────────────
@@ -199,4 +201,4 @@ export function guessIcon(name) {
 }
 
 // ── App version ───────────────────────────────────────
-export const APP_VERSION = '2.1.0';
+export const APP_VERSION = '2.3.0';
