@@ -39,35 +39,53 @@
     return;
   }
 
-  // 构造交易记录
-  const tx = {
-    id:        'sc_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
-    date:      date,
-    type:      type,
-    amount:    amount,
-    category:  note || '其他',
-    note:      note,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    deleted:   false,
-    version:   1,
-    source:    'shortcut',
-  };
+  const API = 'https://roadster.spcxlab.workers.dev/api/tx';
 
-  // 写入 localStorage 等待队列
-  try {
-    const pending = JSON.parse(localStorage.getItem('rdstr_shortcut_queue') || '[]');
-    pending.push(tx);
-    localStorage.setItem('rdstr_shortcut_queue', JSON.stringify(pending));
+  // 类型映射：中文 → Worker API 格式
+  const typeMap = { '收入':'income', '支出':'expense' };
+  const apiType = typeMap[type] || 'expense';
 
-    iconEl.textContent = '✅';
-    msgEl.textContent  = '已记录';
-    detailEl.textContent = `${type} ¥${amount.toFixed(2)} ${note}`;
-  } catch(e) {
-    iconEl.textContent = '❌';
-    msgEl.textContent  = '存储失败';
-    detailEl.textContent = '请打开 Roadster 手动记账';
-  }
+  const body = JSON.stringify({
+    type: apiType,
+    amount: amount,
+    category: note || '未分类',
+    note: note,
+    date: date
+  });
+
+  // 直接 POST 到云端 Worker API
+  fetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        iconEl.textContent = '✅';
+        msgEl.textContent  = '已记录 · 云端同步';
+        detailEl.textContent = `${type} ¥${amount.toFixed(2)} ${note}`;
+      } else {
+        throw new Error(data.error || 'API error');
+      }
+    })
+    .catch(() => {
+      // API 失败时兜底写入 localStorage 队列
+      try {
+        const tx = {
+          id: 'sc_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+          date, type, amount, category: note || '未分类', note,
+          createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+          deleted: false, version: 1, source: 'shortcut'
+        };
+        const pending = JSON.parse(localStorage.getItem('rdstr_shortcut_queue') || '[]');
+        pending.push(tx);
+        localStorage.setItem('rdstr_shortcut_queue', JSON.stringify(pending));
+        iconEl.textContent = '✅';
+        msgEl.textContent  = '已记录 · 本地缓存';
+        detailEl.textContent = `${type} ¥${amount.toFixed(2)} ${note}（离线模式）`;
+      } catch(e2) {
+        iconEl.textContent = '❌';
+        msgEl.textContent  = '存储失败';
+        detailEl.textContent = '请打开 Roadster 手动记账';
+      }
+    });
 })();
 </script>
 </body>

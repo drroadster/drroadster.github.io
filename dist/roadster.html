@@ -2809,14 +2809,9 @@ function _consumeShortcutQueue() {
         skipped++;
         continue;
       }
-      _drafts.push(item);
-      _transactions.push(item);
       existing.add(fp);
+      addTx(item);
       added++;
-    }
-    if (added > 0) {
-      _persist(LS.DRAFTS, _drafts);
-      _emit("transactions");
     }
     return { added, skipped };
   } catch (e) {
