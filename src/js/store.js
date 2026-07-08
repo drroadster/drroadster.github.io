@@ -142,16 +142,9 @@ function _consumeShortcutQueue() {
       const fp = txFingerprint(item);
       if (existing.has(fp)) { skipped++; continue; }
 
-      // 当前处于 init 阶段，_drafts 与 _transactions 是同一份引用
-      _drafts.push(item);
-      _transactions.push(item);
       existing.add(fp);
+      addTx(item);
       added++;
-    }
-
-    if (added > 0) {
-      _persist(LS.DRAFTS, _drafts);
-      _emit('transactions');
     }
 
     return { added, skipped };
