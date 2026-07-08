@@ -19,9 +19,9 @@ import { t } from './i18n.js';
 // Firebase SDK — loaded via importmap in index.html
 import { initializeApp, getApps }              from 'firebase/app';
 import {
-  getAuth,
+  initializeAuth,
   browserLocalPersistence,
-  setPersistence,
+  indexedDBLocalPersistence,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
@@ -33,7 +33,15 @@ import {
 // ── Singleton initialisation ──────────────────────────
 // Guard against double-init when the module is hot-reloaded in dev.
 const _app  = getApps().length ? getApps()[0] : initializeApp(FIREBASE_CONFIG);
-const _auth = getAuth(_app);
+
+// Use initializeAuth with explicit persistence chain so the session
+// survives page refresh / tab close / browser restart.
+// indexedDBLocalPersistence is the most durable; browserLocalPersistence
+// is a legacy alias but some browsers (Safari) behave better with the
+// explicit IndexedDB variant chained first.
+const _auth = initializeAuth(_app, {
+  persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+});
 
 // Export the app instance so db.js can reuse it.
 export { _app as firebaseApp };
@@ -46,26 +54,15 @@ let _user = null;
 const _subscribers = new Set();
 
 // ── Auth state listener ───────────────────────────────
-// This is the canonical hook.  Firebase calls it:
-//   • immediately on page load with the persisted session (or null)
-//   • whenever the user logs in or out
-// We set persistence ONCE before adding the listener so the very first
-// silent-restore call already uses local persistence.
-(async () => {
-  try {
-    await setPersistence(_auth, browserLocalPersistence);
-  } catch (e) {
-    // Non-fatal — persistence may not be available (e.g. privacy mode)
-    console.warn('[auth] Could not set persistence:', e.message);
-  }
-
-  onAuthStateChanged(_auth, (user) => {
+// onAuthStateChanged fires immediately with the persisted session on
+// page load (or null if not logged in), so subscribers get the correct
+// state without any extra init dance.
+onAuthStateChanged(_auth, (user) => {
     _user = user;
     _subscribers.forEach(cb => {
       try { cb(user); } catch (e) { console.error('[auth] subscriber error', e); }
     });
-  });
-})();
+});
 
 // ── Public API ────────────────────────────────────────
 
