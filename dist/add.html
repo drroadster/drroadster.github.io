@@ -20,56 +20,98 @@
   <div class="msg" id="msgEl">正在处理…</div>
   <div class="detail" id="detailEl"></div>
 </div>
-<script>
-(function() {
-  const p = new URLSearchParams(location.search);
-  const amount = parseFloat(p.get('amount'));
-  const note   = p.get('note') || '';
-  const type   = p.get('type') || '支出';
-  const date   = p.get('date') || new Date().toISOString().slice(0,10);
 
-  const iconEl  = document.getElementById('iconEl');
-  const msgEl   = document.getElementById('msgEl');
-  const detailEl = document.getElementById('detailEl');
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getFirestore, doc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
-  if (!amount || isNaN(amount)) {
-    iconEl.textContent = '⚠️';
-    msgEl.textContent  = '缺少金额参数';
-    detailEl.textContent = '请在快捷指令中设置 amount 参数';
-    return;
-  }
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyCFCnb-K042ZmU-W-CozLCA8PhznNLZ-MA",
+  authDomain:        "roadster988.firebaseapp.com",
+  projectId:         "roadster988",
+  storageBucket:     "roadster988.firebasestorage.app",
+  messagingSenderId: "447138926799",
+  appId:             "1:447138926799:web:585c60bd99dd53f807a7ba",
+};
 
-  // 构造交易记录
-  const tx = {
-    id:        'sc_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
-    date:      date,
-    type:      type,
-    amount:    amount,
-    category:  note || '其他',
-    note:      note,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    deleted:   false,
-    version:   1,
-    source:    'shortcut',
-  };
+const app  = initializeApp(FIREBASE_CONFIG);
+const auth = getAuth(app);
+const db   = getFirestore(app);
 
-  // 写入 localStorage 队列，打开 Roadster 后由 store.js 的 _consumeShortcutQueue
-  // → addTx() → _syncAdapter.writeTx() 自动同步到 Firestore
+const p = new URLSearchParams(location.search);
+const amount = parseFloat(p.get('amount'));
+const note   = p.get('note') || '';
+const type   = p.get('type') || '支出';
+const date   = p.get('date') || new Date().toISOString().slice(0,10);
+
+const iconEl  = document.getElementById('iconEl');
+const msgEl   = document.getElementById('msgEl');
+const detailEl = document.getElementById('detailEl');
+
+if (!amount || isNaN(amount)) {
+  iconEl.textContent = '⚠️';
+  msgEl.textContent  = '缺少金额参数';
+  detailEl.textContent = '请在快捷指令中设置 amount 参数';
+} else {
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      await writeToFirestore(user.uid);
+    } else {
+      writeToLocal();
+    }
+  });
+}
+
+async function writeToFirestore(uid) {
+  const txId = 'sc_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+  const ref = doc(db, 'users', uid, 'transactions', txId);
+
   try {
+    await setDoc(ref, {
+      id:        txId,
+      date:      date,
+      type:      type,
+      amount:    amount,
+      category:  note || '其他',
+      note:      note,
+      createdAt: new Date().toISOString(),
+      updatedAt: serverTimestamp(),
+      deleted:   false,
+      version:   1,
+      source:    'shortcut',
+    });
+
+    iconEl.textContent = '✅';
+    msgEl.textContent  = '已记录 · Firestore';
+    detailEl.textContent = `${type} ¥${amount.toFixed(2)} ${note}`;
+  } catch (e) {
+    console.error('[add] Firestore write failed:', e);
+    writeToLocal();
+  }
+}
+
+function writeToLocal() {
+  try {
+    const tx = {
+      id: 'sc_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+      date, type, amount, category: note || '其他', note,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      deleted: false, version: 1, source: 'shortcut'
+    };
     const pending = JSON.parse(localStorage.getItem('rdstr_shortcut_queue') || '[]');
     pending.push(tx);
     localStorage.setItem('rdstr_shortcut_queue', JSON.stringify(pending));
 
     iconEl.textContent = '✅';
-    msgEl.textContent  = '已记录';
+    msgEl.textContent  = '已记录 · 本地缓存';
     detailEl.textContent = `${type} ¥${amount.toFixed(2)} ${note}`;
-  } catch(e) {
+  } catch (e2) {
     iconEl.textContent = '❌';
     msgEl.textContent  = '存储失败';
     detailEl.textContent = '请打开 Roadster 手动记账';
   }
-})();
+}
 </script>
 </body>
 </html>
