@@ -6,8 +6,9 @@
 
 import { getAssets, upsertAsset, deleteAsset, getAssetHistory,
          recordSnapshot, importAssetSnapshots } from '../store.js';
+import { subscribe } from '../store.js';
 import { buildLineChart, buildDoughnut, buildHorizBar, buildSparklineSvg,
-         cssVar } from '../charts.js';
+         cssVar, palette } from '../charts.js';
 import { fmt, esc, fmtDateShort, uid, splitCSVLine, splitCSVLines,
          normalizeDate, parseMoney, pad2 } from '../utils.js';
 import { t } from '../i18n.js';
@@ -22,6 +23,12 @@ export function initAssetsPage() {
   _wireControls();
   window.__rdstr_openAssetModal = () => openAssetModal(); // FAB hook
   onNavigate(page => { if (page === 'assets') render(); });
+  // 订阅资产变更，确保任何来源的资产更新都会触发重绘
+  subscribe('assets', () => {
+    if (document.getElementById('page-assets')?.classList.contains('active')) {
+      render();
+    }
+  });
 }
 
 export function render() {
@@ -142,25 +149,23 @@ function _renderTimeline() {
     if (bkCard) bkCard.style.display = '';
     if (bkEmpty) bkEmpty.style.display = 'none';
 
-    const { PALETTE } = window.__rdstr_palette || {};
-    import('../config.js').then(({ PALETTE }) => {
-      const datasets = allIds.map((id, i) => ({
-        label: nameMap[id] || id,
-        data:  hist.map(h => h.breakdown?.[id] ?? 0),
-        color: PALETTE[i % PALETTE.length],
-        fill:  false,
-      }));
-      buildLineChart('assetBreakdownChart', labels, datasets, { hideLegend: true });
+    const p = palette();
+    const datasets = allIds.map((id, i) => ({
+      label: nameMap[id] || id,
+      data:  hist.map(h => h.breakdown?.[id] ?? 0),
+      color: p[i % p.length],
+      fill:  false,
+    }));
+    buildLineChart('assetBreakdownChart', labels, datasets, { hideLegend: true });
 
-      const legEl = document.getElementById('timelineLegend');
-      if (legEl) {
-        legEl.innerHTML = allIds.map((id, i) => `
-          <div class="legend-chip">
-            <div class="legend-dot" style="background:${PALETTE[i % PALETTE.length]}"></div>
-            ${esc(nameMap[id] || id)}
-          </div>`).join('');
-      }
-    });
+    const legEl = document.getElementById('timelineLegend');
+    if (legEl) {
+      legEl.innerHTML = allIds.map((id, i) => `
+        <div class="legend-chip">
+          <div class="legend-dot" style="background:${p[i % p.length]}"></div>
+          ${esc(nameMap[id] || id)}
+        </div>`).join('');
+    }
   } else {
     if (bkCard) bkCard.style.display = 'none';
     if (bkEmpty) bkEmpty.style.display = '';

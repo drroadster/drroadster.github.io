@@ -38,6 +38,46 @@ let _isLoggedIn = false;
 /** 登录后等待云端数据首次到达 */
 let _loading = false;
 
+/** Firestore 写入失败重试配置 */
+const RETRY_MAX = 3;
+const RETRY_BASE_DELAY = 2000;
+
+/**
+ * Fire-and-forget: 带指数退避重试的 Firestore 写入。
+ * 成功即结束，失败后保存到对应草稿并持久化到 localStorage。
+ * @param {Function} writeFn - 写入函数，返回 Promise
+ * @param {Object} record   - 待写入的记录
+ * @param {string} label    - 日志标签
+ * @param {'tx'|'asset'} type - 记录类型
+ */
+function _retryAndPersist(writeFn, record, label, type) {
+  (async () => {
+    for (let attempt = 1; attempt <= RETRY_MAX; attempt++) {
+      try {
+        await writeFn();
+        return; // 成功
+      } catch (err) {
+        if (attempt < RETRY_MAX) {
+          const delay = RETRY_BASE_DELAY * Math.pow(2, attempt - 1);
+          console.warn(`[store] ${label} 失败 (${attempt}/${RETRY_MAX})，${delay}ms 后重试:`, err.message || err);
+          await new Promise(r => setTimeout(r, delay));
+        } else {
+          console.error(`[store] ${label} 重试 ${RETRY_MAX} 次后仍失败，保存到草稿:`, err.message || err);
+        }
+      }
+    }
+
+    // 全部重试失败 → 保存到草稿
+    if (type === 'tx') {
+      _drafts.push(record);
+      _persist(LS.DRAFTS, _drafts);
+    } else {
+      _assetDrafts.push(record);
+      _persist(LS.ASSETS_DRAFTS, _assetDrafts);
+    }
+  })();
+}
+
 /**
  * Sync adapter — 由 syncManager 注入。
  * 登录时提供 Firestore 读写方法；退出时清空。
@@ -338,13 +378,13 @@ export function addTx(tx) {
     _transactions.push(record);
     _emit('transactions');
 
-    // 后台写入 Firestore
-    _syncAdapter.writeTx(record.id, record).catch(err => {
-      console.error('[store] Firestore write failed, saving to drafts:', err);
-      // 兜底：写入失败时持久化到草稿，防止数据丢失
-      _drafts.push(record);
-      _persist(LS.DRAFTS, _drafts);
-    });
+    // 后台写入 Firestore（fire-and-forget 带重试）
+    _retryAndPersist(
+      () => _syncAdapter.writeTx(record.id, record),
+      record,
+      'writeTx',
+      'tx'
+    );
   } else {
     // 未登录：存入草稿
     _drafts.push(record);
@@ -375,14 +415,12 @@ export function updateTx(id, changes) {
 
   if (_syncAdapter && _isLoggedIn) {
     _emit('transactions');
-    _syncAdapter.writeTx(id, _transactions[idx]).catch(err => {
-      console.error('[store] Firestore update failed, saving to drafts:', err);
-      // 兜底：更新失败时将当前版本持久化到草稿
-      const dIdx = _drafts.findIndex(d => d.id === id);
-      if (dIdx !== -1) _drafts[dIdx] = _transactions[idx];
-      else _drafts.push(_transactions[idx]);
-      _persist(LS.DRAFTS, _drafts);
-    });
+    _retryAndPersist(
+      () => _syncAdapter.writeTx(id, _transactions[idx]),
+      _transactions[idx],
+      'writeTx(update)',
+      'tx'
+    );
   } else {
     // 同步更新草稿
     const draftIdx = _drafts.findIndex(d => d.id === id);
@@ -410,14 +448,12 @@ export function deleteTx(id) {
 
   if (_syncAdapter && _isLoggedIn) {
     _emit('transactions');
-    _syncAdapter.deleteTx(id).catch(err => {
-      console.error('[store] Firestore delete failed, marking as draft delete:', err);
-      // 兜底：删除失败时将标记保存到草稿，等待网络恢复后重试
-      const dIdx = _drafts.findIndex(d => d.id === id);
-      if (dIdx !== -1) _drafts[dIdx] = _transactions[idx];
-      else _drafts.push(_transactions[idx]);
-      _persist(LS.DRAFTS, _drafts);
-    });
+    _retryAndPersist(
+      () => _syncAdapter.deleteTx(id),
+      _transactions[idx],
+      'deleteTx',
+      'tx'
+    );
   } else {
     // 从草稿中移除
     _drafts = _drafts.filter(d => d.id !== id);
@@ -451,9 +487,12 @@ export function deleteByCategory(category) {
   if (_syncAdapter && _isLoggedIn) {
     _emit('transactions');
     toDelete.forEach(id => {
-      _syncAdapter.deleteTx(id).catch(err => {
-        console.error('[store] Firestore batch delete failed:', err);
-      });
+      _retryAndPersist(
+        () => _syncAdapter.deleteTx(id),
+        { id, deleted: true },
+        'deleteTx(batch)',
+        'tx'
+      );
     });
   } else {
     _drafts = _drafts.filter(d => !toDelete.includes(d.id));
@@ -474,9 +513,12 @@ export function clearTransactions() {
     _transactions = [];
     _emit('transactions');
     ids.forEach(id => {
-      _syncAdapter.deleteTx(id).catch(err => {
-        console.error('[store] Firestore clear failed:', err);
-      });
+      _retryAndPersist(
+        () => _syncAdapter.deleteTx(id),
+        { id, deleted: true },
+        'deleteTx(clear)',
+        'tx'
+      );
     });
   } else {
     _drafts = [];
@@ -506,11 +548,12 @@ export function addAsset(asset) {
   if (_syncAdapter && _isLoggedIn) {
     _assets.push(record);
     _emit('assets');
-    _syncAdapter.writeAsset(record.id, record).catch(err => {
-      console.error('[store] Firestore asset write failed, saving to drafts:', err);
-      _assetDrafts.push(record);
-      _persist(LS.ASSETS_DRAFTS, _assetDrafts);
-    });
+    _retryAndPersist(
+      () => _syncAdapter.writeAsset(record.id, record),
+      record,
+      'writeAsset',
+      'asset'
+    );
   } else {
     _assetDrafts.push(record);
     _persist(LS.ASSETS_DRAFTS, _assetDrafts);
@@ -535,9 +578,12 @@ export function updateAsset(id, changes) {
 
   if (_syncAdapter && _isLoggedIn) {
     _emit('assets');
-    _syncAdapter.writeAsset(id, _assets[idx]).catch(err => {
-      console.error('[store] Firestore asset update failed:', err);
-    });
+    _retryAndPersist(
+      () => _syncAdapter.writeAsset(id, _assets[idx]),
+      _assets[idx],
+      'writeAsset(update)',
+      'asset'
+    );
   } else {
     const dIdx = _assetDrafts.findIndex(d => d.id === id);
     if (dIdx !== -1) _assetDrafts[dIdx] = _assets[idx];
@@ -559,9 +605,12 @@ export function deleteAsset(id) {
 
   if (_syncAdapter && _isLoggedIn) {
     _emit('assets');
-    _syncAdapter.deleteAsset(id).catch(err => {
-      console.error('[store] Firestore asset delete failed:', err);
-    });
+    _retryAndPersist(
+      () => _syncAdapter.deleteAsset(id),
+      _assets[idx],
+      'deleteAsset',
+      'asset'
+    );
   } else {
     _assetDrafts = _assetDrafts.filter(a => a.id !== id);
     _persist(LS.ASSETS_DRAFTS, _assetDrafts);
@@ -707,7 +756,12 @@ export function renormalizeAllCategories() {
     // 批量更新到 Firestore 或草稿
     if (_syncAdapter && _isLoggedIn) {
       _transactions.forEach(t => {
-        _syncAdapter.writeTx(t.id, t).catch(() => {});
+        _retryAndPersist(
+          () => _syncAdapter.writeTx(t.id, t),
+          t,
+          'writeTx(renorm)',
+          'tx'
+        );
       });
     } else {
       _persist(LS.DRAFTS, _drafts);

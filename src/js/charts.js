@@ -14,7 +14,16 @@
 //    each pie/bar chart that wants labels opts in explicitly.
 // ═══════════════════════════════════════════════════════
 
-import { PALETTE } from './config.js';
+// Palette is read from CSS variables (--palette-0..11) at call time
+// so doughnut/bar colours update instantly on theme switch.
+export function palette() {
+  const style = getComputedStyle(document.documentElement);
+  const colors = [];
+  for (let i = 0; i < 12; i++) {
+    colors.push(style.getPropertyValue(`--palette-${i}`).trim());
+  }
+  return colors;
+}
 
 // ── Chart registry ────────────────────────────────────
 /** @type {Record<string, Chart>} */
@@ -157,7 +166,7 @@ export function buildDoughnut(canvasId, labels, data, legendId, opts = {}) {
   const pairs  = labels.map((l, i) => [l, data[i]]).filter(([, v]) => v > 0);
   const fLabels = pairs.map(p => p[0]);
   const fData   = pairs.map(p => p[1]);
-  const fColors = PALETTE.slice(0, fLabels.length);
+  const fColors = palette().slice(0, fLabels.length);
 
   if (!fData.length) {
     if (ctx)   ctx.style.display = 'none';
@@ -189,7 +198,7 @@ export function buildDoughnut(canvasId, labels, data, legendId, opts = {}) {
         tooltip:    { callbacks: { label: c => `  ¥${_fmt(c.raw)}` } },
         datalabels: {
           display:    true,
-          color:      '#fff',
+          color:      cssVar('--color-surface-solid'),
           font:       { size: 11, weight: 700 },
           formatter:  (val) => {
             const pct = total > 0 ? (val / total) * 100 : 0;
@@ -225,7 +234,7 @@ export function buildHorizBar(canvasId, labels, data, opts = {}) {
   const ctx = document.getElementById(canvasId);
   if (!ctx) return;
 
-  const colors = PALETTE.slice(0, labels.length);
+  const colors = palette().slice(0, labels.length);
   const axDef  = _axisDefaults();
 
   return _save(canvasId, new Chart(ctx, {
@@ -316,7 +325,7 @@ export function buildSparklineSvg(points) {
 
   const d = coords.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x},${y}`).join(' ');
   const up      = points[points.length - 1] >= points[0];
-  const stroke  = up ? 'rgba(134,239,172,0.95)' : 'rgba(253,164,175,0.95)';
+  const stroke  = up ? cssVar('--color-green') : cssVar('--color-red');
   const [lx, ly] = coords[coords.length - 1];
 
   return `<svg class="bank-card-spark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" fill="none">

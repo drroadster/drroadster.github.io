@@ -29,6 +29,223 @@
 
 
 
+
+<!-- ═══════ FIRE Page Styles (scoped to #page-fire) ═══════ -->
+<style>
+#page-fire .fire-app{
+  box-sizing:border-box;
+}
+#page-fire .fire-app *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+#page-fire .fire-app{
+  font-family:-apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+  color:var(--fire-text-0); min-height:100vh; overflow-x:hidden; -webkit-font-smoothing:antialiased;
+  position:relative; z-index:1; max-width:1180px; margin:0 auto; padding:24px 20px 120px;
+  background: var(--fire-app-bg);
+}
+
+/* ── Neutralize Roadster style leakage ── */
+#page-fire .fire-app .card{
+  background:var(--fire-glass) !important;
+  border-radius:28px !important;
+  border:1px solid var(--fire-border) !important;
+  box-shadow:var(--fire-shadow) !important;
+  backdrop-filter: blur(30px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(160%) !important;
+  transition:none !important;
+}
+#page-fire .fire-app .card:hover{ background:var(--fire-glass) !important; transform:none !important; box-shadow:var(--fire-shadow) !important; }
+#page-fire .fire-app .hero-card{
+  background:var(--fire-glass) !important;
+  padding:32px !important;
+  position:static !important; overflow:visible !important; isolation:auto !important;
+  color:inherit !important; border-radius:28px !important;
+  box-shadow:var(--fire-shadow) !important;
+}
+#page-fire .fire-app .hero-card::before,
+#page-fire .fire-app .hero-card::after{ content:none !important; display:none !important; }
+#page-fire .fire-app .hero-stats{ display:grid !important; grid-template-columns:1fr 1fr; gap:16px; margin-top:0 !important; }
+#page-fire .fire-app .hero-stat{ background:none !important; padding:0; border-radius:0; }
+#page-fire .fire-app .topbar{ position:static !important; top:auto !important; z-index:auto !important; height:auto !important;
+  display:flex !important; align-items:center; justify-content:space-between; padding:6px 4px 20px !important;
+  background:none !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important;
+  border-bottom:none !important;
+}
+#page-fire .fire-app .brand{ display:flex; align-items:center; gap:10px; }
+#page-fire .fire-app .brand-mark{ display:inline-flex; align-items:center; justify-content:center; width:30px;height:30px; border-radius:50%;
+  background:conic-gradient(from 180deg, var(--fire-emerald), var(--fire-azure), var(--fire-violet), var(--fire-emerald)) !important;
+  font-size:14px; box-shadow:none !important; }
+#page-fire .fire-app .brand-badge{font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:20px;
+  background:linear-gradient(135deg,var(--fire-azure),var(--fire-violet)); color:var(--fire-btn-text); letter-spacing:0.03em;}
+#page-fire .fire-app .topbar-date{font-size:13px; color:var(--fire-text-1); font-variant-numeric:tabular-nums;}
+#page-fire .fire-app .icon-btn{width:38px;height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:var(--fire-glass); border:1px solid var(--fire-border); color:var(--fire-text-0); cursor:pointer; font-size:16px;
+  transition:transform .15s ease, background .2s ease;}
+#page-fire .fire-app .icon-btn:hover{background:var(--fire-glass-strong); transform:translateY(-1px);}
+#page-fire .fire-app .icon-btn:active{transform:scale(0.92);}
+
+#page-fire .fire-app .glass{background:var(--fire-glass); backdrop-filter: blur(30px) saturate(160%); -webkit-backdrop-filter: blur(30px) saturate(160%);
+  border:1px solid var(--fire-border); border-radius:28px; box-shadow:var(--fire-shadow);}
+#page-fire .real-tag{font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px; background:var(--fire-fill-emerald); color:var(--fire-emerald); border:1px solid var(--fire-fill-emerald-border);}
+#page-fire .hero-card{display:flex; align-items:center; gap:32px; padding:32px; margin-bottom:16px; flex-wrap:wrap;}
+#page-fire .hero-ring-wrap{position:relative; width:200px; height:200px; flex-shrink:0; margin:0 auto;}
+#page-fire .hero-ring{width:100%; height:100%; transform:rotate(-90deg);}
+#page-fire .hero-ring-track{fill:none; stroke:var(--fire-track); stroke-width:15;}
+#page-fire .hero-ring-fill{fill:none; stroke-width:15; stroke-linecap:round; transition:stroke-dashoffset 1.2s cubic-bezier(.16,1,.3,1);}
+#page-fire .hero-ring-center{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;}
+#page-fire .hero-pct{font-size:42px; font-weight:800; letter-spacing:-0.02em; font-variant-numeric:tabular-nums;
+  background:linear-gradient(135deg, var(--fire-azure), var(--fire-emerald)); -webkit-background-clip:text; background-clip:text; color:transparent;}
+#page-fire .hero-pct-label{font-size:11.5px; color:var(--fire-text-1); font-weight:600;}
+#page-fire .hero-stats{flex:1; min-width:260px; display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+#page-fire .hero-stat-label{font-size:11.5px; color:var(--fire-text-1); font-weight:600; margin-bottom:5px;}
+#page-fire .hero-stat-value{font-size:20px; font-weight:700; letter-spacing:-0.01em; font-variant-numeric:tabular-nums;}
+#page-fire .section-label{font-size:13px; font-weight:700; color:var(--fire-text-1); margin:26px 4px 12px; display:flex; align-items:center; gap:8px; letter-spacing:0.01em;}
+#page-fire .section-label .dot{width:6px;height:6px;border-radius:50%;background:var(--fire-azure);}
+#page-fire .firetype-grid{display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:8px;}
+#page-fire .firetype-card{padding:18px 16px;}
+#page-fire .ft-icon{width:34px;height:34px;border-radius:11px; display:flex;align-items:center;justify-content:center; font-size:16px; margin-bottom:10px;}
+#page-fire .ft-name{font-size:12.5px; font-weight:700; color:var(--fire-text-0); margin-bottom:2px;}
+#page-fire .ft-desc{font-size:10.5px; color:var(--fire-text-2); margin-bottom:12px; line-height:1.4; min-height:28px;}
+#page-fire .ft-target{font-size:15px; font-weight:800; font-variant-numeric:tabular-nums; margin-bottom:8px;}
+#page-fire .progress-track{height:6px; border-radius:3px; background:var(--fire-fill-2); overflow:hidden; margin-bottom:8px;}
+#page-fire .progress-fill{height:100%; border-radius:3px; transition:width 1s cubic-bezier(.16,1,.3,1);}
+#page-fire .ft-eta{font-size:11px; color:var(--fire-text-1); font-weight:600;}
+#page-fire .grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;}
+#page-fire .grid.two-col{grid-template-columns:1fr 1fr;}
+#page-fire .card{padding:22px; min-height:180px; display:flex; flex-direction:column;}
+#page-fire .card.wide{grid-column: span 2;}
+#page-fire .card-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:10px;}
+#page-fire .card-title{font-size:14px; font-weight:700; color:var(--fire-text-0);}
+#page-fire .card-sub{font-size:12px; color:var(--fire-text-1); margin-top:2px;}
+#page-fire .pill{font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px; background:var(--fire-fill-2); color:var(--fire-text-1); white-space:nowrap;}
+#page-fire .slider-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px 26px;}
+#page-fire .slider-row{display:flex; flex-direction:column; gap:8px;}
+#page-fire .slider-top{display:flex; justify-content:space-between; align-items:baseline;}
+#page-fire .slider-label{font-size:12.5px; font-weight:600; color:var(--fire-text-1);}
+#page-fire .slider-val{font-size:14px; font-weight:800; font-variant-numeric:tabular-nums;}
+#page-fire input[type=range]{-webkit-appearance:none; appearance:none; width:100%; height:6px; border-radius:3px; background:var(--fire-track-2); outline:none; cursor:pointer;}
+#page-fire input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:22px;height:22px;border-radius:50%;
+  background:linear-gradient(135deg,#4DA3FF,#30D9A0); box-shadow:0 2px 10px rgba(0,0,0,0.45); cursor:pointer; border:2px solid rgba(255,255,255,0.85);}
+#page-fire input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%; background:linear-gradient(135deg,#4DA3FF,#30D9A0); border:2px solid rgba(255,255,255,0.85); cursor:pointer;}
+#page-fire .real-return-note{margin-top:16px; padding:12px 14px; border-radius:14px; background:var(--fire-fill-azure); border:1px solid var(--fire-fill-azure-border); font-size:12px; color:var(--fire-text-1); line-height:1.6;}
+#page-fire .real-return-note b{color:var(--fire-text-0);}
+#page-fire .mc-top{display:flex; gap:20px; flex-wrap:wrap; margin-bottom:16px;}
+#page-fire .mc-stat{flex:1; min-width:180px; padding:16px; border-radius:18px; background:var(--fire-fill-0); border:1px solid var(--fire-border);}
+#page-fire .mc-stat-label{font-size:11.5px; color:var(--fire-text-1); font-weight:600; margin-bottom:6px;}
+#page-fire .mc-stat-big{font-size:30px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:-0.02em;}
+#page-fire .mc-stat-sub{font-size:11px; color:var(--fire-text-2); margin-top:4px; line-height:1.5;}
+#page-fire .run-btn{padding:10px 18px; border-radius:14px; border:none; font-size:12.5px; font-weight:700; cursor:pointer;
+  background:var(--fire-fill-2); color:var(--fire-text-0); transition:all .15s ease; white-space:nowrap;}
+#page-fire .run-btn:hover{background:var(--fire-fill-3);}
+#page-fire .run-btn:active{transform:scale(0.96);}
+#page-fire .run-btn.primary{background:linear-gradient(135deg,var(--fire-azure),var(--fire-emerald)); color:var(--fire-btn-text);}
+#page-fire .chart-legend{display:flex; gap:16px; margin-top:10px; flex-wrap:wrap;}
+#page-fire .chart-legend-item{display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--fire-text-1);}
+#page-fire .chart-legend-swatch{width:16px; height:3px; border-radius:2px;}
+#page-fire .ai-output{font-size:13.5px; line-height:1.85; color:var(--fire-text-0); white-space:pre-wrap; padding:16px; border-radius:16px;
+  background:var(--fire-fill-0); border:1px solid var(--fire-border); min-height:60px;}
+#page-fire .ai-empty{color:var(--fire-text-2); font-size:12.5px;}
+#page-fire .ai-disclaimer{font-size:10.5px; color:var(--fire-text-2); margin-top:10px; line-height:1.6;}
+#page-fire .dots{display:inline-flex; gap:4px;}
+#page-fire .dots span{width:6px;height:6px;border-radius:50%;background:var(--fire-azure); animation:blink 1.2s infinite ease-in-out;}
+#page-fire .dots span:nth-child(2){animation-delay:.2s;} #page-fire .dots span:nth-child(3){animation-delay:.4s;}
+@keyframes blink{0%,80%,100%{opacity:0.25;} 40%{opacity:1;}}
+#page-fire .alloc-body{display:flex; align-items:center; gap:20px; flex:1;}
+#page-fire .donut{width:120px; height:120px; border-radius:50%; flex-shrink:0; position:relative;}
+#page-fire .donut::after{content:""; position:absolute; inset:18px; border-radius:50%; background:var(--fire-bg-1); box-shadow:inset 0 0 0 1px var(--fire-fill-2);}
+#page-fire .legend{display:flex; flex-direction:column; gap:8px; flex:1; min-width:0;}
+#page-fire .legend-row{display:flex; align-items:center; gap:8px; font-size:12.5px;}
+#page-fire .legend-dot{width:9px;height:9px;border-radius:50%; flex-shrink:0;}
+#page-fire .legend-name{color:var(--fire-text-1); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+#page-fire .legend-val{font-weight:700; font-variant-numeric:tabular-nums;}
+#page-fire .chart-wrap{flex:1; min-height:140px;}
+#page-fire .list{display:flex; flex-direction:column; gap:2px; overflow:hidden;}
+#page-fire .list-row{display:flex; align-items:center; gap:12px; padding:11px 4px; border-radius:12px; transition:background .15s ease;}
+#page-fire .list-row:hover{background:var(--fire-fill-hover);}
+#page-fire .list-icon{width:34px;height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;}
+#page-fire .list-main{flex:1; min-width:0;}
+#page-fire .list-title{font-size:13.5px; font-weight:600; color:var(--fire-text-0);}
+#page-fire .list-sub{font-size:11.5px; color:var(--fire-text-2); margin-top:1px;}
+#page-fire .list-amount{font-size:14px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap;}
+#page-fire .empty-hint{font-size:12.5px; color:var(--fire-text-2); text-align:center; padding:26px 10px;}
+#page-fire .modal-overlay{position:fixed; inset:0; z-index:50; display:none; align-items:flex-end; justify-content:center;
+  background:var(--fire-modal-overlay); backdrop-filter:blur(6px);}
+#page-fire .modal-overlay.open{display:flex;}
+#page-fire .modal{width:100%; max-width:480px; max-height:86vh; overflow-y:auto; padding:26px 24px 30px;
+  border-radius:28px 28px 0 0; background:var(--fire-modal-bg); backdrop-filter:blur(40px) saturate(180%);
+  border:1px solid var(--fire-border-strong); border-bottom:none; animation: fireSlideUp .35s cubic-bezier(.16,1,.3,1);}
+@media (min-width:560px){ #page-fire .modal-overlay{align-items:center;} #page-fire .modal{border-radius:28px; border-bottom:1px solid var(--fire-border-strong);} }
+@keyframes fireSlideUp{from{transform:translateY(40px); opacity:0;} to{transform:translateY(0); opacity:1;}}
+#page-fire .modal-handle{width:36px;height:4px;border-radius:2px;background:var(--fire-fill-4); margin:0 auto 18px;}
+#page-fire .modal-title{font-size:18px; font-weight:800; margin-bottom:18px;}
+#page-fire .field{margin-bottom:14px;}
+#page-fire .field-label{font-size:12px; font-weight:600; color:var(--fire-text-1); margin-bottom:6px; display:block;}
+#page-fire .field input, #page-fire .field select{width:100%; padding:12px 14px; border-radius:14px; border:1px solid var(--fire-border);
+  background:var(--fire-fill-1); color:var(--fire-text-0); font-size:14.5px; font-family:inherit; outline:none;
+  transition:border-color .2s ease, background .2s ease;}
+#page-fire .field input:focus, #page-fire .field select:focus{border-color:var(--fire-focus-ring); background:var(--fire-fill-2);}
+#page-fire .btn{width:100%; padding:14px; border-radius:16px; border:none; font-size:15px; font-weight:700; cursor:pointer;
+  background:linear-gradient(135deg, var(--fire-azure), var(--fire-emerald)); color:var(--fire-btn-text); margin-top:6px; transition:transform .15s ease;}
+#page-fire .btn:active{transform:scale(0.98);}
+#page-fire .btn.secondary{background:var(--fire-fill-2); color:var(--fire-text-0);}
+#page-fire .modal-close{position:absolute; top:20px; right:20px; width:30px;height:30px; border-radius:50%; background:var(--fire-fill-2); display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--fire-text-1); font-size:14px;}
+#page-fire .modal-inner{position:relative;}
+#page-fire .icon-btn{width:38px;height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  background:var(--fire-glass); border:1px solid var(--fire-border); color:var(--fire-text-0); cursor:pointer; font-size:16px;
+  transition:transform .15s ease, background .2s ease;}
+#page-fire .icon-btn:hover{background:var(--fire-glass-strong); transform:translateY(-1px);}
+#page-fire .icon-btn:active{transform:scale(0.92);}
+#page-fire .topbar{display:flex; align-items:center; justify-content:space-between; padding:6px 4px 20px;}
+#page-fire .brand{display:flex; align-items:center; gap:10px; font-size:19px; font-weight:700; letter-spacing:-0.01em;}
+#page-fire .brand-mark{display:inline-flex; align-items:center; justify-content:center; width:30px;height:30px; border-radius:50%;
+  background:conic-gradient(from 180deg, var(--fire-emerald), var(--fire-azure), var(--fire-violet), var(--fire-emerald)); font-size:14px;}
+#page-fire .brand-badge{font-size:10.5px; font-weight:800; padding:3px 9px; border-radius:20px; background:linear-gradient(135deg,var(--fire-azure),var(--fire-violet)); color:var(--fire-btn-text); letter-spacing:0.03em;}
+#page-fire .topbar-right{display:flex; align-items:center; gap:10px;}
+#page-fire .topbar-date{font-size:13px; color:var(--fire-text-1); font-variant-numeric:tabular-nums;}
+@media (max-width:900px){
+  #page-fire .firetype-grid{grid-template-columns:repeat(3,1fr);}
+}
+@media (max-width:720px){
+  #page-fire .grid, #page-fire .grid.two-col{grid-template-columns:1fr;}
+  #page-fire .card.wide{grid-column:span 1;}
+  #page-fire .slider-grid{grid-template-columns:1fr;}
+  #page-fire .hero-card{padding:26px 20px; gap:20px;}
+  #page-fire .hero-ring-wrap{width:170px;height:170px;}
+  #page-fire .hero-pct{font-size:34px;}
+  #page-fire .firetype-grid{grid-template-columns:repeat(2,1fr);}
+  #page-fire .mc-top{flex-direction:column;}
+}
+
+#page-fire .bg-orbs{position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none;}
+#page-fire .orb{position:absolute; border-radius:50%; filter:blur(90px); opacity:0.3;}
+#page-fire .orb-a{width:420px;height:420px; background:var(--fire-azure); top:-140px; left:-100px; animation:fireOrbA 22s ease-in-out infinite;}
+#page-fire .orb-b{width:380px;height:380px; background:var(--fire-emerald); bottom:-160px; right:-80px; animation:fireOrbB 26s ease-in-out infinite;}
+#page-fire .orb-c{width:300px;height:300px; background:var(--fire-violet); top:40%; right:20%; animation:fireOrbC 30s ease-in-out infinite;}
+@keyframes fireOrbA{0%,100%{transform:translate(0,0)}50%{transform:translate(40px,60px)}}
+@keyframes fireOrbB{0%,100%{transform:translate(0,0)}50%{transform:translate(-50px,-30px)}}
+@keyframes fireOrbC{0%,100%{transform:translate(0,0)}50%{transform:translate(-30px,50px)}}
+
+#page-fire .seg{display:flex; background:var(--fire-fill-2); border-radius:14px; padding:4px; margin-bottom:16px;}
+#page-fire .seg-btn{flex:1; text-align:center; padding:9px 0; border-radius:11px; font-size:13.5px; font-weight:700; color:var(--fire-text-1); cursor:pointer; transition:all .2s ease;}
+#page-fire .seg-btn.active{background:var(--fire-glass-strong); color:var(--fire-text-0); box-shadow:0 2px 8px rgba(0,0,0,0.25);}
+
+#page-fire .cat-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px;}
+#page-fire .cat-chip{padding:9px 4px; text-align:center; border-radius:12px; font-size:12px; font-weight:600; color:var(--fire-text-1);
+  background:var(--fire-fill-1); border:1px solid var(--fire-border); cursor:pointer; transition:all .15s ease;}
+#page-fire .cat-chip.active{color:var(--fire-bg-0); background:var(--fire-text-0); border-color:var(--fire-text-0);}
+
+#page-fire .asset-row{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+#page-fire .asset-row .field{flex:1; margin-bottom:0;}
+#page-fire .asset-dot{width:10px;height:10px;border-radius:50%; flex-shrink:0;}
+
+#page-fire .btn-add-asset{background:transparent; border:1px dashed var(--fire-border-strong); color:var(--fire-text-1); padding:10px; border-radius:14px; text-align:center; font-size:12.5px; font-weight:600; cursor:pointer; margin-bottom:16px;}
+
+#page-fire footer.note{text-align:center; font-size:11.5px; color:var(--fire-text-2); margin-top:8px; line-height:1.7;}
+
+#page-fire .list-del{width:24px;height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:var(--fire-text-2); cursor:pointer; font-size:13px; opacity:0; transition:opacity .15s ease;}
+#page-fire .list-row:hover .list-del{opacity:1;}
+#page-fire .list-del:hover{background:rgba(255,105,97,0.18); color:var(--fire-coral);}
+
+</style>
 <style>
 /* ── src/css/tokens.css ── */
 /* ================================================================
@@ -153,59 +370,276 @@
   --chart-6: #8b5cf6;
   --chart-7: #ec4899;
   --chart-8: #14b8a6;
+
+  /* Chart.js doughnut / bar palette */
+  --palette-0:  #5e7ce2;
+  --palette-1:  #34c759;
+  --palette-2:  #ff9500;
+  --palette-3:  #ff3b30;
+  --palette-4:  #af52de;
+  --palette-5:  #5ac8fa;
+  --palette-6:  #ff2d55;
+  --palette-7:  #30b0c7;
+  --palette-8:  #ffd60a;
+  --palette-9:  #32ade6;
+  --palette-10: #30d158;
+  --palette-11: #bf5af2;
 }
 
-/* ── DARK MODE GLASS ── */
-:root[data-theme="dark"],
+/* ═══════════════════════════════════════════════════════
+   DARK MODE — FIRE deep-space style (all pages)
+   Values copied verbatim from fire-tracker-pro.html :root
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Auto dark: system preference, no explicit light override ── */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    --color-canvas:       #020617;
-    --color-surface-1:    rgba(15, 23, 42, 0.68);
-    --color-surface-2:    rgba(30, 41, 59, 0.58);
-    --color-surface-3:    rgba(51, 65, 85, 0.48);
-    --color-surface-elevated: rgba(15, 23, 42, 0.88);
-    --color-surface-solid: #0f172a;
+  :root:not([data-theme="light"]) {
+    --color-canvas:       #07080D;
+    --color-surface-1:    rgba(255,255,255,0.055);
+    --color-surface-2:    rgba(255,255,255,0.09);
+    --color-surface-3:    rgba(255,255,255,0.045);
+    --color-surface-elevated: rgba(20,24,38,0.88);
+    --color-surface-solid: #0E1220;
 
-    --color-label-1: #f1f5f9;
-    --color-label-2: #cbd5e1;
-    --color-label-3: #94a3b8;
-    --color-label-4: #64748b;
+    --color-label-1: #F5F6FA;
+    --color-label-2: rgba(245,246,250,0.64);
+    --color-label-3: rgba(245,246,250,0.38);
+    --color-label-4: #8E8E93;
 
-    --color-sep:        rgba(148, 163, 184, 0.07);
-    --color-sep-strong: rgba(148, 163, 184, 0.12);
-    --color-border-card: rgba(99, 102, 241, 0.10);
-    --color-border-glow: rgba(99, 102, 241, 0.14);
+    --color-sep:        rgba(255,255,255,0.06);
+    --color-sep-strong: rgba(255,255,255,0.11);
+    --color-border-card: rgba(255,255,255,0.11);
+    --color-border-glow: rgba(77,163,255,0.20);
 
     --shadow-xs: 0 1px 2px rgba(0,0,0,0.25);
     --shadow-sm: 0 2px 8px rgba(0,0,0,0.30);
-    --shadow-md: 0 6px 16px rgba(0,0,0,0.35);
-    --shadow-lg: 0 12px 28px rgba(0,0,0,0.40);
-    --shadow-xl: 0 24px 48px rgba(0,0,0,0.50);
+    --shadow-md: 0 2px 12px rgba(0,0,0,0.35);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.45);
+    --shadow-xl: 0 12px 40px rgba(0,0,0,0.50);
 
-    --color-blue:    #818cf8;
-    --color-green:   #34d399;
-    --color-red:     #fb7185;
-    --color-orange:  #fbbf24;
-    --color-purple:  #a78bfa;
-    --color-pink:    #f472b6;
-    --color-teal:    #22d3ee;
-    --color-indigo:  #818cf8;
-    --color-mint:    #2dd4bf;
-    --color-cyan:    #22d3ee;
+    --color-blue:    #4DA3FF;
+    --color-green:   #30D9A0;
+    --color-red:     #FF6961;
+    --color-orange:  #FFC24D;
+    --color-yellow:  #FFC24D;
+    --color-purple:  #B98CFF;
+    --color-pink:    #FF8FAB;
+    --color-teal:    #30D9A0;
+    --color-indigo:  #4DA3FF;
+    --color-mint:    #30D9A0;
+    --color-cyan:    #4DA3FF;
 
-    --glow-blue:   0 6px 24px rgba(129, 140, 248, 0.25);
-    --glow-green:  0 6px 24px rgba(52, 211, 153, 0.20);
-    --glow-brand:  0 8px 32px rgba(129, 140, 248, 0.30);
-    --glow-purple: 0 8px 28px rgba(167, 139, 250, 0.26);
+    --glow-blue:   0 6px 24px rgba(77,163,255,0.25);
+    --glow-green:  0 6px 24px rgba(48,217,160,0.20);
+    --glow-brand:  0 8px 32px rgba(77,163,255,0.30);
+    --glow-purple: 0 8px 28px rgba(185,140,255,0.26);
 
-    --glass-card:     rgba(15, 23, 42, 0.62);
-    --glass-card-hover: rgba(15, 23, 42, 0.78);
-    --glass-bar:      rgba(15, 23, 42, 0.55);
-    --glass-sheet:    rgba(15, 23, 42, 0.92);
-    --glass-input:    rgba(30, 41, 59, 0.55);
-    --glass-border:   rgba(99, 102, 241, 0.10);
-    --glass-border-subtle: rgba(148, 163, 184, 0.08);
+    --glass-card:     rgba(255,255,255,0.055);
+    --glass-card-hover: rgba(255,255,255,0.09);
+    --glass-bar:      rgba(14,18,32,0.72);
+    --glass-sheet:    rgba(20,24,38,0.92);
+    --glass-input:    rgba(255,255,255,0.05);
+    --glass-border:   rgba(255,255,255,0.11);
+    --glass-border-subtle: rgba(255,255,255,0.06);
+
+    /* Gradients — FIRE palette */
+    --grad-brand:   linear-gradient(135deg, #4DA3FF 0%, #B98CFF 100%);
+    --grad-income:  linear-gradient(135deg, #30D9A0 0%, #4DA3FF 100%);
+    --grad-expense: linear-gradient(135deg, #FF6961 0%, #FF8FAB 100%);
+    --grad-asset:   linear-gradient(135deg, #4DA3FF 0%, #7B93F7 100%);
+    --grad-dark:    linear-gradient(180deg, #07080D, #0E1220 40%, #131A2C);
+    --grad-hero:    linear-gradient(135deg, #16244a 0%, #1a3a33 50%, #2a1a3a 100%);
+    --grad-cyan:    linear-gradient(135deg, #4DA3FF 0%, #30D9A0 100%);
+
+    /* Charts */
+    --chart-1: #4DA3FF;
+    --chart-2: #30D9A0;
+    --chart-3: #B98CFF;
+    --chart-4: #FFC24D;
+    --chart-5: #FF6961;
+    --chart-6: #FF8FAB;
+    --chart-7: #7B93F7;
+    --chart-8: #50E0C3;
+
+    /* ── FIRE page tokens (dark: original FIRE deep-space) ── */
+    --fire-bg-0:              #07080D;
+    --fire-bg-1:              #0E1220;
+    --fire-bg-2:              #131A2C;
+    --fire-glass:             rgba(255,255,255,0.055);
+    --fire-glass-strong:      rgba(255,255,255,0.09);
+    --fire-border:            rgba(255,255,255,0.11);
+    --fire-border-strong:     rgba(255,255,255,0.18);
+    --fire-text-0:            #F5F6FA;
+    --fire-text-1:            rgba(245,246,250,0.64);
+    --fire-text-2:            rgba(245,246,250,0.38);
+    --fire-emerald:           #30D9A0;
+    --fire-coral:             #FF6961;
+    --fire-azure:             #4DA3FF;
+    --fire-amber:             #FFC24D;
+    --fire-violet:            #B98CFF;
+    --fire-gray:              #8E8E93;
+    --fire-shadow:            0 1px 1px rgba(255,255,255,0.06) inset, 0 8px 32px rgba(0,0,0,0.45);
+    --fire-app-bg:            radial-gradient(1200px 800px at 15% -10%, #16244a 0%, transparent 60%),
+                              radial-gradient(1000px 700px at 110% 10%, #1a3a33 0%, transparent 55%),
+                              radial-gradient(900px 600px at 50% 120%, #2a1a3a 0%, transparent 55%),
+                              linear-gradient(180deg, #07080D, #0E1220 40%, #131A2C);
+    --fire-fill-0:            rgba(255,255,255,0.04);
+    --fire-fill-1:            rgba(255,255,255,0.05);
+    --fire-fill-2:            rgba(255,255,255,0.08);
+    --fire-fill-3:            rgba(255,255,255,0.13);
+    --fire-fill-4:            rgba(255,255,255,0.20);
+    --fire-fill-hover:        rgba(255,255,255,0.045);
+    --fire-fill-emerald:      rgba(48,217,160,0.14);
+    --fire-fill-emerald-border: rgba(48,217,160,0.30);
+    --fire-fill-azure:        rgba(77,163,255,0.08);
+    --fire-fill-azure-border: rgba(77,163,255,0.20);
+    --fire-fill-coral:        rgba(255,105,97,0.18);
+    --fire-track:             rgba(255,255,255,0.07);
+    --fire-track-2:           rgba(255,255,255,0.12);
+    --fire-modal-bg:          rgba(20,24,38,0.86);
+    --fire-modal-overlay:     rgba(4,5,10,0.55);
+    --fire-donut-hole:        #0E1220;
+    --fire-btn-text:          #06110C;
+    --fire-input-bg:          rgba(255,255,255,0.05);
+    --fire-input-focus-bg:    rgba(255,255,255,0.08);
+    --fire-focus-ring:        rgba(77,163,255,0.55);
+
+    --palette-0:  #4DA3FF;
+    --palette-1:  #30D9A0;
+    --palette-2:  #FFC24D;
+    --palette-3:  #FF6961;
+    --palette-4:  #B98CFF;
+    --palette-5:  #5AC8FA;
+    --palette-6:  #FF8FAB;
+    --palette-7:  #30B0C7;
+    --palette-8:  #FFD60A;
+    --palette-9:  #32ADE6;
+    --palette-10: #30D158;
+    --palette-11: #BF5AF2;
   }
+}
+
+/* ── Explicit dark: user clicked 🌙 ── */
+:root[data-theme="dark"] {
+  --color-canvas:       #07080D;
+  --color-surface-1:    rgba(255,255,255,0.055);
+  --color-surface-2:    rgba(255,255,255,0.09);
+  --color-surface-3:    rgba(255,255,255,0.045);
+  --color-surface-elevated: rgba(20,24,38,0.88);
+  --color-surface-solid: #0E1220;
+
+  --color-label-1: #F5F6FA;
+  --color-label-2: rgba(245,246,250,0.64);
+  --color-label-3: rgba(245,246,250,0.38);
+  --color-label-4: #8E8E93;
+
+  --color-sep:        rgba(255,255,255,0.06);
+  --color-sep-strong: rgba(255,255,255,0.11);
+  --color-border-card: rgba(255,255,255,0.11);
+  --color-border-glow: rgba(77,163,255,0.20);
+
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.25);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.30);
+  --shadow-md: 0 2px 12px rgba(0,0,0,0.35);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.45);
+  --shadow-xl: 0 12px 40px rgba(0,0,0,0.50);
+
+  --color-blue:    #4DA3FF;
+  --color-green:   #30D9A0;
+  --color-red:     #FF6961;
+  --color-orange:  #FFC24D;
+  --color-yellow:  #FFC24D;
+  --color-purple:  #B98CFF;
+  --color-pink:    #FF8FAB;
+  --color-teal:    #30D9A0;
+  --color-indigo:  #4DA3FF;
+  --color-mint:    #30D9A0;
+  --color-cyan:    #4DA3FF;
+
+  --glow-blue:   0 6px 24px rgba(77,163,255,0.25);
+  --glow-green:  0 6px 24px rgba(48,217,160,0.20);
+  --glow-brand:  0 8px 32px rgba(77,163,255,0.30);
+  --glow-purple: 0 8px 28px rgba(185,140,255,0.26);
+
+  --glass-card:     rgba(255,255,255,0.055);
+  --glass-card-hover: rgba(255,255,255,0.09);
+  --glass-bar:      rgba(14,18,32,0.72);
+  --glass-sheet:    rgba(20,24,38,0.92);
+  --glass-input:    rgba(255,255,255,0.05);
+  --glass-border:   rgba(255,255,255,0.11);
+  --glass-border-subtle: rgba(255,255,255,0.06);
+
+  --grad-brand:   linear-gradient(135deg, #4DA3FF 0%, #B98CFF 100%);
+  --grad-income:  linear-gradient(135deg, #30D9A0 0%, #4DA3FF 100%);
+  --grad-expense: linear-gradient(135deg, #FF6961 0%, #FF8FAB 100%);
+  --grad-asset:   linear-gradient(135deg, #4DA3FF 0%, #7B93F7 100%);
+  --grad-dark:    linear-gradient(180deg, #07080D, #0E1220 40%, #131A2C);
+  --grad-hero:    linear-gradient(135deg, #16244a 0%, #1a3a33 50%, #2a1a3a 100%);
+  --grad-cyan:    linear-gradient(135deg, #4DA3FF 0%, #30D9A0 100%);
+
+  --chart-1: #4DA3FF;
+  --chart-2: #30D9A0;
+  --chart-3: #B98CFF;
+  --chart-4: #FFC24D;
+  --chart-5: #FF6961;
+  --chart-6: #FF8FAB;
+  --chart-7: #7B93F7;
+  --chart-8: #50E0C3;
+
+  --fire-bg-0:              #07080D;
+  --fire-bg-1:              #0E1220;
+  --fire-bg-2:              #131A2C;
+  --fire-glass:             rgba(255,255,255,0.055);
+  --fire-glass-strong:      rgba(255,255,255,0.09);
+  --fire-border:            rgba(255,255,255,0.11);
+  --fire-border-strong:     rgba(255,255,255,0.18);
+  --fire-text-0:            #F5F6FA;
+  --fire-text-1:            rgba(245,246,250,0.64);
+  --fire-text-2:            rgba(245,246,250,0.38);
+  --fire-emerald:           #30D9A0;
+  --fire-coral:             #FF6961;
+  --fire-azure:             #4DA3FF;
+  --fire-amber:             #FFC24D;
+  --fire-violet:            #B98CFF;
+  --fire-gray:              #8E8E93;
+  --fire-shadow:            0 1px 1px rgba(255,255,255,0.06) inset, 0 8px 32px rgba(0,0,0,0.45);
+  --fire-app-bg:            radial-gradient(1200px 800px at 15% -10%, #16244a 0%, transparent 60%),
+                            radial-gradient(1000px 700px at 110% 10%, #1a3a33 0%, transparent 55%),
+                            radial-gradient(900px 600px at 50% 120%, #2a1a3a 0%, transparent 55%),
+                            linear-gradient(180deg, #07080D, #0E1220 40%, #131A2C);
+  --fire-fill-0:            rgba(255,255,255,0.04);
+  --fire-fill-1:            rgba(255,255,255,0.05);
+  --fire-fill-2:            rgba(255,255,255,0.08);
+  --fire-fill-3:            rgba(255,255,255,0.13);
+  --fire-fill-4:            rgba(255,255,255,0.20);
+  --fire-fill-hover:        rgba(255,255,255,0.045);
+  --fire-fill-emerald:      rgba(48,217,160,0.14);
+  --fire-fill-emerald-border: rgba(48,217,160,0.30);
+  --fire-fill-azure:        rgba(77,163,255,0.08);
+  --fire-fill-azure-border: rgba(77,163,255,0.20);
+  --fire-fill-coral:        rgba(255,105,97,0.18);
+  --fire-track:             rgba(255,255,255,0.07);
+  --fire-track-2:           rgba(255,255,255,0.12);
+  --fire-modal-bg:          rgba(20,24,38,0.86);
+  --fire-modal-overlay:     rgba(4,5,10,0.55);
+  --fire-donut-hole:        #0E1220;
+  --fire-btn-text:          #06110C;
+  --fire-input-bg:          rgba(255,255,255,0.05);
+  --fire-input-focus-bg:    rgba(255,255,255,0.08);
+  --fire-focus-ring:        rgba(77,163,255,0.55);
+
+  --palette-0:  #4DA3FF;
+  --palette-1:  #30D9A0;
+  --palette-2:  #FFC24D;
+  --palette-3:  #FF6961;
+  --palette-4:  #B98CFF;
+  --palette-5:  #5AC8FA;
+  --palette-6:  #FF8FAB;
+  --palette-7:  #30B0C7;
+  --palette-8:  #FFD60A;
+  --palette-9:  #32ADE6;
+  --palette-10: #30D158;
+  --palette-11: #BF5AF2;
 }
 
 /* ── LIGHT MODE OVERRIDE ── */
@@ -250,6 +684,46 @@
   --glass-input:    rgba(241,245,249,0.55);
   --glass-border:   rgba(255,255,255,0.45);
   --glass-border-subtle: rgba(15,23,42,0.06);
+
+  /* ── FIRE page tokens (light: finance style) ── */
+  --fire-bg-0:              #F0F4FF;
+  --fire-bg-1:              #FFFFFF;
+  --fire-bg-2:              #F1F5F9;
+  --fire-glass:             rgba(255,255,255,0.64);
+  --fire-glass-strong:      rgba(255,255,255,0.80);
+  --fire-border:            rgba(15,23,42,0.06);
+  --fire-border-strong:     rgba(15,23,42,0.10);
+  --fire-text-0:            #0F172A;
+  --fire-text-1:            #334155;
+  --fire-text-2:            #94A3B8;
+  --fire-emerald:           #10B981;
+  --fire-coral:             #F43F5E;
+  --fire-azure:             #6366F1;
+  --fire-amber:             #F59E0B;
+  --fire-violet:            #8B5CF6;
+  --fire-gray:              #94A3B8;
+  --fire-shadow:            0 1px 1px rgba(15,23,42,0.04) inset, 0 4px 16px rgba(15,23,42,0.06);
+  --fire-app-bg:            linear-gradient(180deg, #F0F4FF, #FFFFFF 40%, #F1F5F9);
+  --fire-fill-0:            rgba(15,23,42,0.03);
+  --fire-fill-1:            rgba(15,23,42,0.04);
+  --fire-fill-2:            rgba(15,23,42,0.05);
+  --fire-fill-3:            rgba(15,23,42,0.08);
+  --fire-fill-4:            rgba(15,23,42,0.12);
+  --fire-fill-hover:        rgba(15,23,42,0.03);
+  --fire-fill-emerald:      rgba(16,185,129,0.14);
+  --fire-fill-emerald-border: rgba(16,185,129,0.30);
+  --fire-fill-azure:        rgba(99,102,241,0.08);
+  --fire-fill-azure-border: rgba(99,102,241,0.20);
+  --fire-fill-coral:        rgba(244,63,94,0.18);
+  --fire-track:             rgba(15,23,42,0.06);
+  --fire-track-2:           rgba(15,23,42,0.08);
+  --fire-modal-bg:          rgba(255,255,255,0.92);
+  --fire-modal-overlay:     rgba(0,0,0,0.30);
+  --fire-donut-hole:        #FFFFFF;
+  --fire-btn-text:          #FFFFFF;
+  --fire-input-bg:          rgba(15,23,42,0.04);
+  --fire-input-focus-bg:    rgba(15,23,42,0.06);
+  --fire-focus-ring:        rgba(99,102,241,0.55);
 }
 
 
@@ -284,14 +758,20 @@ body::before {
     radial-gradient(ellipse 55vw 55vh at 88% 12%,   rgba(139,92,246,0.10), transparent 50%),
     radial-gradient(ellipse 90vw 70vh at 50% 105%,  rgba(6,182,212,0.06),  transparent 55%);
 }
-:root[data-theme="dark"] body::before,
+/* ── Dark mode ambient orbs (FIRE style) ── */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) body::before {
+  :root:not([data-theme="light"]) body::before {
     background:
-      radial-gradient(ellipse 70vw 50vh at 15% -10%,  rgba(99,102,241,0.22),  transparent 55%),
-      radial-gradient(ellipse 55vw 55vh at 88% 12%,   rgba(139,92,246,0.16), transparent 50%),
-      radial-gradient(ellipse 90vw 70vh at 50% 105%,  rgba(6,182,212,0.10),  transparent 55%);
+      radial-gradient(1200px 800px at 15% -10%, #16244a, transparent 60%),
+      radial-gradient(1000px 700px at 110% 10%, #1a3a33, transparent 55%),
+      radial-gradient(900px 600px at 50% 120%, #2a1a3a, transparent 55%);
   }
+}
+:root[data-theme="dark"] body::before {
+  background:
+    radial-gradient(1200px 800px at 15% -10%, #16244a, transparent 60%),
+    radial-gradient(1000px 700px at 110% 10%, #1a3a33, transparent 55%),
+    radial-gradient(900px 600px at 50% 120%, #2a1a3a, transparent 55%);
 }
 
 /* ── Floating noise texture (subtle depth) ── */
@@ -1595,6 +2075,7 @@ body::after {
         <button class="topnav-item" data-page="transactions"><span>🧾</span><span data-i18n="navTransactions">记账</span></button>
         <button class="topnav-item" data-page="assets"><span>🏦</span><span data-i18n="navAssets">资产</span></button>
         <button class="topnav-item" data-page="analysis"><span>🧭</span><span data-i18n="navAnalysis">分析</span></button>
+        <button class="topnav-item" data-page="fire"><span>🔥</span><span>FIRE</span></button>
       </nav>
       <div class="topbar-controls">
         <div class="theme-toggle">
@@ -1939,6 +2420,193 @@ body::after {
       </div>
     </section>
 
+    <!-- ════════════════ PAGE: FIRE ════════════════ -->
+    <section class="page" id="page-fire">
+      <div class="fire-app">
+        <div class="bg-orbs"><div class="orb orb-a"></div><div class="orb orb-b"></div><div class="orb orb-c"></div></div>
+        <div class="topbar">
+          <div class="brand"><span class="brand-mark">🔥</span>自由之路 <span class="brand-badge">PRO</span></div>
+          <div class="topbar-right">
+            <div class="topbar-date" id="fireDate"></div>
+            <div class="icon-btn" id="fireSettingsBtn" title="设置">⚙️</div>
+          </div>
+        </div>
+
+        <section class="hero-card glass">
+          <div class="hero-ring-wrap">
+            <svg class="hero-ring" viewBox="0 0 200 200">
+              <defs>
+                <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#4DA3FF"/><stop offset="100%" stop-color="#30D9A0"/>
+                </linearGradient>
+              </defs>
+              <circle class="hero-ring-track" cx="100" cy="100" r="86"></circle>
+              <circle class="hero-ring-fill" id="ringFill" cx="100" cy="100" r="86" stroke="url(#ringGrad)"></circle>
+            </svg>
+            <div class="hero-ring-center">
+              <div class="hero-pct" id="progressPct">0%</div>
+              <div class="hero-pct-label">标准 FIRE 进度</div>
+            </div>
+          </div>
+          <div class="hero-stats">
+            <div class="hero-stat">
+              <div class="hero-stat-label">当前净资产 <span class="real-tag">实际购买力</span></div>
+              <div class="hero-stat-value" id="netWorthVal">¥0</div>
+            </div>
+            <div class="hero-stat">
+              <div class="hero-stat-label">标准 FIRE 目标</div>
+              <div class="hero-stat-value" id="fireTargetVal">¥0</div>
+            </div>
+            <div class="hero-stat">
+              <div class="hero-stat-label">预计达成（确定性模型）</div>
+              <div class="hero-stat-value" id="etaVal">--</div>
+            </div>
+            <div class="hero-stat">
+              <div class="hero-stat-label">蒙特卡洛达成概率</div>
+              <div class="hero-stat-value" id="mcProbHero">--</div>
+            </div>
+          </div>
+        </section>
+
+        <div class="section-label"><span class="dot"></span>FIRE 类型对比（均按实际购买力计算）</div>
+        <div class="firetype-grid" id="firetypeGrid"></div>
+
+        <div class="section-label"><span class="dot" style="background:var(--fire-amber)"></span>假设参数 · 实时 what-if</div>
+        <div class="card glass">
+          <div class="slider-grid">
+            <div class="slider-row">
+              <div class="slider-top"><span class="slider-label">月均储蓄 / 净结余</span><span class="slider-val" id="valContribution">¥0</span></div>
+              <input type="range" id="sliderContribution" min="0" max="60000" step="500">
+            </div>
+            <div class="slider-row">
+              <div class="slider-top"><span class="slider-label">预期年化回报率（名义）</span><span class="slider-val" id="valReturn">7%</span></div>
+              <input type="range" id="sliderReturn" min="0" max="15" step="0.5">
+            </div>
+            <div class="slider-row">
+              <div class="slider-top"><span class="slider-label">年化波动率（标准差）</span><span class="slider-val" id="valVol">15%</span></div>
+              <input type="range" id="sliderVol" min="3" max="30" step="1">
+            </div>
+            <div class="slider-row">
+              <div class="slider-top"><span class="slider-label">通货膨胀率</span><span class="slider-val" id="valInflation">2.5%</span></div>
+              <input type="range" id="sliderInflation" min="0" max="8" step="0.5">
+            </div>
+          </div>
+          <div class="real-return-note">
+            扣除通胀后的<b>实际年化回报率约为 <span id="realReturnNote">--</span></b>，下方所有目标金额、进度与模拟均按今天的购买力计算，不受未来物价上涨影响。
+          </div>
+        </div>
+
+        <div class="section-label"><span class="dot" style="background:var(--fire-violet)"></span>蒙特卡洛概率模拟</div>
+        <div class="card glass">
+          <div class="card-head">
+            <div>
+              <div class="card-title">达成概率与资产路径分布</div>
+              <div class="card-sub" id="mcSub">基于随机收益率路径的 400 次模拟</div>
+            </div>
+            <div class="run-btn primary" id="runMcBtn">重新运行模拟</div>
+          </div>
+          <div class="mc-top">
+            <div class="mc-stat">
+              <div class="mc-stat-label">规划期内达成标准 FIRE 概率</div>
+              <div class="mc-stat-big" id="mcAccumProb">--</div>
+              <div class="mc-stat-sub" id="mcAccumSub"></div>
+            </div>
+            <div class="mc-stat">
+              <div class="mc-stat-label">退休后 30 年资金存续概率</div>
+              <div class="mc-stat-big" id="mcDecumProb">--</div>
+              <div class="mc-stat-sub">达成 FIRE 后，按当前生活支出提取 30 年不耗尽的概率</div>
+            </div>
+          </div>
+          <div class="chart-wrap"><svg id="mcChart" viewBox="0 0 600 180" preserveAspectRatio="none" style="width:100%;height:170px;"></svg></div>
+          <div class="chart-legend">
+            <div class="chart-legend-item"><span class="chart-legend-swatch" style="background:#4DA3FF;"></span>中位数路径</div>
+            <div class="chart-legend-item"><span class="chart-legend-swatch" style="background:rgba(77,163,255,0.3); height:10px;"></span>10%–90% 分布区间</div>
+            <div class="chart-legend-item"><span class="chart-legend-swatch" style="background:#FFC24D;"></span>标准 FIRE 目标线</div>
+          </div>
+        </div>
+
+        <div class="section-label"><span class="dot" style="background:#B98CFF"></span>AI 财务洞察</div>
+        <div class="card glass">
+          <div class="card-head">
+            <div>
+              <div class="card-title">基于你的数据生成一段分析</div>
+              <div class="card-sub">教育性内容，不构成具体投资建议</div>
+            </div>
+            <div class="run-btn primary" id="genAiBtn">生成 AI 洞察</div>
+          </div>
+          <div class="ai-output" id="aiOutput"><span class="ai-empty">点击「生成 AI 洞察」，基于当前净资产、储蓄率、资产配置与模拟结果生成一段中文分析。</span></div>
+          <div class="ai-disclaimer">以上分析由 AI 基于你当前填写的数据自动生成，仅作一般性财务教育参考，不构成具体投资建议，请结合自身情况并按需咨询持牌专业人士。</div>
+        </div>
+
+        <section class="grid">
+          <div class="card glass" id="cardAllocation">
+            <div class="card-head">
+              <div class="card-title">资产配置</div>
+              <div class="pill" id="assetCountPill">0 项资产</div>
+            </div>
+            <div class="alloc-body">
+              <div class="donut" id="donut"></div>
+              <div class="legend" id="allocLegend"></div>
+            </div>
+          </div>
+          <div class="card glass" id="cardMonthFlow">
+            <div class="card-head">
+              <div>
+                <div class="card-title">本月收支</div>
+                <div class="card-sub" id="monthLabel"></div>
+              </div>
+              <div class="pill" id="savingsRatePill">储蓄率 --</div>
+            </div>
+            <div style="display:flex; align-items:flex-end; gap:22px; height:90px; padding:0 6px 4px;">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;">
+                <div class="list-amount" id="incomeVal" style="color:var(--fire-emerald)">¥0</div>
+                <div id="incomeBar" style="width:38px;border-radius:10px 10px 4px 4px;background:linear-gradient(180deg,#30D9A0,#20A87D);height:6px;"></div>
+                <div style="font-size:11px;color:var(--fire-text-1);font-weight:600;">收入</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:8px;flex:1;">
+                <div class="list-amount" id="expenseVal" style="color:var(--fire-coral)">¥0</div>
+                <div id="expenseBar" style="width:38px;border-radius:10px 10px 4px 4px;background:linear-gradient(180deg,#FF6961,#D9473F);height:6px;"></div>
+                <div style="font-size:11px;color:var(--fire-text-1);font-weight:600;">支出</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid two-col">
+          <div class="card glass" id="cardTransactions">
+            <div class="card-head">
+              <div class="card-title">最近记录</div>
+            </div>
+            <div class="list" id="txList"></div>
+          </div>
+          <div class="card glass" id="cardAssets">
+            <div class="card-head">
+              <div class="card-title">资产明细</div>
+            </div>
+            <div class="list" id="assetList"></div>
+          </div>
+        </section>
+
+        <!-- Settings Modal -->
+        <div class="modal-overlay" id="settingsOverlay">
+          <div class="modal" id="settingsModal">
+            <div class="modal-inner">
+              <div class="modal-close" data-close="settingsOverlay">✕</div>
+              <div class="modal-handle"></div>
+              <div class="modal-title">FIRE 目标设置</div>
+              <div class="field"><label class="field-label">月度生活支出预算（¥，今天的购买力）</label><input type="number" id="setMonthlyExpense" inputmode="decimal"></div>
+              <div class="field"><label class="field-label">安全提取率 SWR（%）</label><input type="number" id="setSwr" step="0.1" inputmode="decimal"></div>
+              <div class="field"><label class="field-label">当前年龄</label><input type="number" id="setAge" inputmode="numeric"></div>
+              <div class="field"><label class="field-label">目标退休年龄（用于 Coast FIRE 计算）</label><input type="number" id="setRetireAge" inputmode="numeric"></div>
+              <button class="btn" id="fireSettingsSubmit">保存设置</button>
+              <button class="btn secondary" id="fireSettingsCancel" style="margin-top:10px;">取消</button>
+            </div>
+          </div>
+        </div>
+      <footer class="note">⚡ 自由之路 Pro · 数据来自你的 Roadster 记账与资产记录 · 仅作参考</footer>
+      </div>
+    </section>
+
   </main>
 
   <!-- ═══════ BOTTOM TAB BAR (mobile) ═══════ -->
@@ -1948,6 +2616,7 @@ body::after {
     <div class="tab-fab-slot"><button class="fab-tab" id="fabTab" aria-label="新增">＋</button></div>
     <button class="tab-item" data-page="assets"><span class="tab-icon">🏦</span><span class="tab-label" data-i18n="navAssets">资产</span></button>
     <button class="tab-item" data-page="analysis"><span class="tab-icon">🧭</span><span class="tab-label" data-i18n="navAnalysis">分析</span></button>
+    <button class="tab-item" data-page="fire"><span class="tab-icon">🔥</span><span class="tab-label">FIRE</span></button>
   </nav>
   <button class="fab" id="fabDesktop" aria-label="新增">＋</button>
 
@@ -2143,31 +2812,6 @@ var __export = (target, all) => {
 };
 
 // src/js/config.js
-var config_exports = {};
-__export(config_exports, {
-  ALL_CATS: () => ALL_CATS,
-  APP_VERSION: () => APP_VERSION,
-  ASSET_GRADIENTS: () => ASSET_GRADIENTS,
-  ASSET_GRADIENT_DEFAULT: () => ASSET_GRADIENT_DEFAULT,
-  ASSET_ICONS: () => ASSET_ICONS,
-  CAT_ICONS: () => CAT_ICONS,
-  CAT_KEYWORD_MAP: () => CAT_KEYWORD_MAP,
-  COLLECTIONS: () => COLLECTIONS,
-  EXPENSE_CATS: () => EXPENSE_CATS,
-  FIREBASE_CONFIG: () => FIREBASE_CONFIG,
-  INCOME_CATS: () => INCOME_CATS,
-  LS: () => LS,
-  PALETTE: () => PALETTE,
-  SYNC: () => SYNC,
-  addCustomCategory: () => addCustomCategory,
-  getAllCategories: () => getAllCategories,
-  getCatIcon: () => getCatIcon,
-  getCustomCategories: () => getCustomCategories,
-  guessIcon: () => guessIcon,
-  removeCustomCategory: () => removeCustomCategory,
-  saveCustomCategories: () => saveCustomCategories,
-  userDocPath: () => userDocPath
-});
 function getCustomCategories() {
   try {
     return JSON.parse(localStorage.getItem(LS.CUSTOM_CATS) || "[]");
@@ -2268,7 +2912,7 @@ function guessIcon(name) {
   }
   return "\u{1F4CC}";
 }
-var FIREBASE_CONFIG, userDocPath, COLLECTIONS, SYNC, LS, PALETTE, EXPENSE_CATS, INCOME_CATS, ALL_CATS, CAT_ICONS, ASSET_GRADIENTS, ASSET_GRADIENT_DEFAULT, ASSET_ICONS, CAT_KEYWORD_MAP, APP_VERSION;
+var FIREBASE_CONFIG, COLLECTIONS, LS, EXPENSE_CATS, INCOME_CATS, ALL_CATS, CAT_ICONS, ASSET_GRADIENTS, ASSET_GRADIENT_DEFAULT, ASSET_ICONS, CAT_KEYWORD_MAP;
 var init_config = __esm({
   "src/js/config.js"() {
     FIREBASE_CONFIG = {
@@ -2280,7 +2924,6 @@ var init_config = __esm({
       appId: "1:447138926799:web:585c60bd99dd53f807a7ba",
       measurementId: "G-0BML53ZJCJ"
     };
-    userDocPath = (uid2) => `users/${uid2}/data/finance`;
     COLLECTIONS = {
       /** users/{uid}/transactions */
       transactions: (uid2) => `users/${uid2}/transactions`,
@@ -2290,14 +2933,6 @@ var init_config = __esm({
       settings: (uid2) => `users/${uid2}/settings`,
       /** Firestore doc/collection 构造辅助 */
       userDoc: (uid2, collection2, itemId) => `users/${uid2}/${collection2}/${itemId}`
-    };
-    SYNC = {
-      maxRetries: 3,
-      // 上传失败最大重试次数
-      retryDelayMs: 2e3,
-      // 重试基础延迟（ms），实际使用指数退避
-      autoSyncInterval: 3e4
-      // 后台自动同步间隔（30 秒）
     };
     LS = {
       TX: "rdstr_tx",
@@ -2311,20 +2946,6 @@ var init_config = __esm({
       DRAFTS: "rdstr_drafts",
       ASSETS_DRAFTS: "rdstr_asset_drafts"
     };
-    PALETTE = [
-      "#5e7ce2",
-      "#34c759",
-      "#ff9500",
-      "#ff3b30",
-      "#af52de",
-      "#5ac8fa",
-      "#ff2d55",
-      "#30b0c7",
-      "#ffd60a",
-      "#32ade6",
-      "#30d158",
-      "#bf5af2"
-    ];
     EXPENSE_CATS = [
       { v: "Food", icon: "\u{1F35C}", label: "Food \u9910\u996E" },
       { v: "Shop", icon: "\u{1F6CD}\uFE0F", label: "Shop \u8D2D\u7269" },
@@ -2407,7 +3028,6 @@ var init_config = __esm({
       // Insurance special case — goes under Parents (common usage for family insurance)
       { canon: "Parents", kw: /保险|insurance/i }
     ];
-    APP_VERSION = "2.3.0";
   }
 });
 
@@ -2758,6 +3378,31 @@ var init_versionManager = __esm({
 });
 
 // src/js/store.js
+function _retryAndPersist(writeFn, record, label, type) {
+  (async () => {
+    for (let attempt = 1; attempt <= RETRY_MAX; attempt++) {
+      try {
+        await writeFn();
+        return;
+      } catch (err) {
+        if (attempt < RETRY_MAX) {
+          const delay = RETRY_BASE_DELAY * Math.pow(2, attempt - 1);
+          console.warn(`[store] ${label} \u5931\u8D25 (${attempt}/${RETRY_MAX})\uFF0C${delay}ms \u540E\u91CD\u8BD5:`, err.message || err);
+          await new Promise((r) => setTimeout(r, delay));
+        } else {
+          console.error(`[store] ${label} \u91CD\u8BD5 ${RETRY_MAX} \u6B21\u540E\u4ECD\u5931\u8D25\uFF0C\u4FDD\u5B58\u5230\u8349\u7A3F:`, err.message || err);
+        }
+      }
+    }
+    if (type === "tx") {
+      _drafts.push(record);
+      _persist(LS.DRAFTS, _drafts);
+    } else {
+      _assetDrafts.push(record);
+      _persist(LS.ASSETS_DRAFTS, _assetDrafts);
+    }
+  })();
+}
 function _emit(channel) {
   (_subs.get(channel) || /* @__PURE__ */ new Set()).forEach((cb) => {
     try {
@@ -2772,6 +3417,11 @@ function _emit(channel) {
     } catch (e) {
     }
   });
+}
+function subscribe(channel, cb) {
+  if (!_subs.has(channel)) _subs.set(channel, /* @__PURE__ */ new Set());
+  _subs.get(channel).add(cb);
+  return () => _subs.get(channel).delete(cb);
 }
 function setSyncAdapter(adapter) {
   _syncAdapter = adapter;
@@ -2943,11 +3593,12 @@ function addTx(tx) {
   if (_syncAdapter && _isLoggedIn) {
     _transactions.push(record);
     _emit("transactions");
-    _syncAdapter.writeTx(record.id, record).catch((err) => {
-      console.error("[store] Firestore write failed, saving to drafts:", err);
-      _drafts.push(record);
-      _persist(LS.DRAFTS, _drafts);
-    });
+    _retryAndPersist(
+      () => _syncAdapter.writeTx(record.id, record),
+      record,
+      "writeTx",
+      "tx"
+    );
   } else {
     _drafts.push(record);
     _persist(LS.DRAFTS, _drafts);
@@ -2967,13 +3618,12 @@ function updateTx(id, changes) {
   };
   if (_syncAdapter && _isLoggedIn) {
     _emit("transactions");
-    _syncAdapter.writeTx(id, _transactions[idx]).catch((err) => {
-      console.error("[store] Firestore update failed, saving to drafts:", err);
-      const dIdx = _drafts.findIndex((d) => d.id === id);
-      if (dIdx !== -1) _drafts[dIdx] = _transactions[idx];
-      else _drafts.push(_transactions[idx]);
-      _persist(LS.DRAFTS, _drafts);
-    });
+    _retryAndPersist(
+      () => _syncAdapter.writeTx(id, _transactions[idx]),
+      _transactions[idx],
+      "writeTx(update)",
+      "tx"
+    );
   } else {
     const draftIdx = _drafts.findIndex((d) => d.id === id);
     if (draftIdx !== -1) {
@@ -2991,13 +3641,12 @@ function deleteTx(id) {
   _transactions[idx].updatedAt = (/* @__PURE__ */ new Date()).toISOString();
   if (_syncAdapter && _isLoggedIn) {
     _emit("transactions");
-    _syncAdapter.deleteTx(id).catch((err) => {
-      console.error("[store] Firestore delete failed, marking as draft delete:", err);
-      const dIdx = _drafts.findIndex((d) => d.id === id);
-      if (dIdx !== -1) _drafts[dIdx] = _transactions[idx];
-      else _drafts.push(_transactions[idx]);
-      _persist(LS.DRAFTS, _drafts);
-    });
+    _retryAndPersist(
+      () => _syncAdapter.deleteTx(id),
+      _transactions[idx],
+      "deleteTx",
+      "tx"
+    );
   } else {
     _drafts = _drafts.filter((d) => d.id !== id);
     _persist(LS.DRAFTS, _drafts);
@@ -3021,9 +3670,12 @@ function deleteByCategory(category) {
   if (_syncAdapter && _isLoggedIn) {
     _emit("transactions");
     toDelete.forEach((id) => {
-      _syncAdapter.deleteTx(id).catch((err) => {
-        console.error("[store] Firestore batch delete failed:", err);
-      });
+      _retryAndPersist(
+        () => _syncAdapter.deleteTx(id),
+        { id, deleted: true },
+        "deleteTx(batch)",
+        "tx"
+      );
     });
   } else {
     _drafts = _drafts.filter((d) => !toDelete.includes(d.id));
@@ -3039,9 +3691,12 @@ function clearTransactions() {
     _transactions = [];
     _emit("transactions");
     ids.forEach((id) => {
-      _syncAdapter.deleteTx(id).catch((err) => {
-        console.error("[store] Firestore clear failed:", err);
-      });
+      _retryAndPersist(
+        () => _syncAdapter.deleteTx(id),
+        { id, deleted: true },
+        "deleteTx(clear)",
+        "tx"
+      );
     });
   } else {
     _drafts = [];
@@ -3059,11 +3714,12 @@ function addAsset(asset) {
   if (_syncAdapter && _isLoggedIn) {
     _assets.push(record);
     _emit("assets");
-    _syncAdapter.writeAsset(record.id, record).catch((err) => {
-      console.error("[store] Firestore asset write failed, saving to drafts:", err);
-      _assetDrafts.push(record);
-      _persist(LS.ASSETS_DRAFTS, _assetDrafts);
-    });
+    _retryAndPersist(
+      () => _syncAdapter.writeAsset(record.id, record),
+      record,
+      "writeAsset",
+      "asset"
+    );
   } else {
     _assetDrafts.push(record);
     _persist(LS.ASSETS_DRAFTS, _assetDrafts);
@@ -3083,9 +3739,12 @@ function updateAsset(id, changes) {
   };
   if (_syncAdapter && _isLoggedIn) {
     _emit("assets");
-    _syncAdapter.writeAsset(id, _assets[idx]).catch((err) => {
-      console.error("[store] Firestore asset update failed:", err);
-    });
+    _retryAndPersist(
+      () => _syncAdapter.writeAsset(id, _assets[idx]),
+      _assets[idx],
+      "writeAsset(update)",
+      "asset"
+    );
   } else {
     const dIdx = _assetDrafts.findIndex((d) => d.id === id);
     if (dIdx !== -1) _assetDrafts[dIdx] = _assets[idx];
@@ -3102,9 +3761,12 @@ function deleteAsset(id) {
   _assets[idx].updatedAt = (/* @__PURE__ */ new Date()).toISOString();
   if (_syncAdapter && _isLoggedIn) {
     _emit("assets");
-    _syncAdapter.deleteAsset(id).catch((err) => {
-      console.error("[store] Firestore asset delete failed:", err);
-    });
+    _retryAndPersist(
+      () => _syncAdapter.deleteAsset(id),
+      _assets[idx],
+      "deleteAsset",
+      "asset"
+    );
   } else {
     _assetDrafts = _assetDrafts.filter((a) => a.id !== id);
     _persist(LS.ASSETS_DRAFTS, _assetDrafts);
@@ -3209,8 +3871,12 @@ function renormalizeAllCategories() {
   if (changed) {
     if (_syncAdapter && _isLoggedIn) {
       _transactions.forEach((t2) => {
-        _syncAdapter.writeTx(t2.id, t2).catch(() => {
-        });
+        _retryAndPersist(
+          () => _syncAdapter.writeTx(t2.id, t2),
+          t2,
+          "writeTx(renorm)",
+          "tx"
+        );
       });
     } else {
       _persist(LS.DRAFTS, _drafts);
@@ -3277,7 +3943,7 @@ function _persist(key, value) {
     console.warn("[store] localStorage write failed:", key, e);
   }
 }
-var _transactions, _assets, _history, _drafts, _assetDrafts, _isLoggedIn, _loading, _syncAdapter, _subs, _fp;
+var _transactions, _assets, _history, _drafts, _assetDrafts, _isLoggedIn, _loading, RETRY_MAX, RETRY_BASE_DELAY, _syncAdapter, _subs, _fp;
 var init_store = __esm({
   "src/js/store.js"() {
     init_config();
@@ -3289,6 +3955,8 @@ var init_store = __esm({
     _assetDrafts = [];
     _isLoggedIn = false;
     _loading = false;
+    RETRY_MAX = 3;
+    RETRY_BASE_DELAY = 2e3;
     _syncAdapter = null;
     _subs = /* @__PURE__ */ new Map([
       ["transactions", /* @__PURE__ */ new Set()],
@@ -3346,7 +4014,7 @@ function fabAction() {
   }
 }
 function initRouter() {
-  const validPages = ["overview", "transactions", "assets", "analysis"];
+  const validPages = ["overview", "transactions", "assets", "analysis", "fire"];
   const hash = window.location.hash.replace("#", "");
   if (validPages.includes(hash)) {
     _current2 = hash;
@@ -3396,6 +4064,14 @@ var init_router = __esm({
 });
 
 // src/js/charts.js
+function palette() {
+  const style = getComputedStyle(document.documentElement);
+  const colors = [];
+  for (let i = 0; i < 12; i++) {
+    colors.push(style.getPropertyValue(`--palette-${i}`).trim());
+  }
+  return colors;
+}
 function _destroy(id) {
   if (_charts[id]) {
     _charts[id].destroy();
@@ -3500,7 +4176,7 @@ function buildDoughnut(canvasId, labels, data, legendId, opts = {}) {
   const pairs = labels.map((l, i) => [l, data[i]]).filter(([, v]) => v > 0);
   const fLabels = pairs.map((p) => p[0]);
   const fData = pairs.map((p) => p[1]);
-  const fColors = PALETTE.slice(0, fLabels.length);
+  const fColors = palette().slice(0, fLabels.length);
   if (!fData.length) {
     if (ctx) ctx.style.display = "none";
     if (legEl) legEl.innerHTML = '<div style="font-size:12px;color:var(--color-label-4)">\u6682\u65E0\u6570\u636E</div>';
@@ -3529,7 +4205,7 @@ function buildDoughnut(canvasId, labels, data, legendId, opts = {}) {
         tooltip: { callbacks: { label: (c) => `  \xA5${_fmt(c.raw)}` } },
         datalabels: {
           display: true,
-          color: "#fff",
+          color: cssVar("--color-surface-solid"),
           font: { size: 11, weight: 700 },
           formatter: (val) => {
             const pct = total > 0 ? val / total * 100 : 0;
@@ -3559,7 +4235,7 @@ function buildHorizBar(canvasId, labels, data, opts = {}) {
   _destroy(canvasId);
   const ctx = document.getElementById(canvasId);
   if (!ctx) return;
-  const colors = PALETTE.slice(0, labels.length);
+  const colors = palette().slice(0, labels.length);
   const axDef = _axisDefaults();
   return _save(canvasId, new Chart(ctx, {
     type: "bar",
@@ -3646,7 +4322,7 @@ function buildSparklineSvg(points) {
   });
   const d = coords.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x},${y}`).join(" ");
   const up = points[points.length - 1] >= points[0];
-  const stroke = up ? "rgba(134,239,172,0.95)" : "rgba(253,164,175,0.95)";
+  const stroke = up ? cssVar("--color-green") : cssVar("--color-red");
   const [lx, ly] = coords[coords.length - 1];
   return `<svg class="bank-card-spark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" fill="none">
     <path d="${d}" stroke="${stroke}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -3674,7 +4350,6 @@ function _esc(s) {
 var _charts;
 var init_charts = __esm({
   "src/js/charts.js"() {
-    init_config();
     _charts = {};
   }
 });
@@ -6103,6 +6778,7 @@ init_transactions();
 
 // src/js/pages/assets.js
 init_store();
+init_store();
 init_charts();
 init_utils();
 init_i18n();
@@ -6115,6 +6791,11 @@ function initAssetsPage() {
   window.__rdstr_openAssetModal = () => openAssetModal();
   onNavigate((page) => {
     if (page === "assets") render3();
+  });
+  subscribe("assets", () => {
+    if (document.getElementById("page-assets")?.classList.contains("active")) {
+      render3();
+    }
   });
 }
 function render3() {
@@ -6221,24 +6902,22 @@ function _renderTimeline() {
   if (allIds.length > 1) {
     if (bkCard) bkCard.style.display = "";
     if (bkEmpty) bkEmpty.style.display = "none";
-    const { PALETTE: PALETTE2 } = window.__rdstr_palette || {};
-    Promise.resolve().then(() => (init_config(), config_exports)).then(({ PALETTE: PALETTE3 }) => {
-      const datasets = allIds.map((id, i) => ({
-        label: nameMap[id] || id,
-        data: hist.map((h) => h.breakdown?.[id] ?? 0),
-        color: PALETTE3[i % PALETTE3.length],
-        fill: false
-      }));
-      buildLineChart("assetBreakdownChart", labels, datasets, { hideLegend: true });
-      const legEl = document.getElementById("timelineLegend");
-      if (legEl) {
-        legEl.innerHTML = allIds.map((id, i) => `
-          <div class="legend-chip">
-            <div class="legend-dot" style="background:${PALETTE3[i % PALETTE3.length]}"></div>
-            ${esc(nameMap[id] || id)}
-          </div>`).join("");
-      }
-    });
+    const p = palette();
+    const datasets = allIds.map((id, i) => ({
+      label: nameMap[id] || id,
+      data: hist.map((h) => h.breakdown?.[id] ?? 0),
+      color: p[i % p.length],
+      fill: false
+    }));
+    buildLineChart("assetBreakdownChart", labels, datasets, { hideLegend: true });
+    const legEl = document.getElementById("timelineLegend");
+    if (legEl) {
+      legEl.innerHTML = allIds.map((id, i) => `
+        <div class="legend-chip">
+          <div class="legend-dot" style="background:${p[i % p.length]}"></div>
+          ${esc(nameMap[id] || id)}
+        </div>`).join("");
+    }
   } else {
     if (bkCard) bkCard.style.display = "none";
     if (bkEmpty) bkEmpty.style.display = "";
@@ -6889,6 +7568,668 @@ function _emptyBlock(icon, text) {
     <div class="empty-icon">${icon}</div><div class="empty-text">${text}</div></div>`;
 }
 
+// src/js/pages/fire.js
+init_store();
+init_router();
+var FIRE_TYPES = [
+  { key: "lean", name: "Lean FIRE", icon: "\u{1F331}", color: "#30D9A0", desc: "\u7CBE\u7B80\u751F\u6D3B\uFF0C7\u6210\u65E5\u5E38\u652F\u51FA", mult: 0.7 },
+  { key: "barista", name: "Barista FIRE", icon: "\u2615", color: "#FFC24D", desc: "\u517C\u804C\u6536\u5165\u8986\u76D6\u4E00\u534A\u652F\u51FA", mult: 0.5 },
+  { key: "coast", name: "Coast FIRE", icon: "\u26F5", color: "#4DA3FF", desc: "\u505C\u6B62\u50A8\u84C4\uFF0C\u9760\u589E\u503C\u8FBE\u6807", mult: null },
+  { key: "regular", name: "\u6807\u51C6 FIRE", icon: "\u{1F525}", color: "#FF9F43", desc: "4%\u6CD5\u5219\u8986\u76D6\u5168\u90E8\u652F\u51FA", mult: 1 },
+  { key: "fat", name: "Fat FIRE", icon: "\u{1F48E}", color: "#B98CFF", desc: "\u5BBD\u88D5\u751F\u6D3B\uFF0C1.75\u500D\u652F\u51FA", mult: 1.75 }
+];
+var ASSET_CATS = [
+  { key: "\u73B0\u91D1/\u50A8\u84C4", color: "#4DA3FF" },
+  { key: "\u57FA\u91D1/\u80A1\u7968", color: "#30D9A0" },
+  { key: "\u516C\u79EF\u91D1/\u793E\u4FDD", color: "#B98CFF" },
+  { key: "\u623F\u4EA7", color: "#FFC24D" },
+  { key: "\u8F66\u8F86", color: "#FF9F43" },
+  { key: "\u52A0\u5BC6\u8D27\u5E01", color: "#FF6961" },
+  { key: "\u56FA\u5B9A\u8D44\u4EA7", color: "#8E8E93" },
+  { key: "\u5176\u4ED6\u6295\u8D44", color: "#8E8E93" }
+];
+var DEFAULT_SETTINGS = {
+  monthlyExpense: 8e3,
+  swr: 4,
+  age: null,
+  retireAge: 60,
+  expectedReturn: 7,
+  volatility: 15,
+  inflation: 2.5
+};
+var _initialized = false;
+var _settings = { ...DEFAULT_SETTINGS };
+var _mcResult = null;
+var _mcDebounce = null;
+function fmtMoney(n) {
+  n = Math.round(n || 0);
+  return "\xA5" + n.toLocaleString("zh-CN");
+}
+function todayStr() {
+  return (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+}
+function monthKey(d) {
+  return d.slice(0, 7);
+}
+function randNormal(mean, std) {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  return mean + std * z;
+}
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem("fire_settings");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      _settings = { ...DEFAULT_SETTINGS, ...parsed };
+    } else {
+      _settings = { ...DEFAULT_SETTINGS };
+    }
+  } catch (e) {
+    _settings = { ...DEFAULT_SETTINGS };
+  }
+  return _settings;
+}
+function saveSettings() {
+  try {
+    localStorage.setItem("fire_settings", JSON.stringify(_settings));
+  } catch (e) {
+    console.error("[fire] Failed to save settings:", e);
+  }
+}
+function getMappedTransactions() {
+  const txs = getTransactions();
+  return txs.map((t2) => ({
+    id: t2.id,
+    date: t2.date ? t2.date.slice(0, 10) : todayStr(),
+    type: t2.type === "\u6536\u5165" ? "income" : "expense",
+    cat: t2.category || "\u5176\u4ED6",
+    amount: Number(t2.amount) || 0,
+    note: t2.note || ""
+  }));
+}
+function getMappedAssets() {
+  const assets = getAssets();
+  return assets.map((a) => ({
+    id: a.id,
+    key: a.category || "\u5176\u4ED6",
+    name: a.name || "\u8D44\u4EA7",
+    amount: Number(a.value) || 0
+  }));
+}
+function netWorth(assets) {
+  return assets.reduce((s, a) => s + (Number(a.amount) || 0), 0);
+}
+function annualExpense(settings) {
+  return (settings.monthlyExpense || 0) * 12;
+}
+function realReturnPct(settings) {
+  const nom = settings.expectedReturn || 0;
+  const inf = settings.inflation || 0;
+  return ((1 + nom / 100) / (1 + inf / 100) - 1) * 100;
+}
+function monthFlow(transactions) {
+  const mk = monthKey(todayStr());
+  let income = 0, expense = 0;
+  transactions.forEach((t2) => {
+    if (monthKey(t2.date) === mk) {
+      if (t2.type === "income") income += Number(t2.amount) || 0;
+      else expense += Number(t2.amount) || 0;
+    }
+  });
+  return { income, expense };
+}
+function avgMonthlyNetSavings(transactions, settings) {
+  const byMonth = {};
+  transactions.forEach((t2) => {
+    const mk = monthKey(t2.date);
+    byMonth[mk] = byMonth[mk] || { income: 0, expense: 0 };
+    if (t2.type === "income") byMonth[mk].income += Number(t2.amount) || 0;
+    else byMonth[mk].expense += Number(t2.amount) || 0;
+  });
+  const months = Object.keys(byMonth);
+  if (months.length === 0) return Math.max(0, (settings.monthlyExpense || 0) * 0.3);
+  let total = 0;
+  months.forEach((mk) => {
+    total += byMonth[mk].income - byMonth[mk].expense;
+  });
+  return total / months.length;
+}
+function contribution(settings, transactions) {
+  return avgMonthlyNetSavings(transactions, settings);
+}
+function fireTargets(settings) {
+  const ae = annualExpense(settings);
+  const swr = settings.swr || 4;
+  const regular = ae / (swr / 100);
+  const years = Math.max(0, (settings.retireAge || 60) - (settings.age || 30));
+  const r = realReturnPct(settings) / 100;
+  const coast = years > 0 ? regular / Math.pow(1 + r, years) : regular;
+  const out = {};
+  FIRE_TYPES.forEach((ft) => {
+    if (ft.key === "coast") out[ft.key] = coast;
+    else out[ft.key] = ae * ft.mult / (swr / 100);
+  });
+  return out;
+}
+function genericProjection(nw, target, contrib, realRetPct) {
+  const monthlyReturn = Math.pow(1 + realRetPct / 100, 1 / 12) - 1;
+  let months = 0, maxMonths = 600, cur = nw;
+  while (cur < target && months < maxMonths) {
+    cur = cur * (1 + monthlyReturn) + contrib;
+    months++;
+  }
+  return cur >= target ? months : null;
+}
+function smoothPath(pts) {
+  if (pts.length < 2) return "";
+  let d = "M " + pts[0].x + " " + pts[0].y;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i], p1 = pts[i + 1];
+    const mx = (p0.x + p1.x) / 2;
+    d += " C " + mx + " " + p0.y + ", " + mx + " " + p1.y + ", " + p1.x + " " + p1.y;
+  }
+  return d;
+}
+function monteCarloAccumulate(nw0, contrib, realRetPct, volPct, months, target) {
+  const N = 400;
+  const sampleEvery = Math.max(1, Math.round(months / 40));
+  const numSamples = Math.floor(months / sampleEvery) + 1;
+  const matrix = [];
+  for (let s = 0; s < numSamples; s++) matrix.push([]);
+  const monthlyMean = realRetPct / 100 / 12;
+  const monthlyStd = volPct / 100 / Math.sqrt(12);
+  let reached = 0;
+  for (let i = 0; i < N; i++) {
+    let nw = nw0;
+    let reachedMonth = null;
+    for (let m = 1; m <= months; m++) {
+      const r = randNormal(monthlyMean, monthlyStd);
+      nw = Math.max(0, nw * (1 + r) + contrib);
+      if (reachedMonth === null && nw >= target) reachedMonth = m;
+      if (m % sampleEvery === 0) matrix[m / sampleEvery].push(nw);
+    }
+    if (reachedMonth !== null) reached++;
+  }
+  matrix[0] = new Array(N).fill(nw0);
+  const series = matrix.map((arr, idx) => {
+    const sorted = arr.slice().sort((a, b) => a - b);
+    function pct(p) {
+      const i = Math.floor(p * (sorted.length - 1));
+      return sorted[Math.max(0, i)];
+    }
+    return { month: idx * sampleEvery, p10: pct(0.1), p50: pct(0.5), p90: pct(0.9) };
+  });
+  return { successProb: reached / N, series, months };
+}
+function monteCarloDecumulate(startNW, annualWithdraw, realRetPct, volPct, years) {
+  const N = 400;
+  const months = years * 12;
+  const monthlyWithdraw = annualWithdraw / 12;
+  const monthlyMean = realRetPct / 100 / 12;
+  const monthlyStd = volPct / 100 / Math.sqrt(12);
+  let survive = 0;
+  for (let i = 0; i < N; i++) {
+    let nw = startNW;
+    let ok = true;
+    for (let m = 1; m <= months; m++) {
+      const r = randNormal(monthlyMean, monthlyStd);
+      nw = nw * (1 + r) - monthlyWithdraw;
+      if (nw <= 0) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) survive++;
+  }
+  return survive / N;
+}
+function runMonteCarlo() {
+  const assets = getMappedAssets();
+  const nw = netWorth(assets);
+  const targets = fireTargets(_settings);
+  const contrib = contribution(_settings, getMappedTransactions());
+  const realRet = realReturnPct(_settings);
+  const years = Math.max(10, (_settings.retireAge || 60) - (_settings.age || 30));
+  const months = Math.min(600, years * 12);
+  const result = monteCarloAccumulate(nw, contrib, realRet, _settings.volatility || 15, months, targets.regular);
+  const decumProb = monteCarloDecumulate(targets.regular, annualExpense(_settings), realRet, _settings.volatility || 15, 30);
+  _mcResult = { accum: result, decumProb, years };
+  renderMonteCarlo();
+}
+function renderAll() {
+  const transactions = getMappedTransactions();
+  const assets = getMappedAssets();
+  const nw = netWorth(assets);
+  const targets = fireTargets(_settings);
+  const todayDateEl = document.getElementById("fireDate");
+  if (todayDateEl) {
+    todayDateEl.textContent = (/* @__PURE__ */ new Date()).toLocaleDateString("zh-CN", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      weekday: "short"
+    });
+  }
+  const pct = targets.regular > 0 ? Math.min(100, nw / targets.regular * 100) : 0;
+  const netWorthValEl = document.getElementById("netWorthVal");
+  const fireTargetValEl = document.getElementById("fireTargetVal");
+  const progressPctEl = document.getElementById("progressPct");
+  if (netWorthValEl) netWorthValEl.textContent = fmtMoney(nw);
+  if (fireTargetValEl) fireTargetValEl.textContent = fmtMoney(targets.regular);
+  if (progressPctEl) progressPctEl.textContent = pct.toFixed(1) + "%";
+  const etaMonths = genericProjection(nw, targets.regular, contribution(_settings, transactions), realReturnPct(_settings));
+  const etaEl = document.getElementById("etaVal");
+  if (etaEl) {
+    if (etaMonths === null) {
+      etaEl.textContent = "\u96BE\u4EE5\u4F30\u7B97";
+      etaEl.style.fontSize = "16px";
+    } else if (etaMonths === 0) {
+      etaEl.textContent = "\u5DF2\u8FBE\u6210";
+    } else {
+      const d = /* @__PURE__ */ new Date();
+      d.setMonth(d.getMonth() + etaMonths);
+      etaEl.textContent = d.getFullYear() + "\u5E74 \xB7 \u7EA6" + (etaMonths / 12).toFixed(1) + "\u5E74\u540E";
+      etaEl.style.fontSize = "16px";
+    }
+  }
+  const r = 86;
+  const circ = 2 * Math.PI * r;
+  const ring = document.getElementById("ringFill");
+  if (ring) {
+    ring.setAttribute("stroke-dasharray", circ.toFixed(1));
+    requestAnimationFrame(() => {
+      ring.style.strokeDashoffset = (circ - circ * pct / 100).toFixed(1);
+    });
+  }
+  renderFireTypes(targets, nw, transactions);
+  renderMonthFlow(transactions);
+  renderAllocation(assets, nw);
+  renderTxList(transactions);
+  renderAssetList(assets);
+  updateSliderLabels();
+  syncSettingsToForm();
+}
+function renderFireTypes(targets, nw, transactions) {
+  const wrap = document.getElementById("firetypeGrid");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  FIRE_TYPES.forEach((ft) => {
+    const target = targets[ft.key];
+    const pct = target > 0 ? Math.min(100, nw / target * 100) : 0;
+    const contrib = contribution(_settings, transactions);
+    const etaM = genericProjection(nw, target, contrib, realReturnPct(_settings));
+    let etaText;
+    if (ft.key === "coast") {
+      etaText = nw >= target ? "\u5DF2\u8FBE\u6210 Coast" : "\u5C1A\u9700\u589E\u503C\u8FFD\u8D76";
+    } else if (etaM === null) {
+      etaText = "\u96BE\u4EE5\u4F30\u7B97";
+    } else if (etaM === 0) {
+      etaText = "\u5DF2\u8FBE\u6210";
+    } else {
+      etaText = "\u7EA6 " + (etaM / 12).toFixed(1) + " \u5E74\u540E";
+    }
+    const card = document.createElement("div");
+    card.className = "firetype-card glass";
+    card.innerHTML = '<div class="ft-icon" style="background:' + ft.color + "22;color:" + ft.color + '">' + ft.icon + '</div><div class="ft-name">' + ft.name + '</div><div class="ft-desc">' + ft.desc + '</div><div class="ft-target">' + fmtMoney(target) + '</div><div class="progress-track"><div class="progress-fill" style="width:' + pct.toFixed(1) + "%;background:" + ft.color + '"></div></div><div class="ft-eta">' + etaText + "</div>";
+    wrap.appendChild(card);
+  });
+}
+function renderMonthFlow(transactions) {
+  const f = monthFlow(transactions);
+  const maxV = Math.max(f.income, f.expense, 1);
+  const incomeVal = document.getElementById("incomeVal");
+  const expenseVal = document.getElementById("expenseVal");
+  const incomeBar = document.getElementById("incomeBar");
+  const expenseBar = document.getElementById("expenseBar");
+  const savingsRatePill = document.getElementById("savingsRatePill");
+  const monthLabel = document.getElementById("monthLabel");
+  if (incomeVal) incomeVal.textContent = fmtMoney(f.income);
+  if (expenseVal) expenseVal.textContent = fmtMoney(f.expense);
+  if (incomeBar) incomeBar.style.height = Math.max(6, f.income / maxV * 80) + "px";
+  if (expenseBar) expenseBar.style.height = Math.max(6, f.expense / maxV * 80) + "px";
+  const net = f.income - f.expense;
+  const rate = f.income > 0 ? net / f.income * 100 : 0;
+  if (savingsRatePill) savingsRatePill.textContent = "\u50A8\u84C4\u7387 " + rate.toFixed(0) + "%";
+  const now = /* @__PURE__ */ new Date();
+  if (monthLabel) monthLabel.textContent = now.getFullYear() + "\u5E74" + (now.getMonth() + 1) + "\u6708";
+}
+function renderAllocation(assets, total) {
+  const donut = document.getElementById("donut");
+  const legend = document.getElementById("allocLegend");
+  const countPill = document.getElementById("assetCountPill");
+  if (!donut || !legend) return;
+  legend.innerHTML = "";
+  if (countPill) countPill.textContent = assets.length + " \u9879\u8D44\u4EA7";
+  if (total <= 0 || assets.length === 0) {
+    donut.style.background = "rgba(255,255,255,0.06)";
+    legend.innerHTML = '<div class="empty-hint">\u6682\u65E0\u8D44\u4EA7\u6570\u636E\uFF0C\u8BF7\u5728\u8D44\u4EA7\u9875\u9762\u6DFB\u52A0</div>';
+    return;
+  }
+  let acc = 0;
+  const stops = [];
+  assets.forEach((a) => {
+    const val = Number(a.amount) || 0;
+    if (val <= 0) return;
+    const start = acc / total * 360;
+    acc += val;
+    const end = acc / total * 360;
+    const cat = ASSET_CATS.find((c) => c.key === a.key) || { color: "#8E8E93" };
+    stops.push(cat.color + " " + start.toFixed(1) + "deg " + end.toFixed(1) + "deg");
+  });
+  donut.style.background = "conic-gradient(" + stops.join(",") + ")";
+  assets.slice().sort((a, b) => (b.amount || 0) - (a.amount || 0)).forEach((a) => {
+    const cat = ASSET_CATS.find((c) => c.key === a.key) || { color: "#8E8E93" };
+    const pct = total > 0 ? (a.amount || 0) / total * 100 : 0;
+    const row = document.createElement("div");
+    row.className = "legend-row";
+    row.innerHTML = '<span class="legend-dot" style="background:' + cat.color + '"></span><span class="legend-name">' + (a.name || "\u8D44\u4EA7") + '</span><span class="legend-val">' + pct.toFixed(0) + "%</span>";
+    legend.appendChild(row);
+  });
+}
+function renderTxList(transactions) {
+  const list = document.getElementById("txList");
+  if (!list) return;
+  const sorted = transactions.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10);
+  if (sorted.length === 0) {
+    list.innerHTML = '<div class="empty-hint">\u8FD8\u6CA1\u6709\u8BB0\u5F55\uFF0C\u524D\u5F80\u8BB0\u8D26\u9875\u9762\u6DFB\u52A0</div>';
+    return;
+  }
+  list.innerHTML = "";
+  sorted.forEach((t2) => {
+    const c = getCatInfo(t2.type, t2.cat);
+    const row = document.createElement("div");
+    row.className = "list-row";
+    row.innerHTML = '<div class="list-icon" style="background:' + c.color + "26;color:" + c.color + '">' + c.icon + '</div><div class="list-main"><div class="list-title">' + c.name + (t2.note ? " \xB7 " + t2.note : "") + '</div><div class="list-sub">' + t2.date + '</div></div><div class="list-amount" style="color:' + (t2.type === "income" ? "#30D9A0" : "#FF6961") + '">' + (t2.type === "income" ? "+" : "-") + fmtMoney(t2.amount) + "</div>";
+    list.appendChild(row);
+  });
+}
+function renderAssetList(assets) {
+  const list = document.getElementById("assetList");
+  if (!list) return;
+  if (assets.length === 0) {
+    list.innerHTML = '<div class="empty-hint">\u8FD8\u6CA1\u6709\u8D44\u4EA7\u8BB0\u5F55</div>';
+    return;
+  }
+  list.innerHTML = "";
+  assets.slice().sort((a, b) => (b.amount || 0) - (a.amount || 0)).forEach((a) => {
+    const cat = ASSET_CATS.find((c) => c.key === a.key) || { color: "#8E8E93" };
+    const row = document.createElement("div");
+    row.className = "list-row";
+    row.innerHTML = '<div class="list-icon" style="background:' + cat.color + "26;color:" + cat.color + '">\u25CF</div><div class="list-main"><div class="list-title">' + (a.name || "\u8D44\u4EA7") + '</div></div><div class="list-amount">' + fmtMoney(a.amount) + "</div>";
+    list.appendChild(row);
+  });
+}
+function renderMonteCarlo() {
+  if (!_mcResult) return;
+  const accum = _mcResult.accum;
+  const mcAccumProb = document.getElementById("mcAccumProb");
+  if (mcAccumProb) {
+    mcAccumProb.textContent = (accum.successProb * 100).toFixed(0) + "%";
+    mcAccumProb.style.color = accum.successProb > 0.7 ? "#30D9A0" : accum.successProb > 0.4 ? "#FFC24D" : "#FF6961";
+  }
+  const mcAccumSub = document.getElementById("mcAccumSub");
+  if (mcAccumSub) mcAccumSub.textContent = "\u672A\u6765 " + _mcResult.years + " \u5E74\u5185\uFF0C400 \u6B21\u968F\u673A\u6A21\u62DF\u4E2D\u8FBE\u6210\u6807\u51C6 FIRE \u76EE\u6807\u7684\u6BD4\u4F8B";
+  const mcDecumProb = document.getElementById("mcDecumProb");
+  if (mcDecumProb) {
+    mcDecumProb.textContent = (_mcResult.decumProb * 100).toFixed(0) + "%";
+    mcDecumProb.style.color = _mcResult.decumProb > 0.7 ? "#30D9A0" : _mcResult.decumProb > 0.4 ? "#FFC24D" : "#FF6961";
+  }
+  const mcProbHero = document.getElementById("mcProbHero");
+  if (mcProbHero) mcProbHero.textContent = (accum.successProb * 100).toFixed(0) + "%";
+  const svg = document.getElementById("mcChart");
+  if (!svg) return;
+  svg.innerHTML = "";
+  const series = accum.series;
+  if (series.length < 2) return;
+  const W = 600, H = 180, pad = 10;
+  const target = fireTargets(_settings).regular;
+  const allVals = [];
+  series.forEach((s) => {
+    allVals.push(s.p10, s.p50, s.p90);
+  });
+  allVals.push(target);
+  const maxV = Math.max.apply(null, allVals) * 1.05;
+  const minV = 0;
+  const maxM = series[series.length - 1].month || 1;
+  function toXY(m, v) {
+    return { x: pad + (W - 2 * pad) * (m / maxM), y: H - pad - (H - 2 * pad) * ((v - minV) / (maxV - minV)) };
+  }
+  const p10pts = series.map((s) => toXY(s.month, s.p10));
+  const p50pts = series.map((s) => toXY(s.month, s.p50));
+  const p90pts = series.map((s) => toXY(s.month, s.p90));
+  const ns = "http://www.w3.org/2000/svg";
+  const band = document.createElementNS(ns, "path");
+  let bandD = "M " + p90pts[0].x + " " + p90pts[0].y;
+  for (let i = 0; i < p90pts.length - 1; i++) {
+    const a = p90pts[i], b = p90pts[i + 1];
+    const mx = (a.x + b.x) / 2;
+    bandD += " C " + mx + " " + a.y + ", " + mx + " " + b.y + ", " + b.x + " " + b.y;
+  }
+  const rev = p10pts.slice().reverse();
+  for (let i = 0; i < rev.length; i++) {
+    bandD += " L " + rev[i].x + " " + rev[i].y;
+  }
+  bandD += " Z";
+  band.setAttribute("d", bandD);
+  band.setAttribute("fill", "rgba(77,163,255,0.16)");
+  band.setAttribute("stroke", "none");
+  svg.appendChild(band);
+  const targetY = toXY(maxM, target).y;
+  const tline = document.createElementNS(ns, "line");
+  tline.setAttribute("x1", pad);
+  tline.setAttribute("x2", W - pad);
+  tline.setAttribute("y1", targetY);
+  tline.setAttribute("y2", targetY);
+  tline.setAttribute("stroke", "#FFC24D");
+  tline.setAttribute("stroke-width", "2");
+  tline.setAttribute("stroke-dasharray", "6 6");
+  svg.appendChild(tline);
+  const medianLine = document.createElementNS(ns, "path");
+  medianLine.setAttribute("d", smoothPath(p50pts));
+  medianLine.setAttribute("fill", "none");
+  medianLine.setAttribute("stroke", "#4DA3FF");
+  medianLine.setAttribute("stroke-width", "3");
+  medianLine.setAttribute("stroke-linecap", "round");
+  medianLine.setAttribute("stroke-linejoin", "round");
+  svg.appendChild(medianLine);
+}
+function updateSliderLabels() {
+  const contrib = contribution(_settings, getMappedTransactions());
+  const sliderContrib = document.getElementById("sliderContribution");
+  if (sliderContrib && !sliderContrib.matches(":active")) {
+    sliderContrib.value = Math.max(0, Math.round(contrib));
+  }
+  const valContrib = document.getElementById("valContribution");
+  const valReturn = document.getElementById("valReturn");
+  const valVol = document.getElementById("valVol");
+  const valInflation = document.getElementById("valInflation");
+  const realReturnNote = document.getElementById("realReturnNote");
+  if (valContrib) valContrib.textContent = fmtMoney(document.getElementById("sliderContribution")?.value || 0);
+  if (valReturn) valReturn.textContent = _settings.expectedReturn + "%";
+  if (valVol) valVol.textContent = _settings.volatility + "%";
+  if (valInflation) valInflation.textContent = _settings.inflation + "%";
+  if (realReturnNote) realReturnNote.textContent = realReturnPct(_settings).toFixed(2) + "%";
+}
+function scheduleMc() {
+  clearTimeout(_mcDebounce);
+  _mcDebounce = setTimeout(runMonteCarlo, 450);
+}
+function syncSettingsToForm() {
+  const setMonthlyExpense = document.getElementById("setMonthlyExpense");
+  const setSwr = document.getElementById("setSwr");
+  const setAge = document.getElementById("setAge");
+  const setRetireAge = document.getElementById("setRetireAge");
+  if (setMonthlyExpense) setMonthlyExpense.value = _settings.monthlyExpense;
+  if (setSwr) setSwr.value = _settings.swr;
+  if (setAge) setAge.value = _settings.age || "";
+  if (setRetireAge) setRetireAge.value = _settings.retireAge || "";
+}
+var EXPENSE_CATS2 = [
+  { key: "\u9910\u996E", name: "\u9910\u996E", color: "#FF9F43", icon: "\u{1F35C}" },
+  { key: "\u4EA4\u901A", name: "\u4EA4\u901A", color: "#4DA3FF", icon: "\u{1F68C}" },
+  { key: "\u623F\u79DF\u623F\u8D37", name: "\u623F\u79DF\u623F\u8D37", color: "#B98CFF", icon: "\u{1F3E0}" },
+  { key: "\u5A31\u4E50", name: "\u5A31\u4E50", color: "#FF6961", icon: "\u{1F3AE}" },
+  { key: "\u8D2D\u7269", name: "\u8D2D\u7269", color: "#FFC24D", icon: "\u{1F6CD}\uFE0F" },
+  { key: "\u533B\u7597", name: "\u533B\u7597", color: "#30D9A0", icon: "\u{1F48A}" }
+];
+var INCOME_CATS2 = [
+  { key: "\u5DE5\u8D44", name: "\u5DE5\u8D44", color: "#30D9A0", icon: "\u{1F4BC}" },
+  { key: "\u5956\u91D1", name: "\u5956\u91D1", color: "#FFC24D", icon: "\u{1F381}" },
+  { key: "\u7406\u8D22\u6536\u76CA", name: "\u7406\u8D22\u6536\u76CA", color: "#4DA3FF", icon: "\u{1F4C8}" },
+  { key: "\u526F\u4E1A", name: "\u526F\u4E1A", color: "#B98CFF", icon: "\u{1F9E9}" }
+];
+function getCatInfo(type, catKey) {
+  const list = type === "income" ? INCOME_CATS2 : EXPENSE_CATS2;
+  const found = list.find((c) => c.key === catKey);
+  if (found) return found;
+  for (const c of list) {
+    if (catKey && catKey.includes(c.key)) return c;
+  }
+  return { name: catKey || "\u5176\u4ED6", color: "#8E8E93", icon: "\u2733\uFE0F" };
+}
+function buildSummary() {
+  const assets = getMappedAssets();
+  const transactions = getMappedTransactions();
+  const nw = netWorth(assets);
+  const targets = fireTargets(_settings);
+  const f = monthFlow(transactions);
+  const rate = f.income > 0 ? (f.income - f.expense) / f.income * 100 : 0;
+  const allocLines = assets.map((a) => {
+    const pct = nw > 0 ? (a.amount / nw * 100).toFixed(0) : 0;
+    return (a.name || "\u8D44\u4EA7") + ": " + pct + "%";
+  }).join("\uFF0C");
+  if (_mcResult) {
+    const mc = _mcResult;
+    return [
+      "\u51C0\u8D44\u4EA7\uFF1A" + Math.round(nw) + " \u5143\uFF08\u4ECA\u65E5\u8D2D\u4E70\u529B\uFF09",
+      "\u6807\u51C6FIRE\u76EE\u6807\uFF1A" + Math.round(targets.regular) + " \u5143\uFF0C\u8FDB\u5EA6 " + Math.min(100, nw / targets.regular * 100).toFixed(1) + "%",
+      "Lean/Barista/Coast/Fat FIRE \u76EE\u6807\u5206\u522B\u7EA6\u4E3A\uFF1A" + Math.round(targets.lean) + " / " + Math.round(targets.barista) + " / " + Math.round(targets.coast) + " / " + Math.round(targets.fat) + " \u5143",
+      "\u672C\u6708\u50A8\u84C4\u7387\uFF1A" + rate.toFixed(0) + "%",
+      "\u8D44\u4EA7\u914D\u7F6E\uFF1A" + (allocLines || "\u6682\u65E0\u6570\u636E"),
+      "\u5047\u8BBE\uFF1A\u540D\u4E49\u5E74\u5316\u56DE\u62A5 " + _settings.expectedReturn + "%\uFF0C\u6CE2\u52A8\u7387 " + _settings.volatility + "%\uFF0C\u901A\u80C0 " + _settings.inflation + "%\uFF0C\u5B9E\u9645\u5E74\u5316\u56DE\u62A5\u7EA6 " + realReturnPct(_settings).toFixed(1) + "%",
+      "\u8499\u7279\u5361\u6D1B\u6A21\u62DF\uFF1A\u89C4\u5212\u671F\u5185\u8FBE\u6210\u6807\u51C6FIRE\u6982\u7387 " + (mc.accum.successProb * 100).toFixed(0) + "%\uFF0C\u9000\u4F11\u540E30\u5E74\u8D44\u91D1\u5B58\u7EED\u6982\u7387 " + (mc.decumProb * 100).toFixed(0) + "%"
+    ].join("\n");
+  } else {
+    return [
+      "\u51C0\u8D44\u4EA7\uFF1A" + Math.round(nw) + " \u5143\uFF08\u4ECA\u65E5\u8D2D\u4E70\u529B\uFF09",
+      "\u6807\u51C6FIRE\u76EE\u6807\uFF1A" + Math.round(targets.regular) + " \u5143\uFF0C\u8FDB\u5EA6 " + Math.min(100, nw / targets.regular * 100).toFixed(1) + "%",
+      "\u672C\u6708\u50A8\u84C4\u7387\uFF1A" + rate.toFixed(0) + "%",
+      "\u8D44\u4EA7\u914D\u7F6E\uFF1A" + (allocLines || "\u6682\u65E0\u6570\u636E"),
+      "\u63D0\u793A\uFF1A\u8BF7\u5148\u8FD0\u884C\u8499\u7279\u5361\u6D1B\u6A21\u62DF\u4EE5\u83B7\u5F97\u6982\u7387\u4F30\u8BA1"
+    ].join("\n");
+  }
+}
+async function generateAIInsight() {
+  const out = document.getElementById("aiOutput");
+  if (!out) return;
+  out.innerHTML = '\u6B63\u5728\u751F\u6210\u5206\u6790 <span class="dots"><span></span><span></span><span></span></span>';
+  const summary = buildSummary();
+  const prompt = "\u4F60\u662F\u4E00\u540D\u7406\u8D22\u6559\u80B2\u52A9\u624B\uFF0C\u670D\u52A1\u5BF9\u8C61\u5728\u4E2D\u56FD\u3002\u57FA\u4E8E\u4EE5\u4E0B\u7528\u6237\u7684\u8D22\u52A1\u5FEB\u7167\u6570\u636E\uFF0C\u7528\u4E2D\u6587\u5199\u4E00\u6BB5200-350\u5B57\u7684\u8D22\u52A1\u5065\u5EB7\u5206\u6790\uFF0C\u5185\u5BB9\u4F9D\u6B21\u5305\u62EC\uFF1A1) \u5BF9\u5F53\u524D\u50A8\u84C4\u7387\u7684\u8BC4\u4EF7\uFF1B2) \u8D44\u4EA7\u914D\u7F6E\u96C6\u4E2D\u5EA6\u6216\u591A\u5143\u5316\u7684\u89C2\u5BDF\uFF1B3) \u8499\u7279\u5361\u6D1B\u6A21\u62DF\u8FBE\u6210\u6982\u7387\u7684\u89E3\u8BFB\uFF0C\u5E76\u8BF4\u660E\u8BE5\u6982\u7387\u7684\u5C40\u9650\u6027\uFF08\u5386\u53F2\u4E0D\u4EE3\u8868\u672A\u6765\u3001\u6A21\u62DF\u5047\u8BBE\u7B80\u5316\u7B49\uFF09\uFF1B4) \u4E00\u5230\u4E24\u6761\u901A\u7528\u7684\u3001\u975E\u5177\u4F53\u6807\u7684\u7684\u6539\u5584\u65B9\u5411\uFF08\u4F8B\u5982\u63D0\u9AD8\u5E94\u6025\u91D1\u6BD4\u4F8B\u3001\u68C0\u89C6\u8D44\u4EA7\u914D\u7F6E\u662F\u5426\u5339\u914D\u98CE\u9669\u627F\u53D7\u80FD\u529B\u3001\u907F\u514D\u5355\u4E00\u8D44\u4EA7\u8FC7\u5EA6\u96C6\u4E2D\u7B49\uFF0C\u4E0D\u8981\u63A8\u8350\u4EFB\u4F55\u5177\u4F53\u57FA\u91D1\u3001\u80A1\u7968\u3001\u5E73\u53F0\u6216\u4EA7\u54C1\uFF09\u3002\u6700\u540E\u5FC5\u987B\u5355\u72EC\u6210\u53E5\u52A0\u4E0A\uFF1A\u4EE5\u4E0A\u5185\u5BB9\u4E3A\u4E00\u822C\u6027\u8D22\u52A1\u6559\u80B2\u4FE1\u606F\uFF0C\u4E0D\u6784\u6210\u5177\u4F53\u6295\u8D44\u5EFA\u8BAE\uFF0C\u8BF7\u7ED3\u5408\u81EA\u8EAB\u60C5\u51B5\u5E76\u6309\u9700\u54A8\u8BE2\u6301\u724C\u4E13\u4E1A\u4EBA\u58EB\u3002\u53EA\u8F93\u51FA\u8FD9\u6BB5\u5206\u6790\u6587\u672C\u672C\u8EAB\uFF0C\u4E0D\u8981\u52A0\u6807\u9898\uFF0C\u4E0D\u8981\u4F7F\u7528markdown\u7B26\u53F7\uFF08\u4E0D\u8981\u51FA\u73B0#\u6216*\uFF09\u3002\n\n\u7528\u6237\u8D22\u52A1\u5FEB\u7167\uFF1A\n" + summary;
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1e3,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+    const data = await response.json();
+    const text = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
+    out.textContent = text || "\u6682\u65F6\u6CA1\u6709\u751F\u6210\u7ED3\u679C\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5\u3002";
+  } catch (e) {
+    out.textContent = "\u751F\u6210\u5931\u8D25\uFF0C\u8BF7\u68C0\u67E5\u7F51\u7EDC\u540E\u91CD\u8BD5\u3002";
+  }
+}
+function openSettings() {
+  syncSettingsToForm();
+  const overlay = document.getElementById("settingsOverlay");
+  if (overlay) overlay.classList.add("open");
+}
+function closeSettings() {
+  const overlay = document.getElementById("settingsOverlay");
+  if (overlay) overlay.classList.remove("open");
+}
+function saveSettingsFromForm() {
+  const setMonthlyExpense = document.getElementById("setMonthlyExpense");
+  const setSwr = document.getElementById("setSwr");
+  const setAge = document.getElementById("setAge");
+  const setRetireAge = document.getElementById("setRetireAge");
+  _settings.monthlyExpense = parseFloat(setMonthlyExpense?.value) || 0;
+  _settings.swr = parseFloat(setSwr?.value) || 4;
+  const ageVal = setAge?.value;
+  _settings.age = ageVal ? parseInt(ageVal) : null;
+  const retVal = setRetireAge?.value;
+  _settings.retireAge = retVal ? parseInt(retVal) : 60;
+  saveSettings();
+  closeSettings();
+  render5();
+  scheduleMc();
+}
+function wireEventListeners() {
+  document.getElementById("fireSettingsBtn")?.addEventListener("click", openSettings);
+  document.getElementById("fireSettingsSubmit")?.addEventListener("click", saveSettingsFromForm);
+  document.getElementById("fireSettingsCancel")?.addEventListener("click", closeSettings);
+  document.querySelectorAll("#settingsOverlay .modal-close").forEach((el) => {
+    el.addEventListener("click", closeSettings);
+  });
+  document.getElementById("settingsOverlay")?.addEventListener("click", function(e) {
+    if (e.target === this) closeSettings();
+  });
+  document.getElementById("runMcBtn")?.addEventListener("click", runMonteCarlo);
+  document.getElementById("genAiBtn")?.addEventListener("click", generateAIInsight);
+  const sliderIds = ["sliderContribution", "sliderReturn", "sliderVol", "sliderInflation"];
+  sliderIds.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("input", () => {
+      switch (id) {
+        case "sliderContribution":
+          break;
+        case "sliderReturn":
+          _settings.expectedReturn = parseFloat(el.value) || 0;
+          break;
+        case "sliderVol":
+          _settings.volatility = parseFloat(el.value) || 0;
+          break;
+        case "sliderInflation":
+          _settings.inflation = parseFloat(el.value) || 0;
+          break;
+      }
+      updateSliderLabels();
+      render5();
+      scheduleMc();
+    });
+    el.addEventListener("change", () => {
+      saveSettings();
+    });
+  });
+}
+function initFirePage() {
+  if (_initialized) return;
+  _initialized = true;
+  loadSettings();
+  onNavigate((page) => {
+    if (page === "fire") render5();
+  });
+  subscribe("any", () => {
+    const firePage = document.getElementById("page-fire");
+    if (firePage && firePage.classList.contains("active")) {
+      render5();
+    }
+  });
+  wireEventListeners();
+}
+function render5() {
+  loadSettings();
+  renderAll();
+  runMonteCarlo();
+}
+
 // src/js/auth.js
 init_config();
 init_i18n();
@@ -7018,7 +8359,7 @@ function _createAdapter(uid2) {
     }
   };
 }
-function initSyncListeners(uid2, onData) {
+function initSyncListeners(uid2, onData, onAssetsData) {
   if (!uid2) return;
   console.log("[syncManager] \u542F\u52A8 onSnapshot \u76D1\u542C");
   const txRef = collection(_db, COLLECTIONS.transactions(uid2));
@@ -7032,6 +8373,7 @@ function initSyncListeners(uid2, onData) {
   _unsubscribeAssets = onSnapshot(assetRef, (snapshot) => {
     const records = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
     mergeAssetsFromCloud(records);
+    if (onAssetsData) onAssetsData();
   }, (err) => {
     console.error("[syncManager] assets onSnapshot \u9519\u8BEF:", err);
   });
@@ -7047,10 +8389,10 @@ function stopSyncListeners() {
   }
   console.log("[syncManager] onSnapshot \u76D1\u542C\u5DF2\u505C\u6B62");
 }
-function onLoginSync(uid2, onData) {
+function onLoginSync(uid2, onData, onAssetsData) {
   const adapter = _createAdapter(uid2);
   setSyncAdapter(adapter);
-  initSyncListeners(uid2, onData);
+  initSyncListeners(uid2, onData, onAssetsData);
 }
 function onLogoutSync() {
   stopSyncListeners();
@@ -7149,6 +8491,7 @@ window.__rdstr_refreshChartsForTheme = function() {
   if (page === "overview") render2();
   else if (page === "assets") render3();
   else if (page === "analysis") render4();
+  else if (page === "fire") render5();
 };
 initStore();
 initRouter();
@@ -7156,6 +8499,7 @@ initOverviewPage();
 initTransactionsPage();
 initAssetsPage();
 initAnalysisPage();
+initFirePage();
 document.querySelectorAll("[data-page]").forEach((el) => {
   el.addEventListener("click", () => navigate(el.dataset.page));
 });
@@ -7435,17 +8779,22 @@ onAuthChange(async (user) => {
         document.getElementById("uploadConfirmBtn").disabled = true;
         const result = await uploadDrafts(user.uid, drafts).catch((err) => {
           console.error("[main] \u8349\u7A3F\u4E0A\u4F20\u5931\u8D25:", err);
-          return { uploaded: [], duplicates: [] };
+          return { uploaded: [], duplicates: [], _failed: true };
         });
         const msgParts = [];
         if (result.uploaded.length > 0) msgParts.push(`${result.uploaded.length} \u6761\u5DF2\u4E0A\u4F20`);
         if (result.duplicates.length > 0) msgParts.push(`${result.duplicates.length} \u6761\u91CD\u590D\u5DF2\u8DF3\u8FC7`);
+        if (result._failed) {
+          msgParts.push("\u26A0\uFE0F \u7F51\u7EDC\u9519\u8BEF\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5\uFF08\u672C\u5730\u8349\u7A3F\u5DF2\u4FDD\u7559\uFF09");
+        }
         document.getElementById("uploadResult").textContent = msgParts.join("\uFF0C") || "\u65E0\u6570\u636E\u4E0A\u4F20";
         document.getElementById("uploadConfirmBody").style.display = "none";
         document.getElementById("uploadConfirmBtn").textContent = "\u5173\u95ED";
         document.getElementById("uploadConfirmBtn").disabled = false;
         document.getElementById("uploadCancelBtn").style.display = "none";
-        clearDrafts();
+        if (!result._failed) {
+          clearDrafts();
+        }
         await new Promise((resolve) => {
           _uploadResolve = () => {
             document.getElementById("uploadConfirmModal").classList.remove("open");
@@ -7458,21 +8807,26 @@ onAuthChange(async (user) => {
     }
     const assetDrafts = getAssetDrafts();
     if (assetDrafts.length > 0) {
-      const result = await uploadAssetDrafts(user.uid, assetDrafts).catch((err) => {
+      const assetResult = await uploadAssetDrafts(user.uid, assetDrafts).catch((err) => {
         console.error("[main] \u8D44\u4EA7\u8349\u7A3F\u4E0A\u4F20\u5931\u8D25:", err);
-        return { uploaded: [], duplicates: [] };
+        return { uploaded: [], duplicates: [], _failed: true };
       });
-      if (result.uploaded.length > 0 || result.duplicates.length > 0) {
+      if (assetResult.uploaded.length > 0 || assetResult.duplicates.length > 0) {
         const parts = [];
-        if (result.uploaded.length > 0) parts.push(`${result.uploaded.length} \u4E2A\u8D44\u4EA7\u5DF2\u540C\u6B65`);
-        if (result.duplicates.length > 0) parts.push(`${result.duplicates.length} \u4E2A\u91CD\u590D\u5DF2\u8DF3\u8FC7`);
+        if (assetResult.uploaded.length > 0) parts.push(`${assetResult.uploaded.length} \u4E2A\u8D44\u4EA7\u5DF2\u540C\u6B65`);
+        if (assetResult.duplicates.length > 0) parts.push(`${assetResult.duplicates.length} \u4E2A\u91CD\u590D\u5DF2\u8DF3\u8FC7`);
+        if (assetResult._failed) parts.push("\u90E8\u5206\u4E0A\u4F20\u5931\u8D25\uFF0C\u8349\u7A3F\u5DF2\u4FDD\u7559");
         showToast(parts.join("\uFF0C"));
       }
-      clearAssetDrafts();
+      if (!assetResult._failed) {
+        clearAssetDrafts();
+      }
     }
     onLoginSync(user.uid, (cloudRecords) => {
       mergeFromCloud(cloudRecords);
       _updateSyncBadge();
+      renderAllPages();
+    }, () => {
       renderAllPages();
     });
   }

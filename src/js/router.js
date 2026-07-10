@@ -10,7 +10,7 @@
 //   • The context-aware FAB behaviour
 // ═══════════════════════════════════════════════════════
 
-/** @typedef {'overview'|'transactions'|'assets'|'analysis'} PageName */
+/** @typedef {'overview'|'transactions'|'assets'|'analysis'|'fire'} PageName */
 
 // ── Internal state ────────────────────────────────────
 /** @type {PageName} */
@@ -93,7 +93,7 @@ export function fabAction() {
  * Initialise router: read hash on page load, handle popstate.
  */
 export function initRouter() {
-  const validPages = ['overview', 'transactions', 'assets', 'analysis'];
+  const validPages = ['overview', 'transactions', 'assets', 'analysis', 'fire'];
 
   // Read initial hash
   const hash = window.location.hash.replace('#', '');

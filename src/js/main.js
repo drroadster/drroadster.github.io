@@ -15,6 +15,7 @@ import { initOverviewPage,     render as renderOverview }     from './pages/over
 import { initTransactionsPage, render as renderTransactions, openTxModal } from './pages/transactions.js';
 import { initAssetsPage,       render as renderAssets,       openAssetModal } from './pages/assets.js';
 import { initAnalysisPage,     render as renderAnalysis }     from './pages/analysis.js';
+import { initFirePage,         render as renderFire }         from './pages/fire.js';
 
 import {
   onAuthChange, getCurrentUser, registerWithEmail, loginWithEmail,
@@ -47,6 +48,7 @@ window.__rdstr_refreshChartsForTheme = function () {
   if (page === 'overview')     renderOverview();
   else if (page === 'assets')  renderAssets();
   else if (page === 'analysis') renderAnalysis();
+  else if (page === 'fire') renderFire();
   // transactions page has no charts
 };
 
@@ -66,6 +68,7 @@ initOverviewPage();
 initTransactionsPage();
 initAssetsPage();
 initAnalysisPage();
+initFirePage();
 
 // Wire nav buttons (topbar + tabbar share [data-page] attribute)
 document.querySelectorAll('[data-page]').forEach(el => {
@@ -380,19 +383,26 @@ onAuthChange(async (user) => {
 
         const result = await uploadDrafts(user.uid, drafts).catch(err => {
           console.error('[main] 草稿上传失败:', err);
-          return { uploaded: [], duplicates: [] };
+          return { uploaded: [], duplicates: [], _failed: true };
         });
 
         // 显示结果
         const msgParts = [];
         if (result.uploaded.length > 0) msgParts.push(`${result.uploaded.length} 条已上传`);
         if (result.duplicates.length > 0) msgParts.push(`${result.duplicates.length} 条重复已跳过`);
+        if (result._failed) {
+          msgParts.push('⚠️ 网络错误，请稍后重试（本地草稿已保留）');
+        }
         document.getElementById('uploadResult').textContent = msgParts.join('，') || '无数据上传';
         document.getElementById('uploadConfirmBody').style.display = 'none';
         document.getElementById('uploadConfirmBtn').textContent = '关闭';
         document.getElementById('uploadConfirmBtn').disabled = false;
         document.getElementById('uploadCancelBtn').style.display = 'none';
-        clearDrafts();
+
+        // 仅在上传未失败时清除草稿（成功或全部重复都清除）
+        if (!result._failed) {
+          clearDrafts();
+        }
 
         // 等待用户点关闭
         await new Promise(resolve => {
@@ -409,23 +419,30 @@ onAuthChange(async (user) => {
     // 上传资产草稿（静默上传，去重保守处理）
     const assetDrafts = getAssetDrafts();
     if (assetDrafts.length > 0) {
-      const result = await uploadAssetDrafts(user.uid, assetDrafts).catch(err => {
+      const assetResult = await uploadAssetDrafts(user.uid, assetDrafts).catch(err => {
         console.error('[main] 资产草稿上传失败:', err);
-        return { uploaded: [], duplicates: [] };
+        return { uploaded: [], duplicates: [], _failed: true };
       });
-      if (result.uploaded.length > 0 || result.duplicates.length > 0) {
+      if (assetResult.uploaded.length > 0 || assetResult.duplicates.length > 0) {
         const parts = [];
-        if (result.uploaded.length > 0) parts.push(`${result.uploaded.length} 个资产已同步`);
-        if (result.duplicates.length > 0) parts.push(`${result.duplicates.length} 个重复已跳过`);
+        if (assetResult.uploaded.length > 0) parts.push(`${assetResult.uploaded.length} 个资产已同步`);
+        if (assetResult.duplicates.length > 0) parts.push(`${assetResult.duplicates.length} 个重复已跳过`);
+        if (assetResult._failed) parts.push('部分上传失败，草稿已保留');
         showToast(parts.join('，'));
       }
-      clearAssetDrafts();
+      // 仅在上传成功时清除草稿，失败时保留本地副本
+      if (!assetResult._failed) {
+        clearAssetDrafts();
+      }
     }
 
     // 启动 onSnapshot 监听
     onLoginSync(user.uid, (cloudRecords) => {
       mergeFromCloud(cloudRecords);
       _updateSyncBadge();
+      renderAllPages();
+    }, () => {
+      // 资产数据变更时，若当前在资产页则重绘
       renderAllPages();
     });
   }

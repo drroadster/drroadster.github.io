@@ -74,8 +74,9 @@ function _createAdapter(uid) {
  * 启动 onSnapshot 监听，推送数据时通过 callback 传给 caller。
  * @param {string} uid
  * @param {Function} onData - (records: Transaction[]) => void
+ * @param {Function} [onAssetsData] - 资产数据更新回调，用于触发 UI 重绘
  */
-export function initSyncListeners(uid, onData) {
+export function initSyncListeners(uid, onData, onAssetsData) {
   if (!uid) return;
 
   console.log('[syncManager] 启动 onSnapshot 监听');
@@ -94,6 +95,8 @@ export function initSyncListeners(uid, onData) {
   _unsubscribeAssets = onSnapshot(assetRef, (snapshot) => {
     const records = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
     mergeAssetsFromCloud(records);
+    // 通知上层触发 UI 重绘
+    if (onAssetsData) onAssetsData();
   }, (err) => {
     console.error('[syncManager] assets onSnapshot 错误:', err);
   });
@@ -120,11 +123,12 @@ export function stopSyncListeners() {
  * 登录时调用：设置 adapter + 启动 onSnapshot + 初始化 store。
  * @param {string} uid
  * @param {Function} onData - 数据更新回调
+ * @param {Function} [onAssetsData] - 资产数据更新回调
  */
-export function onLoginSync(uid, onData) {
+export function onLoginSync(uid, onData, onAssetsData) {
   const adapter = _createAdapter(uid);
   store.setSyncAdapter(adapter);
-  initSyncListeners(uid, onData);
+  initSyncListeners(uid, onData, onAssetsData);
 }
 
 /**

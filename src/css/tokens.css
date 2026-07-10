@@ -120,59 +120,276 @@
   --chart-6: #8b5cf6;
   --chart-7: #ec4899;
   --chart-8: #14b8a6;
+
+  /* Chart.js doughnut / bar palette */
+  --palette-0:  #5e7ce2;
+  --palette-1:  #34c759;
+  --palette-2:  #ff9500;
+  --palette-3:  #ff3b30;
+  --palette-4:  #af52de;
+  --palette-5:  #5ac8fa;
+  --palette-6:  #ff2d55;
+  --palette-7:  #30b0c7;
+  --palette-8:  #ffd60a;
+  --palette-9:  #32ade6;
+  --palette-10: #30d158;
+  --palette-11: #bf5af2;
 }
 
-/* ── DARK MODE GLASS ── */
-:root[data-theme="dark"],
+/* ═══════════════════════════════════════════════════════
+   DARK MODE — FIRE deep-space style (all pages)
+   Values copied verbatim from fire-tracker-pro.html :root
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Auto dark: system preference, no explicit light override ── */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    --color-canvas:       #020617;
-    --color-surface-1:    rgba(15, 23, 42, 0.68);
-    --color-surface-2:    rgba(30, 41, 59, 0.58);
-    --color-surface-3:    rgba(51, 65, 85, 0.48);
-    --color-surface-elevated: rgba(15, 23, 42, 0.88);
-    --color-surface-solid: #0f172a;
+  :root:not([data-theme="light"]) {
+    --color-canvas:       #07080D;
+    --color-surface-1:    rgba(255,255,255,0.055);
+    --color-surface-2:    rgba(255,255,255,0.09);
+    --color-surface-3:    rgba(255,255,255,0.045);
+    --color-surface-elevated: rgba(20,24,38,0.88);
+    --color-surface-solid: #0E1220;
 
-    --color-label-1: #f1f5f9;
-    --color-label-2: #cbd5e1;
-    --color-label-3: #94a3b8;
-    --color-label-4: #64748b;
+    --color-label-1: #F5F6FA;
+    --color-label-2: rgba(245,246,250,0.64);
+    --color-label-3: rgba(245,246,250,0.38);
+    --color-label-4: #8E8E93;
 
-    --color-sep:        rgba(148, 163, 184, 0.07);
-    --color-sep-strong: rgba(148, 163, 184, 0.12);
-    --color-border-card: rgba(99, 102, 241, 0.10);
-    --color-border-glow: rgba(99, 102, 241, 0.14);
+    --color-sep:        rgba(255,255,255,0.06);
+    --color-sep-strong: rgba(255,255,255,0.11);
+    --color-border-card: rgba(255,255,255,0.11);
+    --color-border-glow: rgba(77,163,255,0.20);
 
     --shadow-xs: 0 1px 2px rgba(0,0,0,0.25);
     --shadow-sm: 0 2px 8px rgba(0,0,0,0.30);
-    --shadow-md: 0 6px 16px rgba(0,0,0,0.35);
-    --shadow-lg: 0 12px 28px rgba(0,0,0,0.40);
-    --shadow-xl: 0 24px 48px rgba(0,0,0,0.50);
+    --shadow-md: 0 2px 12px rgba(0,0,0,0.35);
+    --shadow-lg: 0 8px 32px rgba(0,0,0,0.45);
+    --shadow-xl: 0 12px 40px rgba(0,0,0,0.50);
 
-    --color-blue:    #818cf8;
-    --color-green:   #34d399;
-    --color-red:     #fb7185;
-    --color-orange:  #fbbf24;
-    --color-purple:  #a78bfa;
-    --color-pink:    #f472b6;
-    --color-teal:    #22d3ee;
-    --color-indigo:  #818cf8;
-    --color-mint:    #2dd4bf;
-    --color-cyan:    #22d3ee;
+    --color-blue:    #4DA3FF;
+    --color-green:   #30D9A0;
+    --color-red:     #FF6961;
+    --color-orange:  #FFC24D;
+    --color-yellow:  #FFC24D;
+    --color-purple:  #B98CFF;
+    --color-pink:    #FF8FAB;
+    --color-teal:    #30D9A0;
+    --color-indigo:  #4DA3FF;
+    --color-mint:    #30D9A0;
+    --color-cyan:    #4DA3FF;
 
-    --glow-blue:   0 6px 24px rgba(129, 140, 248, 0.25);
-    --glow-green:  0 6px 24px rgba(52, 211, 153, 0.20);
-    --glow-brand:  0 8px 32px rgba(129, 140, 248, 0.30);
-    --glow-purple: 0 8px 28px rgba(167, 139, 250, 0.26);
+    --glow-blue:   0 6px 24px rgba(77,163,255,0.25);
+    --glow-green:  0 6px 24px rgba(48,217,160,0.20);
+    --glow-brand:  0 8px 32px rgba(77,163,255,0.30);
+    --glow-purple: 0 8px 28px rgba(185,140,255,0.26);
 
-    --glass-card:     rgba(15, 23, 42, 0.62);
-    --glass-card-hover: rgba(15, 23, 42, 0.78);
-    --glass-bar:      rgba(15, 23, 42, 0.55);
-    --glass-sheet:    rgba(15, 23, 42, 0.92);
-    --glass-input:    rgba(30, 41, 59, 0.55);
-    --glass-border:   rgba(99, 102, 241, 0.10);
-    --glass-border-subtle: rgba(148, 163, 184, 0.08);
+    --glass-card:     rgba(255,255,255,0.055);
+    --glass-card-hover: rgba(255,255,255,0.09);
+    --glass-bar:      rgba(14,18,32,0.72);
+    --glass-sheet:    rgba(20,24,38,0.92);
+    --glass-input:    rgba(255,255,255,0.05);
+    --glass-border:   rgba(255,255,255,0.11);
+    --glass-border-subtle: rgba(255,255,255,0.06);
+
+    /* Gradients — FIRE palette */
+    --grad-brand:   linear-gradient(135deg, #4DA3FF 0%, #B98CFF 100%);
+    --grad-income:  linear-gradient(135deg, #30D9A0 0%, #4DA3FF 100%);
+    --grad-expense: linear-gradient(135deg, #FF6961 0%, #FF8FAB 100%);
+    --grad-asset:   linear-gradient(135deg, #4DA3FF 0%, #7B93F7 100%);
+    --grad-dark:    linear-gradient(180deg, #07080D, #0E1220 40%, #131A2C);
+    --grad-hero:    linear-gradient(135deg, #16244a 0%, #1a3a33 50%, #2a1a3a 100%);
+    --grad-cyan:    linear-gradient(135deg, #4DA3FF 0%, #30D9A0 100%);
+
+    /* Charts */
+    --chart-1: #4DA3FF;
+    --chart-2: #30D9A0;
+    --chart-3: #B98CFF;
+    --chart-4: #FFC24D;
+    --chart-5: #FF6961;
+    --chart-6: #FF8FAB;
+    --chart-7: #7B93F7;
+    --chart-8: #50E0C3;
+
+    /* ── FIRE page tokens (dark: original FIRE deep-space) ── */
+    --fire-bg-0:              #07080D;
+    --fire-bg-1:              #0E1220;
+    --fire-bg-2:              #131A2C;
+    --fire-glass:             rgba(255,255,255,0.055);
+    --fire-glass-strong:      rgba(255,255,255,0.09);
+    --fire-border:            rgba(255,255,255,0.11);
+    --fire-border-strong:     rgba(255,255,255,0.18);
+    --fire-text-0:            #F5F6FA;
+    --fire-text-1:            rgba(245,246,250,0.64);
+    --fire-text-2:            rgba(245,246,250,0.38);
+    --fire-emerald:           #30D9A0;
+    --fire-coral:             #FF6961;
+    --fire-azure:             #4DA3FF;
+    --fire-amber:             #FFC24D;
+    --fire-violet:            #B98CFF;
+    --fire-gray:              #8E8E93;
+    --fire-shadow:            0 1px 1px rgba(255,255,255,0.06) inset, 0 8px 32px rgba(0,0,0,0.45);
+    --fire-app-bg:            radial-gradient(1200px 800px at 15% -10%, #16244a 0%, transparent 60%),
+                              radial-gradient(1000px 700px at 110% 10%, #1a3a33 0%, transparent 55%),
+                              radial-gradient(900px 600px at 50% 120%, #2a1a3a 0%, transparent 55%),
+                              linear-gradient(180deg, #07080D, #0E1220 40%, #131A2C);
+    --fire-fill-0:            rgba(255,255,255,0.04);
+    --fire-fill-1:            rgba(255,255,255,0.05);
+    --fire-fill-2:            rgba(255,255,255,0.08);
+    --fire-fill-3:            rgba(255,255,255,0.13);
+    --fire-fill-4:            rgba(255,255,255,0.20);
+    --fire-fill-hover:        rgba(255,255,255,0.045);
+    --fire-fill-emerald:      rgba(48,217,160,0.14);
+    --fire-fill-emerald-border: rgba(48,217,160,0.30);
+    --fire-fill-azure:        rgba(77,163,255,0.08);
+    --fire-fill-azure-border: rgba(77,163,255,0.20);
+    --fire-fill-coral:        rgba(255,105,97,0.18);
+    --fire-track:             rgba(255,255,255,0.07);
+    --fire-track-2:           rgba(255,255,255,0.12);
+    --fire-modal-bg:          rgba(20,24,38,0.86);
+    --fire-modal-overlay:     rgba(4,5,10,0.55);
+    --fire-donut-hole:        #0E1220;
+    --fire-btn-text:          #06110C;
+    --fire-input-bg:          rgba(255,255,255,0.05);
+    --fire-input-focus-bg:    rgba(255,255,255,0.08);
+    --fire-focus-ring:        rgba(77,163,255,0.55);
+
+    --palette-0:  #4DA3FF;
+    --palette-1:  #30D9A0;
+    --palette-2:  #FFC24D;
+    --palette-3:  #FF6961;
+    --palette-4:  #B98CFF;
+    --palette-5:  #5AC8FA;
+    --palette-6:  #FF8FAB;
+    --palette-7:  #30B0C7;
+    --palette-8:  #FFD60A;
+    --palette-9:  #32ADE6;
+    --palette-10: #30D158;
+    --palette-11: #BF5AF2;
   }
+}
+
+/* ── Explicit dark: user clicked 🌙 ── */
+:root[data-theme="dark"] {
+  --color-canvas:       #07080D;
+  --color-surface-1:    rgba(255,255,255,0.055);
+  --color-surface-2:    rgba(255,255,255,0.09);
+  --color-surface-3:    rgba(255,255,255,0.045);
+  --color-surface-elevated: rgba(20,24,38,0.88);
+  --color-surface-solid: #0E1220;
+
+  --color-label-1: #F5F6FA;
+  --color-label-2: rgba(245,246,250,0.64);
+  --color-label-3: rgba(245,246,250,0.38);
+  --color-label-4: #8E8E93;
+
+  --color-sep:        rgba(255,255,255,0.06);
+  --color-sep-strong: rgba(255,255,255,0.11);
+  --color-border-card: rgba(255,255,255,0.11);
+  --color-border-glow: rgba(77,163,255,0.20);
+
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.25);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.30);
+  --shadow-md: 0 2px 12px rgba(0,0,0,0.35);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.45);
+  --shadow-xl: 0 12px 40px rgba(0,0,0,0.50);
+
+  --color-blue:    #4DA3FF;
+  --color-green:   #30D9A0;
+  --color-red:     #FF6961;
+  --color-orange:  #FFC24D;
+  --color-yellow:  #FFC24D;
+  --color-purple:  #B98CFF;
+  --color-pink:    #FF8FAB;
+  --color-teal:    #30D9A0;
+  --color-indigo:  #4DA3FF;
+  --color-mint:    #30D9A0;
+  --color-cyan:    #4DA3FF;
+
+  --glow-blue:   0 6px 24px rgba(77,163,255,0.25);
+  --glow-green:  0 6px 24px rgba(48,217,160,0.20);
+  --glow-brand:  0 8px 32px rgba(77,163,255,0.30);
+  --glow-purple: 0 8px 28px rgba(185,140,255,0.26);
+
+  --glass-card:     rgba(255,255,255,0.055);
+  --glass-card-hover: rgba(255,255,255,0.09);
+  --glass-bar:      rgba(14,18,32,0.72);
+  --glass-sheet:    rgba(20,24,38,0.92);
+  --glass-input:    rgba(255,255,255,0.05);
+  --glass-border:   rgba(255,255,255,0.11);
+  --glass-border-subtle: rgba(255,255,255,0.06);
+
+  --grad-brand:   linear-gradient(135deg, #4DA3FF 0%, #B98CFF 100%);
+  --grad-income:  linear-gradient(135deg, #30D9A0 0%, #4DA3FF 100%);
+  --grad-expense: linear-gradient(135deg, #FF6961 0%, #FF8FAB 100%);
+  --grad-asset:   linear-gradient(135deg, #4DA3FF 0%, #7B93F7 100%);
+  --grad-dark:    linear-gradient(180deg, #07080D, #0E1220 40%, #131A2C);
+  --grad-hero:    linear-gradient(135deg, #16244a 0%, #1a3a33 50%, #2a1a3a 100%);
+  --grad-cyan:    linear-gradient(135deg, #4DA3FF 0%, #30D9A0 100%);
+
+  --chart-1: #4DA3FF;
+  --chart-2: #30D9A0;
+  --chart-3: #B98CFF;
+  --chart-4: #FFC24D;
+  --chart-5: #FF6961;
+  --chart-6: #FF8FAB;
+  --chart-7: #7B93F7;
+  --chart-8: #50E0C3;
+
+  --fire-bg-0:              #07080D;
+  --fire-bg-1:              #0E1220;
+  --fire-bg-2:              #131A2C;
+  --fire-glass:             rgba(255,255,255,0.055);
+  --fire-glass-strong:      rgba(255,255,255,0.09);
+  --fire-border:            rgba(255,255,255,0.11);
+  --fire-border-strong:     rgba(255,255,255,0.18);
+  --fire-text-0:            #F5F6FA;
+  --fire-text-1:            rgba(245,246,250,0.64);
+  --fire-text-2:            rgba(245,246,250,0.38);
+  --fire-emerald:           #30D9A0;
+  --fire-coral:             #FF6961;
+  --fire-azure:             #4DA3FF;
+  --fire-amber:             #FFC24D;
+  --fire-violet:            #B98CFF;
+  --fire-gray:              #8E8E93;
+  --fire-shadow:            0 1px 1px rgba(255,255,255,0.06) inset, 0 8px 32px rgba(0,0,0,0.45);
+  --fire-app-bg:            radial-gradient(1200px 800px at 15% -10%, #16244a 0%, transparent 60%),
+                            radial-gradient(1000px 700px at 110% 10%, #1a3a33 0%, transparent 55%),
+                            radial-gradient(900px 600px at 50% 120%, #2a1a3a 0%, transparent 55%),
+                            linear-gradient(180deg, #07080D, #0E1220 40%, #131A2C);
+  --fire-fill-0:            rgba(255,255,255,0.04);
+  --fire-fill-1:            rgba(255,255,255,0.05);
+  --fire-fill-2:            rgba(255,255,255,0.08);
+  --fire-fill-3:            rgba(255,255,255,0.13);
+  --fire-fill-4:            rgba(255,255,255,0.20);
+  --fire-fill-hover:        rgba(255,255,255,0.045);
+  --fire-fill-emerald:      rgba(48,217,160,0.14);
+  --fire-fill-emerald-border: rgba(48,217,160,0.30);
+  --fire-fill-azure:        rgba(77,163,255,0.08);
+  --fire-fill-azure-border: rgba(77,163,255,0.20);
+  --fire-fill-coral:        rgba(255,105,97,0.18);
+  --fire-track:             rgba(255,255,255,0.07);
+  --fire-track-2:           rgba(255,255,255,0.12);
+  --fire-modal-bg:          rgba(20,24,38,0.86);
+  --fire-modal-overlay:     rgba(4,5,10,0.55);
+  --fire-donut-hole:        #0E1220;
+  --fire-btn-text:          #06110C;
+  --fire-input-bg:          rgba(255,255,255,0.05);
+  --fire-input-focus-bg:    rgba(255,255,255,0.08);
+  --fire-focus-ring:        rgba(77,163,255,0.55);
+
+  --palette-0:  #4DA3FF;
+  --palette-1:  #30D9A0;
+  --palette-2:  #FFC24D;
+  --palette-3:  #FF6961;
+  --palette-4:  #B98CFF;
+  --palette-5:  #5AC8FA;
+  --palette-6:  #FF8FAB;
+  --palette-7:  #30B0C7;
+  --palette-8:  #FFD60A;
+  --palette-9:  #32ADE6;
+  --palette-10: #30D158;
+  --palette-11: #BF5AF2;
 }
 
 /* ── LIGHT MODE OVERRIDE ── */
@@ -217,4 +434,44 @@
   --glass-input:    rgba(241,245,249,0.55);
   --glass-border:   rgba(255,255,255,0.45);
   --glass-border-subtle: rgba(15,23,42,0.06);
+
+  /* ── FIRE page tokens (light: finance style) ── */
+  --fire-bg-0:              #F0F4FF;
+  --fire-bg-1:              #FFFFFF;
+  --fire-bg-2:              #F1F5F9;
+  --fire-glass:             rgba(255,255,255,0.64);
+  --fire-glass-strong:      rgba(255,255,255,0.80);
+  --fire-border:            rgba(15,23,42,0.06);
+  --fire-border-strong:     rgba(15,23,42,0.10);
+  --fire-text-0:            #0F172A;
+  --fire-text-1:            #334155;
+  --fire-text-2:            #94A3B8;
+  --fire-emerald:           #10B981;
+  --fire-coral:             #F43F5E;
+  --fire-azure:             #6366F1;
+  --fire-amber:             #F59E0B;
+  --fire-violet:            #8B5CF6;
+  --fire-gray:              #94A3B8;
+  --fire-shadow:            0 1px 1px rgba(15,23,42,0.04) inset, 0 4px 16px rgba(15,23,42,0.06);
+  --fire-app-bg:            linear-gradient(180deg, #F0F4FF, #FFFFFF 40%, #F1F5F9);
+  --fire-fill-0:            rgba(15,23,42,0.03);
+  --fire-fill-1:            rgba(15,23,42,0.04);
+  --fire-fill-2:            rgba(15,23,42,0.05);
+  --fire-fill-3:            rgba(15,23,42,0.08);
+  --fire-fill-4:            rgba(15,23,42,0.12);
+  --fire-fill-hover:        rgba(15,23,42,0.03);
+  --fire-fill-emerald:      rgba(16,185,129,0.14);
+  --fire-fill-emerald-border: rgba(16,185,129,0.30);
+  --fire-fill-azure:        rgba(99,102,241,0.08);
+  --fire-fill-azure-border: rgba(99,102,241,0.20);
+  --fire-fill-coral:        rgba(244,63,94,0.18);
+  --fire-track:             rgba(15,23,42,0.06);
+  --fire-track-2:           rgba(15,23,42,0.08);
+  --fire-modal-bg:          rgba(255,255,255,0.92);
+  --fire-modal-overlay:     rgba(0,0,0,0.30);
+  --fire-donut-hole:        #FFFFFF;
+  --fire-btn-text:          #FFFFFF;
+  --fire-input-bg:          rgba(15,23,42,0.04);
+  --fire-input-focus-bg:    rgba(15,23,42,0.06);
+  --fire-focus-ring:        rgba(99,102,241,0.55);
 }

@@ -28,14 +28,20 @@ body::before {
     radial-gradient(ellipse 55vw 55vh at 88% 12%,   rgba(139,92,246,0.10), transparent 50%),
     radial-gradient(ellipse 90vw 70vh at 50% 105%,  rgba(6,182,212,0.06),  transparent 55%);
 }
-:root[data-theme="dark"] body::before,
+/* ── Dark mode ambient orbs (FIRE style) ── */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) body::before {
+  :root:not([data-theme="light"]) body::before {
     background:
-      radial-gradient(ellipse 70vw 50vh at 15% -10%,  rgba(99,102,241,0.22),  transparent 55%),
-      radial-gradient(ellipse 55vw 55vh at 88% 12%,   rgba(139,92,246,0.16), transparent 50%),
-      radial-gradient(ellipse 90vw 70vh at 50% 105%,  rgba(6,182,212,0.10),  transparent 55%);
+      radial-gradient(1200px 800px at 15% -10%, #16244a, transparent 60%),
+      radial-gradient(1000px 700px at 110% 10%, #1a3a33, transparent 55%),
+      radial-gradient(900px 600px at 50% 120%, #2a1a3a, transparent 55%);
   }
+}
+:root[data-theme="dark"] body::before {
+  background:
+    radial-gradient(1200px 800px at 15% -10%, #16244a, transparent 60%),
+    radial-gradient(1000px 700px at 110% 10%, #1a3a33, transparent 55%),
+    radial-gradient(900px 600px at 50% 120%, #2a1a3a, transparent 55%);
 }
 
 /* ── Floating noise texture (subtle depth) ── */
