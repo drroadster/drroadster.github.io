@@ -335,7 +335,7 @@
       </div>
 
       <div class="sh"><div class="sh-title">收支走势</div></div>
-      <div class="card glass card-glow card-glow--blue">
+      <div class="card glass">
         <div id="trendEmpty" class="empty-state" style="display:none">
           <div class="empty-icon">📊</div><div class="empty-text">导入数据后显示趋势图</div>
         </div>
@@ -346,12 +346,10 @@
         <div class="grid-2">
           <div class="card glass">
             <div class="chart-title">支出分类</div><div class="chart-sub">各类别占比</div>
-            <div class="chart-pie"><canvas id="expensePieChart"></canvas></div>
             <div class="legend-flow" id="expenseLegend"></div>
           </div>
           <div class="card glass">
             <div class="chart-title">收入分类</div><div class="chart-sub">各类别占比</div>
-            <div class="chart-pie"><canvas id="incomePieChart"></canvas></div>
             <div class="legend-flow" id="incomeLegend"></div>
           </div>
         </div>
@@ -368,6 +366,20 @@
         </div>
       </div>
     </section>
+
+    <!-- Category Detail Sheet (overview) -->
+    <div class="sheet-overlay" id="catDetailOverlay">
+      <div class="sheet cat-detail-sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title" id="catDetailTitle">分类明细</div>
+        <div class="segmented" id="catDetailSortSeg" style="margin-bottom:14px">
+          <button class="seg-pill active" data-sort="time">最新时间</button>
+          <button class="seg-pill" data-sort="amount-desc">金额最多</button>
+          <button class="seg-pill" data-sort="amount-asc">金额最少</button>
+        </div>
+        <div class="cat-detail-list" id="catDetailList"></div>
+      </div>
+    </div>
 
     <!-- ════════════════ PAGE: TRANSACTIONS ════════════════ -->
     <section class="page" id="page-transactions">

@@ -44,7 +44,7 @@
       rgba(139,92,246,0.15) 45%,
       transparent   60%
     );
-    animation: spin-glow 10s linear infinite;
+    /* spin-glow animation removed — static glow border only */
   }
   .card-glow::after {
     content: '';

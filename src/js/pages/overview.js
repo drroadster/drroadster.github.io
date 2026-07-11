@@ -1,17 +1,19 @@
 // ═══════════════════════════════════════════════════════
 //  ROADSTER v2.0 · pages/overview.js
 //  Overview page: greeting, net balance hero, trend chart,
-//  category pies, recent transactions list.
+//  category lists, recent transactions list.
 // ═══════════════════════════════════════════════════════
 
 import { getTransactions, filterByPeriod, summarise, catTotals } from '../store.js';
-import { buildLineChart, buildDoughnut, cssVar, hexToRgba } from '../charts.js';
+import { buildLineChart, cssVar, hexToRgba, palette } from '../charts.js';
 import { fmt, fmtK, esc, formatTxDateTime, pad2 } from '../utils.js';
 import { t } from '../i18n.js';
 import { onNavigate } from '../router.js';
 import { CAT_ICONS, getCatIcon } from '../config.js';
 
 let _period = 'month';
+let _catDetailData = {};   // { categoryName: { transactions: [...], total: number, pct: number } }
+let _catDetailSort = 'time';
 
 // ── Public init ────────────────────────────────────────
 export function initOverviewPage() {
@@ -26,8 +28,11 @@ export function render() {
   const txs = filterByPeriod(_period, all);
   const { income, expense, net, saveRate } = summarise(txs);
 
+  let mom = null;
+  if (_period === 'month') mom = _computeMoM(all);
+
   _renderHero(net, txs.length);
-  _renderHeroStats(income, expense, saveRate);
+  _renderHeroStats(income, expense, saveRate, mom);
   _renderTrendChart(txs);
   _renderPies(txs);
   _renderRecent(txs);
@@ -69,13 +74,57 @@ function _renderHero(net, count) {
     subEl.textContent = count ? `${count} 笔交易 · ${label}` : '暂无数据';
   }
 }
-function _renderHeroStats(income, expense, saveRate) {
+function _renderHeroStats(income, expense, saveRate, mom) {
   const incEl  = document.getElementById('heroIncome');
   const expEl  = document.getElementById('heroExpense');
   const rateEl = document.getElementById('heroSaveRate');
-  if (incEl)  incEl.textContent  = `¥${fmt(income)}`;
-  if (expEl)  expEl.textContent  = `¥${fmt(expense)}`;
-  if (rateEl) rateEl.textContent = saveRate !== null ? `${Math.round(saveRate * 100)}%` : '—';
+
+  function _momHtml(cur, prev) {
+    if (prev === null || prev === undefined || prev === 0) return '';
+    const pct = ((cur - prev) / Math.abs(prev)) * 100;
+    if (!isFinite(pct)) return '';
+    const up = pct >= 0;
+    return ` <span class="hero-stat-mom ${up ? 'up' : 'down'}">${up ? '↑' : '↓'}${Math.abs(pct).toFixed(1)}%</span>`;
+  }
+
+  if (incEl) {
+    incEl.innerHTML = `¥${fmt(income)}${mom ? _momHtml(income, mom.income) : ''}`;
+  }
+  if (expEl) {
+    expEl.innerHTML = `¥${fmt(expense)}${mom ? _momHtml(expense, mom.expense) : ''}`;
+  }
+  if (rateEl) {
+    const currRate = saveRate !== null ? saveRate : null;
+    const prevRate = mom && mom.saveRate !== null ? mom.saveRate : null;
+    let momPart = '';
+    if (currRate !== null && prevRate !== null && prevRate !== 0) {
+      const pctDiff = (currRate - prevRate) * 100;
+      if (isFinite(pctDiff)) {
+        const up = pctDiff >= 0;
+        momPart = ` <span class="hero-stat-mom ${up ? 'up' : 'down'}">${up ? '↑' : '↓'}${Math.abs(pctDiff).toFixed(1)}pp</span>`;
+      }
+    }
+    rateEl.innerHTML = `${currRate !== null ? Math.round(currRate * 100) + '%' : '—'}${momPart}`;
+  }
+}
+
+// ── Month-over-Month helper ────────────────────────────
+function _getPrevMonthTxs(allTxs) {
+  const now = new Date();
+  let pm = now.getMonth() - 1;
+  let py = now.getFullYear();
+  if (pm < 0) { pm = 11; py--; }
+  return allTxs.filter(t => {
+    if (t.deleted) return false;
+    const d = new Date(t.date);
+    return d.getFullYear() === py && d.getMonth() === pm;
+  });
+}
+
+function _computeMoM(allTxs) {
+  const prevTxs = _getPrevMonthTxs(allTxs);
+  if (!prevTxs.length) return null;
+  return summarise(prevTxs);
 }
 
 // ── Trend chart (granularity adapts to period) ─────────
@@ -147,7 +196,7 @@ function _renderTrendChart(txs) {
   ]);
 }
 
-// ── Category pies ──────────────────────────────────────
+// ── Category lists (replaces Chart.js doughnuts) ──────
 function _renderPies(txs) {
   const expCats = catTotals(txs, '支出');
   const incCats = catTotals(txs, '收入');
@@ -157,8 +206,135 @@ function _renderPies(txs) {
   if (section) section.style.display = hasData ? '' : 'none';
   if (!hasData) return;
 
-  buildDoughnut('expensePieChart', Object.keys(expCats), Object.values(expCats), 'expenseLegend');
-  buildDoughnut('incomePieChart',  Object.keys(incCats), Object.values(incCats), 'incomeLegend');
+  _catDetailData = {};
+  _buildCatList('expenseLegend', expCats, txs, '支出');
+  _buildCatList('incomeLegend',  incCats,  txs, '收入');
+
+  // Wire sheet overlay close
+  const overlay = document.getElementById('catDetailOverlay');
+  if (overlay) {
+    overlay.onclick = e => { if (e.target === overlay) _closeCatDetail(); };
+  }
+  // Wire sort segmented control
+  document.querySelectorAll('#catDetailSortSeg .seg-pill').forEach(btn => {
+    btn.onclick = () => {
+      _catDetailSort = btn.dataset.sort;
+      document.querySelectorAll('#catDetailSortSeg .seg-pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _renderCatDetail();
+    };
+  });
+}
+
+function _buildCatList(legendId, catMap, allTxs, type) {
+  const sorted = Object.entries(catMap)
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1]);
+
+  const total = sorted.reduce((s, [, v]) => s + v, 0);
+  const colors = palette();
+
+  const legEl = document.getElementById(legendId);
+  if (!legEl) return;
+
+  if (!sorted.length) {
+    legEl.innerHTML = '<div style="font-size:12px;color:var(--color-label-4);padding:8px 0">暂无数据</div>';
+    return;
+  }
+
+  legEl.className = 'cat-list';
+
+  // Store data for detail sheet
+  sorted.forEach(([name, val]) => {
+    const txsOfCat = allTxs.filter(tx => tx.category === name && tx.type === type);
+    _catDetailData[name] = {
+      transactions: txsOfCat,
+      total: val,
+      pct: total > 0 ? ((val / total) * 100).toFixed(1) : 0,
+    };
+  });
+
+  legEl.innerHTML = sorted.map(([name, val], i) => {
+    const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+    const color = colors[i % colors.length];
+    const icon = getCatIcon(name);
+    return `<div class="cat-list-row" data-cat-name="${esc(name)}">
+      <div class="cat-list-icon" style="background:${color}22;color:${color}">${icon}</div>
+      <span class="cat-list-name">${esc(name)}</span>
+      <span class="cat-list-amount">¥${fmt(val)}</span>
+      <span class="cat-list-pct">${pct}%</span>
+    </div>`;
+  }).join('');
+
+  // Wire click handlers
+  legEl.querySelectorAll('.cat-list-row').forEach(row => {
+    row.addEventListener('click', () => _openCatDetail(row.dataset.catName));
+  });
+}
+
+// ── Category Detail Sheet ─────────────────────────────
+function _openCatDetail(catName) {
+  const data = _catDetailData[catName];
+  if (!data) return;
+
+  const overlay = document.getElementById('catDetailOverlay');
+  const titleEl = document.getElementById('catDetailTitle');
+  if (!overlay || !titleEl) return;
+
+  titleEl.textContent = `${catName} · ¥${fmt(data.total)} (${data.pct}%)`;
+  _catDetailSort = 'time';
+  // Reset sort pill
+  document.querySelectorAll('#catDetailSortSeg .seg-pill').forEach(b => {
+    b.classList.toggle('active', b.dataset.sort === 'time');
+  });
+
+  _renderCatDetail();
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function _closeCatDetail() {
+  const overlay = document.getElementById('catDetailOverlay');
+  if (overlay) overlay.classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function _renderCatDetail() {
+  const catName = (document.getElementById('catDetailTitle')?.textContent || '').split(' · ')[0];
+  const data = _catDetailData[catName];
+  const listEl = document.getElementById('catDetailList');
+  if (!listEl || !data) return;
+
+  let txs = [...data.transactions];
+
+  // Sort
+  switch (_catDetailSort) {
+    case 'amount-desc': txs.sort((a, b) => b.amount - a.amount); break;
+    case 'amount-asc':  txs.sort((a, b) => a.amount - b.amount);  break;
+    default:            txs.sort((a, b) => new Date(b.date) - new Date(a.date)); break;
+  }
+
+  if (!txs.length) {
+    listEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--color-label-4);font-size:13px">暂无记录</div>';
+    return;
+  }
+
+  listEl.innerHTML = txs.map(tx => {
+    const isGain = tx.type === '收入';
+    const color = isGain ? 'var(--color-green)' : 'var(--color-orange)';
+    const icon = getCatIcon(tx.category);
+    const timeDisplay = formatTxDateTime(tx.date);
+    const amountCls = isGain ? 'income' : 'expense';
+
+    return `<div class="cat-detail-row">
+      <div class="cat-detail-icon" style="background:${color}18;color:${color}">${icon}</div>
+      <div class="cat-detail-info">
+        <div class="cat-detail-note">${esc(tx.category)}${tx.note ? ' · ' + esc(tx.note) : ''}</div>
+        <div class="cat-detail-date">${timeDisplay}</div>
+      </div>
+      <div class="cat-detail-amount ${amountCls}">¥${fmt(Math.abs(tx.amount))}</div>
+    </div>`;
+  }).join('');
 }
 
 // ── Recent transactions list ──────────────────────────
