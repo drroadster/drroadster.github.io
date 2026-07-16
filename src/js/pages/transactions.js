@@ -258,22 +258,13 @@ function _initDayCardMonth(txs) {
 }
 
 function _initDayCardNav() {
-  const prevBtn  = document.getElementById('daycardPrevBtn');
-  const nextBtn  = document.getElementById('daycardNextBtn');
-  const monthsEl = document.getElementById('daycardMonths');
+  const yearSelect = document.getElementById('daycardYearSelect');
+  const monthsEl   = document.getElementById('daycardMonths');
 
-  if (prevBtn) {
-    prevBtn.addEventListener('click', () => {
-      _daycardMonth -= 3;
-      if (_daycardMonth < 1) { _daycardYear--; _daycardMonth += 12; }
-      _expandedDay = null;
-      render();
-    });
-  }
-  if (nextBtn) {
-    nextBtn.addEventListener('click', () => {
-      _daycardMonth += 3;
-      if (_daycardMonth > 12) { _daycardYear++; _daycardMonth -= 12; }
+  // Year dropdown: current year ±2
+  if (yearSelect) {
+    yearSelect.addEventListener('change', () => {
+      _daycardYear = parseInt(yearSelect.value);
       _expandedDay = null;
       render();
     });
@@ -285,7 +276,6 @@ function _initDayCardNav() {
       const tab = e.target.closest('.daycard-month-tab');
       if (!tab) return;
       _daycardMonth = parseInt(tab.dataset.month);
-      _daycardYear  = parseInt(tab.dataset.year);
       _expandedDay = null;
       render();
     });
@@ -359,61 +349,94 @@ function _renderDayCardView(txs) {
       <span class="dc-sum-net ${netCls}">结余 ${netSign}¥${fmt(Math.abs(net))}</span>`;
   }
 
-  const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-
-  // Only show dates with records, descending (latest first)
-  const sortedDays = Object.keys(dayMap).sort().reverse();
-
   // Auto-expand latest day with records on first load
-  if (_expandedDay === null && sortedDays.length > 0) {
-    _expandedDay = sortedDays[0];
+  if (_expandedDay === null && Object.keys(dayMap).length > 0) {
+    const days = Object.keys(dayMap).sort();
+    _expandedDay = days[days.length - 1];
   }
 
-  const groups = [];
-  for (const dayKey of sortedDays) {
-    const dayTxs = dayMap[dayKey];
-    const d = parseInt(dayKey.slice(8, 10));
+  const daysInMonth = new Date(_daycardYear, _daycardMonth, 0).getDate();
+  const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+  const cards = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dayKey = `${monthPrefix}${pad2(d)}`;
+    const dayTxs = dayMap[dayKey] || [];
     const dayDate = new Date(_daycardYear, _daycardMonth - 1, d);
     const weekday = dayNames[dayDate.getDay()];
-    const isOpen = dayKey === _expandedDay;
+    const isEmpty = dayTxs.length === 0;
+    const isExpanded = dayKey === _expandedDay;
+
+    if (isEmpty) {
+      cards.push(`<div class="daycard-card daycard-card--empty" data-day="${dayKey}">
+        <div class="daycard-card-top">
+          <div>
+            <div class="daycard-card-date" style="color:var(--color-label-4)">${d}</div>
+            <div class="daycard-card-weekday">${weekday}</div>
+          </div>
+        </div>
+        <div class="daycard-card-count" style="color:var(--color-label-4)">无记录</div>
+      </div>`);
+      continue;
+    }
 
     const income  = dayTxs.filter(t => t.type === '收入').reduce((s, t) => s + t.amount, 0);
     const expense = dayTxs.filter(t => t.type === '支出').reduce((s, t) => s + t.amount, 0);
     const dayNet  = income - expense;
 
-    let netCls = 'zero', netSign = '';
-    if (dayNet > 0) { netCls = 'positive'; netSign = '+'; }
-    else if (dayNet < 0) { netCls = 'negative'; netSign = '-'; }
+    let amtCls = 'zero', amtSign = '';
+    if (dayNet > 0) { amtCls = 'income'; amtSign = '+'; }
+    else if (dayNet < 0) { amtCls = 'expense'; }
 
-    const sorted = [...dayTxs].sort((a, b) => new Date(b.date) - new Date(a.date));
-    groups.push(`<div class="daycard-date-group" data-day="${dayKey}">
-      <div class="daycard-date-header">
-        <div class="daycard-date-header-left">
-          <span class="daycard-date-num">${d}日</span>
-          <span class="daycard-date-weekday">${weekday}</span>
-          <span class="daycard-date-count">${dayTxs.length} 笔</span>
+    // Colored dots
+    let dotCls = 'daycard-dot--gray';
+    if (dayNet > 0) dotCls = 'daycard-dot--green';
+    else if (dayNet < 0) dotCls = 'daycard-dot--red';
+
+    // Expanded or collapsed
+    if (isExpanded) {
+      const sorted = [...dayTxs].sort((a, b) => new Date(b.date) - new Date(a.date));
+      cards.push(`<div class="daycard-card expanded" data-day="${dayKey}">
+        <div class="daycard-card-header">
+          <div class="daycard-card-header-left">
+            <span class="daycard-card-date">${d}</span>
+            <span class="daycard-card-weekday">${weekday}</span>
+            <span class="daycard-card-amount ${amtCls}">${amtSign}¥${fmt(Math.abs(dayNet))}</span>
+            <span class="daycard-dot ${dotCls}" style="display:inline-block;width:6px;height:6px;border-radius:50%;vertical-align:middle"></span>
+          </div>
+          <span class="daycard-card-collapse-hint">${dayTxs.length} 笔 · 点击收起</span>
         </div>
-        <span class="daycard-date-net ${netCls}">${netSign}¥${fmt(Math.abs(dayNet))}</span>
-        <span class="daycard-date-chevron ${isOpen ? 'open' : ''}">›</span>
-      </div>
-      <div class="daycard-date-body ${isOpen ? 'open' : ''}">
-        ${sorted.map(_rowHtml).join('')}
-      </div>
-    </div>`);
+        <div class="daycard-tx-list">${sorted.map(_rowHtml).join('')}</div>
+      </div>`);
+    } else {
+      cards.push(`<div class="daycard-card" data-day="${dayKey}">
+        <div class="daycard-card-top">
+          <div>
+            <div class="daycard-card-date">${d}</div>
+            <div class="daycard-card-weekday">${weekday}</div>
+          </div>
+          <div>
+            <div class="daycard-card-amount ${amtCls}">${amtSign}¥${fmt(Math.abs(dayNet))}</div>
+          </div>
+        </div>
+        <div class="daycard-card-count">${dayTxs.length} 笔</div>
+        <div class="daycard-card-dots"><span class="daycard-dot ${dotCls}"></span></div>
+      </div>`);
+    }
   }
 
-  gridEl.innerHTML = groups.join('');
+  gridEl.innerHTML = cards.join('');
 
-  // Wire header clicks for expand/collapse
-  gridEl.querySelectorAll('.daycard-date-group .daycard-date-header').forEach(header => {
-    header.addEventListener('click', () => {
-      const dayKey = header.parentElement.dataset.day;
+  // Wire click: expand / collapse
+  gridEl.querySelectorAll('.daycard-card:not(.daycard-card--empty)').forEach(card => {
+    card.addEventListener('click', () => {
+      const dayKey = card.dataset.day;
       _expandedDay = (_expandedDay === dayKey) ? null : dayKey;
       _renderDayCardView(txs);
     });
   });
 
-  // Wire row clicks inside expanded days
+  // Wire row clicks inside expanded day
   gridEl.querySelectorAll('[data-tx-id]').forEach(row => {
     row.addEventListener('click', (e) => {
       if (e.target.closest('.tx-edit-btn')) return;
