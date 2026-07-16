@@ -403,6 +403,7 @@
         </div>
         <div class="segmented" id="txViewSeg">
           <button class="seg-pill active" data-view="list" title="列表视图">📋</button>
+          <button class="seg-pill" data-view="daycard" title="日卡片视图">🗂️</button>
           <button class="seg-pill" data-view="calendar" title="日历视图">📅</button>
         </div>
       </div>
@@ -425,6 +426,16 @@
       <div class="card glass" id="calDayDetail" style="display:none">
         <div class="cal-day-header" id="calDayHeader"></div>
         <div class="tx-list" id="calDayList"></div>
+      </div>
+
+      <!-- Day Card View -->
+      <div class="card glass" id="daycardView" style="display:none">
+        <div class="daycard-nav">
+          <select class="daycard-year-select" id="daycardYearSelect"></select>
+          <div class="daycard-months" id="daycardMonths"></div>
+        </div>
+        <div class="daycard-summary-bar" id="daycardSummaryBar"></div>
+        <div class="daycard-grid" id="daycardGrid"></div>
       </div>
 
       <div class="card glass" id="listViewCard">

@@ -28,10 +28,15 @@ let _selectedCat = '';
 let _isCustomCat = false;
 
 // Calendar view state
-let _currentView = 'list';          // 'list' | 'calendar'
+let _currentView = 'list';          // 'list' | 'calendar' | 'daycard'
 let _calYear, _calMonth;           // current year/month for calendar nav
 let _selectedCalDay = null;        // 'YYYY-MM-DD' selected day
 let _editingTxId = null;           // tx id currently editing time
+
+// Day card view state
+let _daycardYear  = null;          // current year for day card nav
+let _daycardMonth = null;          // current month (1-based) for day card nav
+let _expandedDay  = null;          // 'YYYY-MM-DD' currently expanded
 
 // ── Public init ──────────────────────────────────────
 export function initTransactionsPage() {
@@ -40,6 +45,7 @@ export function initTransactionsPage() {
   _wireImportExport();
   _initTimePopover();
   _initCalendarNav();
+  _initDayCardNav();
   _initViewToggle();
   window.__rdstr_openTxModal = openTxModal; // FAB hook (router.js)
   onNavigate(page => { if (page === 'transactions') render(); });
@@ -50,8 +56,11 @@ export function render() {
   const listCard = document.getElementById('listViewCard');
   const calView  = document.getElementById('calendarView');
   const calDetail = document.getElementById('calDayDetail');
+  const dcView   = document.getElementById('daycardView');
   if (listCard) listCard.style.display = _currentView === 'list' ? '' : 'none';
   if (calView)  calView.style.display  = _currentView === 'calendar' ? '' : 'none';
+  if (calDetail && _currentView !== 'calendar') calDetail.style.display = 'none';
+  if (dcView)   dcView.style.display   = _currentView === 'daycard' ? '' : 'none';
 
   const q = (document.getElementById('txSearch')?.value || '').toLowerCase();
   let txs = getTransactions();
@@ -71,6 +80,21 @@ export function render() {
     }
     _renderCalendar(txs);
     return;
+  }
+
+  if (_currentView === 'daycard') {
+    // Search/filter → revert to list mode
+    if (q || _filterType) {
+      _currentView = 'list';
+      document.querySelectorAll('#txViewSeg .seg-pill').forEach(b => b.classList.remove('active'));
+      const listPill = document.querySelector('#txViewSeg .seg-pill[data-view="list"]');
+      if (listPill) listPill.classList.add('active');
+      // fall through to list rendering below
+    } else {
+      if (_daycardMonth == null) _initDayCardMonth(txs);
+      _renderDayCardView(txs);
+      return;
+    }
   }
 
   if (_filterType) txs = txs.filter(t => t.type === _filterType);
@@ -216,7 +240,226 @@ function _wireListControls() {
 }
 
 // ════════════════════════════════════════════════════
-//  VIEW TOGGLE (list ↔ calendar)
+//  DAY CARD VIEW
+// ════════════════════════════════════════════════════
+
+function _initDayCardMonth(txs) {
+  if (txs.length) {
+    const latest = txs.reduce((a, b) => a.date > b.date ? a : b);
+    const d = new Date(latest.date);
+    _daycardYear = d.getFullYear();
+    _daycardMonth = d.getMonth() + 1;
+  } else {
+    const now = new Date();
+    _daycardYear = now.getFullYear();
+    _daycardMonth = now.getMonth() + 1;
+  }
+  _expandedDay = null;
+}
+
+function _initDayCardNav() {
+  const yearSelect = document.getElementById('daycardYearSelect');
+  const monthsEl   = document.getElementById('daycardMonths');
+
+  // Year dropdown: current year ±2
+  if (yearSelect) {
+    yearSelect.addEventListener('change', () => {
+      _daycardYear = parseInt(yearSelect.value);
+      _expandedDay = null;
+      render();
+    });
+  }
+
+  // Month tabs
+  if (monthsEl) {
+    monthsEl.addEventListener('click', (e) => {
+      const tab = e.target.closest('.daycard-month-tab');
+      if (!tab) return;
+      _daycardMonth = parseInt(tab.dataset.month);
+      _expandedDay = null;
+      render();
+    });
+  }
+}
+
+function _renderDayCardNav(txs) {
+  const yearSelect = document.getElementById('daycardYearSelect');
+  const monthsEl   = document.getElementById('daycardMonths');
+
+  // Populate year dropdown
+  if (yearSelect) {
+    const years = [];
+    for (let y = _daycardYear - 2; y <= _daycardYear + 2; y++) years.push(y);
+    // Also include any years that appear in transactions
+    txs.forEach(t => {
+      const y = parseInt((t.date || '').slice(0, 4));
+      if (y && !years.includes(y)) years.push(y);
+    });
+    years.sort((a, b) => a - b);
+    yearSelect.innerHTML = years.map(y =>
+      `<option value="${y}" ${y === _daycardYear ? 'selected' : ''}>${y} 年</option>`
+    ).join('');
+  }
+
+  // Render month tabs
+  if (monthsEl) {
+    monthsEl.innerHTML = Array.from({ length: 12 }, (_, i) => {
+      const m = i + 1;
+      const active = m === _daycardMonth;
+      return `<span class="daycard-month-tab${active ? ' active' : ''}" data-month="${m}">${m}月</span>`;
+    }).join('');
+
+    // Scroll active month into view
+    const activeTab = monthsEl.querySelector('.daycard-month-tab.active');
+    if (activeTab) {
+      activeTab.scrollIntoView({ behavior: 'instant', block: 'nearest', inline: 'center' });
+    }
+  }
+}
+
+function _renderDayCardView(txs) {
+  const gridEl       = document.getElementById('daycardGrid');
+  const summaryEl    = document.getElementById('daycardSummaryBar');
+  if (!gridEl) return;
+
+  _renderDayCardNav(txs);
+
+  const monthPrefix = `${_daycardYear}-${pad2(_daycardMonth)}-`;
+
+  // Build day → transactions map
+  const dayMap = {};
+  let monthIncome = 0, monthExpense = 0;
+  txs.forEach(tx => {
+    const dayKey = (tx.date || '').slice(0, 10);
+    if (!dayKey.startsWith(monthPrefix)) return;
+    if (!dayMap[dayKey]) dayMap[dayKey] = [];
+    dayMap[dayKey].push(tx);
+    if (tx.type === '收入') monthIncome += tx.amount;
+    else monthExpense += tx.amount;
+  });
+
+  // Monthly summary bar
+  const net = monthIncome - monthExpense;
+  if (summaryEl) {
+    const netCls = net >= 0 ? 'positive' : 'negative';
+    const netSign = net >= 0 ? '+' : '';
+    summaryEl.innerHTML = `
+      <span class="dc-sum-income">收入 +¥${fmt(monthIncome)}</span>
+      <span class="dc-sum-expense">支出 -¥${fmt(monthExpense)}</span>
+      <span class="dc-sum-net ${netCls}">结余 ${netSign}¥${fmt(Math.abs(net))}</span>`;
+  }
+
+  // Auto-expand latest day with records on first load
+  if (_expandedDay === null && Object.keys(dayMap).length > 0) {
+    const days = Object.keys(dayMap).sort();
+    _expandedDay = days[days.length - 1];
+  }
+
+  const daysInMonth = new Date(_daycardYear, _daycardMonth, 0).getDate();
+  const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+
+  const cards = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dayKey = `${monthPrefix}${pad2(d)}`;
+    const dayTxs = dayMap[dayKey] || [];
+    const dayDate = new Date(_daycardYear, _daycardMonth - 1, d);
+    const weekday = dayNames[dayDate.getDay()];
+    const isEmpty = dayTxs.length === 0;
+    const isExpanded = dayKey === _expandedDay;
+
+    if (isEmpty) {
+      cards.push(`<div class="daycard-card daycard-card--empty" data-day="${dayKey}">
+        <div class="daycard-card-top">
+          <div>
+            <div class="daycard-card-date" style="color:var(--color-label-4)">${d}</div>
+            <div class="daycard-card-weekday">${weekday}</div>
+          </div>
+        </div>
+        <div class="daycard-card-count" style="color:var(--color-label-4)">无记录</div>
+      </div>`);
+      continue;
+    }
+
+    const income  = dayTxs.filter(t => t.type === '收入').reduce((s, t) => s + t.amount, 0);
+    const expense = dayTxs.filter(t => t.type === '支出').reduce((s, t) => s + t.amount, 0);
+    const dayNet  = income - expense;
+
+    let amtCls = 'zero', amtSign = '';
+    if (dayNet > 0) { amtCls = 'income'; amtSign = '+'; }
+    else if (dayNet < 0) { amtCls = 'expense'; }
+
+    // Colored dots
+    let dotCls = 'daycard-dot--gray';
+    if (dayNet > 0) dotCls = 'daycard-dot--green';
+    else if (dayNet < 0) dotCls = 'daycard-dot--red';
+
+    // Expanded or collapsed
+    if (isExpanded) {
+      const sorted = [...dayTxs].sort((a, b) => new Date(b.date) - new Date(a.date));
+      cards.push(`<div class="daycard-card expanded" data-day="${dayKey}">
+        <div class="daycard-card-header">
+          <div class="daycard-card-header-left">
+            <span class="daycard-card-date">${d}</span>
+            <span class="daycard-card-weekday">${weekday}</span>
+            <span class="daycard-card-amount ${amtCls}">${amtSign}¥${fmt(Math.abs(dayNet))}</span>
+            <span class="daycard-dot ${dotCls}" style="display:inline-block;width:6px;height:6px;border-radius:50%;vertical-align:middle"></span>
+          </div>
+          <span class="daycard-card-collapse-hint">${dayTxs.length} 笔 · 点击收起</span>
+        </div>
+        <div class="daycard-tx-list">${sorted.map(_rowHtml).join('')}</div>
+      </div>`);
+    } else {
+      cards.push(`<div class="daycard-card" data-day="${dayKey}">
+        <div class="daycard-card-top">
+          <div>
+            <div class="daycard-card-date">${d}</div>
+            <div class="daycard-card-weekday">${weekday}</div>
+          </div>
+          <div>
+            <div class="daycard-card-amount ${amtCls}">${amtSign}¥${fmt(Math.abs(dayNet))}</div>
+          </div>
+        </div>
+        <div class="daycard-card-count">${dayTxs.length} 笔</div>
+        <div class="daycard-card-dots"><span class="daycard-dot ${dotCls}"></span></div>
+      </div>`);
+    }
+  }
+
+  gridEl.innerHTML = cards.join('');
+
+  // Wire click: expand / collapse
+  gridEl.querySelectorAll('.daycard-card:not(.daycard-card--empty)').forEach(card => {
+    card.addEventListener('click', () => {
+      const dayKey = card.dataset.day;
+      _expandedDay = (_expandedDay === dayKey) ? null : dayKey;
+      _renderDayCardView(txs);
+    });
+  });
+
+  // Wire row clicks inside expanded day
+  gridEl.querySelectorAll('[data-tx-id]').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.tx-edit-btn')) return;
+      if (e.target.closest('.tx-time-pill')) return;
+      openTxDetail(row.dataset.txId);
+    });
+  });
+  gridEl.querySelectorAll('.tx-edit-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openEditTx(btn.dataset.txId);
+    });
+  });
+  gridEl.querySelectorAll('.tx-time-pill').forEach(pill => {
+    pill.addEventListener('click', (e) => {
+      e.stopPropagation();
+      _openTimePopover(pill);
+    });
+  });
+}
+
+// ════════════════════════════════════════════════════
+//  VIEW TOGGLE (list ↔ calendar ↔ daycard)
 // ════════════════════════════════════════════════════
 
 function _initViewToggle() {
@@ -226,6 +469,9 @@ function _initViewToggle() {
       document.querySelectorAll('#txViewSeg .seg-pill').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       if (_currentView === 'calendar') _selectedCalDay = null;
+      if (_currentView === 'daycard') {
+        _daycardYear = null; _daycardMonth = null; _expandedDay = null;
+      }
       render();
     });
   });

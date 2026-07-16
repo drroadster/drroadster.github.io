@@ -720,3 +720,205 @@
 .time-popover-actions {
   display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end;
 }
+
+/* ══════════════════════════════════════════════════════
+   DAY CARD VIEW
+   ══════════════════════════════════════════════════════ */
+
+/* ── Navigation bar ── */
+.daycard-nav {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 16px; flex-wrap: wrap;
+}
+.daycard-year-select {
+  appearance: none; -webkit-appearance: none;
+  background: var(--glass-card);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+  color: var(--color-label-1);
+  font-size: 14px; font-weight: 700; font-family: inherit;
+  padding: 8px 32px 8px 14px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238e8e93' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+  flex-shrink: 0;
+}
+.daycard-year-select:focus {
+  outline: none; border-color: var(--color-accent);
+}
+
+/* ── Month tabs ── */
+.daycard-months {
+  display: flex; gap: 4px; overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1; min-width: 0;
+  padding-bottom: 2px;
+}
+.daycard-months::-webkit-scrollbar { height: 0; }
+.daycard-month-tab {
+  flex-shrink: 0; padding: 6px 14px; border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 600; color: var(--color-label-3);
+  background: transparent; border: 1px solid transparent;
+  cursor: pointer; transition: all 0.18s ease;
+  white-space: nowrap;
+  user-select: none;
+}
+.daycard-month-tab:hover { color: var(--color-label-1); background: var(--glass-card); }
+.daycard-month-tab.active {
+  color: #fff; background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+/* ── Monthly summary bar ── */
+.daycard-summary-bar {
+  display: flex; gap: 16px; padding: 10px 14px;
+  margin-bottom: 16px;
+  border-radius: var(--r-sm);
+  background: var(--glass-card);
+  border: 1px solid var(--glass-border);
+  font-size: 12.5px; font-weight: 700;
+  flex-wrap: wrap;
+}
+.daycard-summary-bar .dc-sum-income  { color: var(--color-green); }
+.daycard-summary-bar .dc-sum-expense { color: var(--color-red); }
+.daycard-summary-bar .dc-sum-net { margin-left: auto; }
+.daycard-summary-bar .dc-sum-net.positive { color: var(--color-green); }
+.daycard-summary-bar .dc-sum-net.negative { color: var(--color-red); }
+
+/* ── Card grid ── */
+.daycard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+/* ── Individual day card ── */
+.daycard-card {
+  background: var(--glass-card);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex; flex-direction: column; gap: 6px;
+  min-height: 80px;
+  position: relative;
+  overflow: hidden;
+}
+.daycard-card:hover {
+  background: var(--glass-card-hover);
+  border-color: var(--color-sep-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.daycard-card:active { transform: scale(0.98); }
+
+/* Empty day card */
+.daycard-card--empty {
+  opacity: 0.45; cursor: default;
+}
+.daycard-card--empty:hover {
+  background: var(--glass-card);
+  border-color: var(--glass-border);
+  transform: none;
+  box-shadow: none;
+}
+.daycard-card--empty:active { transform: none; }
+
+/* Card header area */
+.daycard-card-top {
+  display: flex; justify-content: space-between; align-items: flex-start;
+}
+.daycard-card-date {
+  font-size: 18px; font-weight: 800; color: var(--color-label-1);
+  line-height: 1;
+}
+.daycard-card-weekday {
+  font-size: 11px; color: var(--color-label-3); font-weight: 600;
+  margin-top: 2px;
+}
+.daycard-card-amount {
+  font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums;
+  text-align: right; line-height: 1;
+}
+.daycard-card-amount.income  { color: var(--color-green); }
+.daycard-card-amount.expense { color: var(--color-red); }
+.daycard-card-amount.zero    { color: var(--color-label-4); }
+
+/* Colored dots */
+.daycard-card-dots {
+  display: flex; gap: 3px; flex-wrap: wrap;
+}
+.daycard-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+}
+.daycard-dot--green { background: var(--color-green); }
+.daycard-dot--red   { background: var(--color-red); }
+.daycard-dot--gray  { background: var(--color-label-4); }
+
+/* Record count badge */
+.daycard-card-count {
+  font-size: 11px; color: var(--color-label-3); font-weight: 600;
+}
+
+/* ── Expanded state ── */
+.daycard-card.expanded {
+  grid-column: 1 / -1;
+  flex-direction: column;
+  gap: 0;
+  cursor: default;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+.daycard-card.expanded:hover {
+  transform: none;
+}
+.daycard-card.expanded .daycard-card-header {
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--color-sep);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.daycard-card.expanded .daycard-card-header-left {
+  display: flex; align-items: baseline; gap: 8px;
+}
+.daycard-card.expanded .daycard-card-collapse-hint {
+  font-size: 11px; color: var(--color-label-3); font-weight: 600;
+}
+
+/* Expanded transaction list */
+.daycard-tx-list {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.daycard-tx-list .tx-row {
+  border-radius: var(--r-sm);
+  background: var(--color-surface-1);
+  padding: 8px 10px;
+}
+.daycard-tx-list .tx-row:hover { background: var(--glass-card); }
+
+/* Collapsed card header (reuse existing elements via nesting) */
+.daycard-card:not(.expanded) .daycard-card-collapse-hint { display: none; }
+.daycard-card:not(.expanded) .daycard-tx-list { display: none; }
+
+/* ── Responsive ── */
+@media (max-width: 720px) {
+  .daycard-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .daycard-card {
+    padding: 12px 14px; min-height: 72px;
+  }
+  .daycard-card-date { font-size: 16px; }
+  .daycard-card-amount { font-size: 13px; }
+  .daycard-nav {
+    gap: 8px;
+  }
+  .daycard-month-tab {
+    padding: 5px 11px; font-size: 12px;
+  }
+  .daycard-summary-bar {
+    font-size: 11.5px; gap: 10px;
+  }
+}

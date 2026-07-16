@@ -1744,6 +1744,208 @@ body::after {
   display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end;
 }
 
+/* ══════════════════════════════════════════════════════
+   DAY CARD VIEW
+   ══════════════════════════════════════════════════════ */
+
+/* ── Navigation bar ── */
+.daycard-nav {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 16px; flex-wrap: wrap;
+}
+.daycard-year-select {
+  appearance: none; -webkit-appearance: none;
+  background: var(--glass-card);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+  color: var(--color-label-1);
+  font-size: 14px; font-weight: 700; font-family: inherit;
+  padding: 8px 32px 8px 14px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238e8e93' stroke-width='1.8' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+  flex-shrink: 0;
+}
+.daycard-year-select:focus {
+  outline: none; border-color: var(--color-accent);
+}
+
+/* ── Month tabs ── */
+.daycard-months {
+  display: flex; gap: 4px; overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1; min-width: 0;
+  padding-bottom: 2px;
+}
+.daycard-months::-webkit-scrollbar { height: 0; }
+.daycard-month-tab {
+  flex-shrink: 0; padding: 6px 14px; border-radius: var(--r-sm);
+  font-size: 13px; font-weight: 600; color: var(--color-label-3);
+  background: transparent; border: 1px solid transparent;
+  cursor: pointer; transition: all 0.18s ease;
+  white-space: nowrap;
+  user-select: none;
+}
+.daycard-month-tab:hover { color: var(--color-label-1); background: var(--glass-card); }
+.daycard-month-tab.active {
+  color: #fff; background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+/* ── Monthly summary bar ── */
+.daycard-summary-bar {
+  display: flex; gap: 16px; padding: 10px 14px;
+  margin-bottom: 16px;
+  border-radius: var(--r-sm);
+  background: var(--glass-card);
+  border: 1px solid var(--glass-border);
+  font-size: 12.5px; font-weight: 700;
+  flex-wrap: wrap;
+}
+.daycard-summary-bar .dc-sum-income  { color: var(--color-green); }
+.daycard-summary-bar .dc-sum-expense { color: var(--color-red); }
+.daycard-summary-bar .dc-sum-net { margin-left: auto; }
+.daycard-summary-bar .dc-sum-net.positive { color: var(--color-green); }
+.daycard-summary-bar .dc-sum-net.negative { color: var(--color-red); }
+
+/* ── Card grid ── */
+.daycard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+/* ── Individual day card ── */
+.daycard-card {
+  background: var(--glass-card);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-md);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex; flex-direction: column; gap: 6px;
+  min-height: 80px;
+  position: relative;
+  overflow: hidden;
+}
+.daycard-card:hover {
+  background: var(--glass-card-hover);
+  border-color: var(--color-sep-strong);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.daycard-card:active { transform: scale(0.98); }
+
+/* Empty day card */
+.daycard-card--empty {
+  opacity: 0.45; cursor: default;
+}
+.daycard-card--empty:hover {
+  background: var(--glass-card);
+  border-color: var(--glass-border);
+  transform: none;
+  box-shadow: none;
+}
+.daycard-card--empty:active { transform: none; }
+
+/* Card header area */
+.daycard-card-top {
+  display: flex; justify-content: space-between; align-items: flex-start;
+}
+.daycard-card-date {
+  font-size: 18px; font-weight: 800; color: var(--color-label-1);
+  line-height: 1;
+}
+.daycard-card-weekday {
+  font-size: 11px; color: var(--color-label-3); font-weight: 600;
+  margin-top: 2px;
+}
+.daycard-card-amount {
+  font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums;
+  text-align: right; line-height: 1;
+}
+.daycard-card-amount.income  { color: var(--color-green); }
+.daycard-card-amount.expense { color: var(--color-red); }
+.daycard-card-amount.zero    { color: var(--color-label-4); }
+
+/* Colored dots */
+.daycard-card-dots {
+  display: flex; gap: 3px; flex-wrap: wrap;
+}
+.daycard-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+}
+.daycard-dot--green { background: var(--color-green); }
+.daycard-dot--red   { background: var(--color-red); }
+.daycard-dot--gray  { background: var(--color-label-4); }
+
+/* Record count badge */
+.daycard-card-count {
+  font-size: 11px; color: var(--color-label-3); font-weight: 600;
+}
+
+/* ── Expanded state ── */
+.daycard-card.expanded {
+  grid-column: 1 / -1;
+  flex-direction: column;
+  gap: 0;
+  cursor: default;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}
+.daycard-card.expanded:hover {
+  transform: none;
+}
+.daycard-card.expanded .daycard-card-header {
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--color-sep);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.daycard-card.expanded .daycard-card-header-left {
+  display: flex; align-items: baseline; gap: 8px;
+}
+.daycard-card.expanded .daycard-card-collapse-hint {
+  font-size: 11px; color: var(--color-label-3); font-weight: 600;
+}
+
+/* Expanded transaction list */
+.daycard-tx-list {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.daycard-tx-list .tx-row {
+  border-radius: var(--r-sm);
+  background: var(--color-surface-1);
+  padding: 8px 10px;
+}
+.daycard-tx-list .tx-row:hover { background: var(--glass-card); }
+
+/* Collapsed card header (reuse existing elements via nesting) */
+.daycard-card:not(.expanded) .daycard-card-collapse-hint { display: none; }
+.daycard-card:not(.expanded) .daycard-tx-list { display: none; }
+
+/* ── Responsive ── */
+@media (max-width: 720px) {
+  .daycard-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .daycard-card {
+    padding: 12px 14px; min-height: 72px;
+  }
+  .daycard-card-date { font-size: 16px; }
+  .daycard-card-amount { font-size: 13px; }
+  .daycard-nav {
+    gap: 8px;
+  }
+  .daycard-month-tab {
+    padding: 5px 11px; font-size: 12px;
+  }
+  .daycard-summary-bar {
+    font-size: 11.5px; gap: 10px;
+  }
+}
+
 
 /* ── src/css/charts.css ── */
 /* ================================================================
@@ -2259,6 +2461,7 @@ body::after {
         </div>
         <div class="segmented" id="txViewSeg">
           <button class="seg-pill active" data-view="list" title="列表视图">📋</button>
+          <button class="seg-pill" data-view="daycard" title="日卡片视图">🗂️</button>
           <button class="seg-pill" data-view="calendar" title="日历视图">📅</button>
         </div>
       </div>
@@ -2281,6 +2484,16 @@ body::after {
       <div class="card glass" id="calDayDetail" style="display:none">
         <div class="cal-day-header" id="calDayHeader"></div>
         <div class="tx-list" id="calDayList"></div>
+      </div>
+
+      <!-- Day Card View -->
+      <div class="card glass" id="daycardView" style="display:none">
+        <div class="daycard-nav">
+          <select class="daycard-year-select" id="daycardYearSelect"></select>
+          <div class="daycard-months" id="daycardMonths"></div>
+        </div>
+        <div class="daycard-summary-bar" id="daycardSummaryBar"></div>
+        <div class="daycard-grid" id="daycardGrid"></div>
       </div>
 
       <div class="card glass" id="listViewCard">
@@ -3003,7 +3216,8 @@ var init_config = __esm({
       MIGRATED_V2: "rdstr_migrated_v2",
       MIGRATED_V23: "rdstr_migrated_v23",
       DRAFTS: "rdstr_drafts",
-      ASSETS_DRAFTS: "rdstr_asset_drafts"
+      ASSETS_DRAFTS: "rdstr_asset_drafts",
+      SNAPSHOT_DRAFTS: "rdstr_snapshot_drafts"
     };
     EXPENSE_CATS = [
       { v: "Food", icon: "\u{1F35C}", label: "Food \u9910\u996E" },
@@ -3437,7 +3651,7 @@ var init_versionManager = __esm({
 });
 
 // src/js/store.js
-function _retryAndPersist(writeFn, record, label, type) {
+function _retryAndPersist(writeFn, record, label, type, assetId) {
   (async () => {
     for (let attempt = 1; attempt <= RETRY_MAX; attempt++) {
       try {
@@ -3456,6 +3670,9 @@ function _retryAndPersist(writeFn, record, label, type) {
     if (type === "tx") {
       _drafts.push(record);
       _persist(LS.DRAFTS, _drafts);
+    } else if (type === "snapshot") {
+      _snapshotDrafts.push({ assetId, ...record });
+      _persist(LS.SNAPSHOT_DRAFTS, _snapshotDrafts);
     } else {
       _assetDrafts.push(record);
       _persist(LS.ASSETS_DRAFTS, _assetDrafts);
@@ -3496,6 +3713,7 @@ function clearSyncAdapter() {
 function initStore() {
   _drafts = _read(LS.DRAFTS);
   _history = _read(LS.ASSET_HISTORY);
+  _snapshotDrafts = _read(LS.SNAPSHOT_DRAFTS);
   _migrateOldDataToDrafts();
   _transactions = [..._drafts];
   _assetDrafts = _read(LS.ASSETS_DRAFTS);
@@ -3617,6 +3835,8 @@ function switchToLocalMode() {
   _assetDrafts = _read(LS.ASSETS_DRAFTS);
   _assets = [..._assetDrafts];
   _history = _read(LS.ASSET_HISTORY);
+  _snapshotDrafts = _read(LS.SNAPSHOT_DRAFTS);
+  _snapshotCache.clear();
   _emit("transactions");
   _emit("assets");
   _emit("history");
@@ -4002,7 +4222,7 @@ function _persist(key, value) {
     console.warn("[store] localStorage write failed:", key, e);
   }
 }
-var _transactions, _assets, _history, _drafts, _assetDrafts, _isLoggedIn, _loading, RETRY_MAX, RETRY_BASE_DELAY, _syncAdapter, _subs, _fp;
+var _transactions, _assets, _history, _drafts, _assetDrafts, _snapshotDrafts, _snapshotCache, _isLoggedIn, _loading, RETRY_MAX, RETRY_BASE_DELAY, _syncAdapter, _subs, _fp;
 var init_store = __esm({
   "src/js/store.js"() {
     init_config();
@@ -4012,6 +4232,8 @@ var init_store = __esm({
     _history = [];
     _drafts = [];
     _assetDrafts = [];
+    _snapshotDrafts = [];
+    _snapshotCache = /* @__PURE__ */ new Map();
     _isLoggedIn = false;
     _loading = false;
     RETRY_MAX = 3;
@@ -5538,6 +5760,7 @@ function initTransactionsPage() {
   _wireImportExport();
   _initTimePopover();
   _initCalendarNav();
+  _initDayCardNav();
   _initViewToggle();
   window.__rdstr_openTxModal = openTxModal;
   onNavigate((page) => {
@@ -5548,8 +5771,11 @@ function render() {
   const listCard = document.getElementById("listViewCard");
   const calView = document.getElementById("calendarView");
   const calDetail = document.getElementById("calDayDetail");
+  const dcView = document.getElementById("daycardView");
   if (listCard) listCard.style.display = _currentView === "list" ? "" : "none";
   if (calView) calView.style.display = _currentView === "calendar" ? "" : "none";
+  if (calDetail && _currentView !== "calendar") calDetail.style.display = "none";
+  if (dcView) dcView.style.display = _currentView === "daycard" ? "" : "none";
   const q = (document.getElementById("txSearch")?.value || "").toLowerCase();
   let txs = getTransactions();
   if (_currentView === "calendar") {
@@ -5566,6 +5792,18 @@ function render() {
     }
     _renderCalendar(txs);
     return;
+  }
+  if (_currentView === "daycard") {
+    if (q || _filterType) {
+      _currentView = "list";
+      document.querySelectorAll("#txViewSeg .seg-pill").forEach((b) => b.classList.remove("active"));
+      const listPill = document.querySelector('#txViewSeg .seg-pill[data-view="list"]');
+      if (listPill) listPill.classList.add("active");
+    } else {
+      if (_daycardMonth == null) _initDayCardMonth(txs);
+      _renderDayCardView(txs);
+      return;
+    }
   }
   if (_filterType) txs = txs.filter((t2) => t2.type === _filterType);
   if (q) txs = txs.filter((t2) => `${t2.category}${t2.note}`.toLowerCase().includes(q));
@@ -5690,6 +5928,188 @@ function _wireListControls() {
   const cleanupBtn = document.getElementById("dataCleanupBtn");
   if (cleanupBtn) cleanupBtn.addEventListener("click", openDataCleanup);
 }
+function _initDayCardMonth(txs) {
+  if (txs.length) {
+    const latest = txs.reduce((a, b) => a.date > b.date ? a : b);
+    const d = new Date(latest.date);
+    _daycardYear = d.getFullYear();
+    _daycardMonth = d.getMonth() + 1;
+  } else {
+    const now = /* @__PURE__ */ new Date();
+    _daycardYear = now.getFullYear();
+    _daycardMonth = now.getMonth() + 1;
+  }
+  _expandedDay = null;
+}
+function _initDayCardNav() {
+  const yearSelect = document.getElementById("daycardYearSelect");
+  const monthsEl = document.getElementById("daycardMonths");
+  if (yearSelect) {
+    yearSelect.addEventListener("change", () => {
+      _daycardYear = parseInt(yearSelect.value);
+      _expandedDay = null;
+      render();
+    });
+  }
+  if (monthsEl) {
+    monthsEl.addEventListener("click", (e) => {
+      const tab = e.target.closest(".daycard-month-tab");
+      if (!tab) return;
+      _daycardMonth = parseInt(tab.dataset.month);
+      _expandedDay = null;
+      render();
+    });
+  }
+}
+function _renderDayCardNav(txs) {
+  const yearSelect = document.getElementById("daycardYearSelect");
+  const monthsEl = document.getElementById("daycardMonths");
+  if (yearSelect) {
+    const years = [];
+    for (let y = _daycardYear - 2; y <= _daycardYear + 2; y++) years.push(y);
+    txs.forEach((t2) => {
+      const y = parseInt((t2.date || "").slice(0, 4));
+      if (y && !years.includes(y)) years.push(y);
+    });
+    years.sort((a, b) => a - b);
+    yearSelect.innerHTML = years.map(
+      (y) => `<option value="${y}" ${y === _daycardYear ? "selected" : ""}>${y} \u5E74</option>`
+    ).join("");
+  }
+  if (monthsEl) {
+    monthsEl.innerHTML = Array.from({ length: 12 }, (_, i) => {
+      const m = i + 1;
+      const active = m === _daycardMonth;
+      return `<span class="daycard-month-tab${active ? " active" : ""}" data-month="${m}">${m}\u6708</span>`;
+    }).join("");
+    const activeTab = monthsEl.querySelector(".daycard-month-tab.active");
+    if (activeTab) {
+      activeTab.scrollIntoView({ behavior: "instant", block: "nearest", inline: "center" });
+    }
+  }
+}
+function _renderDayCardView(txs) {
+  const gridEl = document.getElementById("daycardGrid");
+  const summaryEl = document.getElementById("daycardSummaryBar");
+  if (!gridEl) return;
+  _renderDayCardNav(txs);
+  const monthPrefix = `${_daycardYear}-${pad2(_daycardMonth)}-`;
+  const dayMap = {};
+  let monthIncome = 0, monthExpense = 0;
+  txs.forEach((tx) => {
+    const dayKey = (tx.date || "").slice(0, 10);
+    if (!dayKey.startsWith(monthPrefix)) return;
+    if (!dayMap[dayKey]) dayMap[dayKey] = [];
+    dayMap[dayKey].push(tx);
+    if (tx.type === "\u6536\u5165") monthIncome += tx.amount;
+    else monthExpense += tx.amount;
+  });
+  const net = monthIncome - monthExpense;
+  if (summaryEl) {
+    const netCls = net >= 0 ? "positive" : "negative";
+    const netSign = net >= 0 ? "+" : "";
+    summaryEl.innerHTML = `
+      <span class="dc-sum-income">\u6536\u5165 +\xA5${fmt(monthIncome)}</span>
+      <span class="dc-sum-expense">\u652F\u51FA -\xA5${fmt(monthExpense)}</span>
+      <span class="dc-sum-net ${netCls}">\u7ED3\u4F59 ${netSign}\xA5${fmt(Math.abs(net))}</span>`;
+  }
+  if (_expandedDay === null && Object.keys(dayMap).length > 0) {
+    const days = Object.keys(dayMap).sort();
+    _expandedDay = days[days.length - 1];
+  }
+  const daysInMonth = new Date(_daycardYear, _daycardMonth, 0).getDate();
+  const dayNames = ["\u5468\u65E5", "\u5468\u4E00", "\u5468\u4E8C", "\u5468\u4E09", "\u5468\u56DB", "\u5468\u4E94", "\u5468\u516D"];
+  const cards = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dayKey = `${monthPrefix}${pad2(d)}`;
+    const dayTxs = dayMap[dayKey] || [];
+    const dayDate = new Date(_daycardYear, _daycardMonth - 1, d);
+    const weekday = dayNames[dayDate.getDay()];
+    const isEmpty = dayTxs.length === 0;
+    const isExpanded = dayKey === _expandedDay;
+    if (isEmpty) {
+      cards.push(`<div class="daycard-card daycard-card--empty" data-day="${dayKey}">
+        <div class="daycard-card-top">
+          <div>
+            <div class="daycard-card-date" style="color:var(--color-label-4)">${d}</div>
+            <div class="daycard-card-weekday">${weekday}</div>
+          </div>
+        </div>
+        <div class="daycard-card-count" style="color:var(--color-label-4)">\u65E0\u8BB0\u5F55</div>
+      </div>`);
+      continue;
+    }
+    const income = dayTxs.filter((t2) => t2.type === "\u6536\u5165").reduce((s, t2) => s + t2.amount, 0);
+    const expense = dayTxs.filter((t2) => t2.type === "\u652F\u51FA").reduce((s, t2) => s + t2.amount, 0);
+    const dayNet = income - expense;
+    let amtCls = "zero", amtSign = "";
+    if (dayNet > 0) {
+      amtCls = "income";
+      amtSign = "+";
+    } else if (dayNet < 0) {
+      amtCls = "expense";
+    }
+    let dotCls = "daycard-dot--gray";
+    if (dayNet > 0) dotCls = "daycard-dot--green";
+    else if (dayNet < 0) dotCls = "daycard-dot--red";
+    if (isExpanded) {
+      const sorted = [...dayTxs].sort((a, b) => new Date(b.date) - new Date(a.date));
+      cards.push(`<div class="daycard-card expanded" data-day="${dayKey}">
+        <div class="daycard-card-header">
+          <div class="daycard-card-header-left">
+            <span class="daycard-card-date">${d}</span>
+            <span class="daycard-card-weekday">${weekday}</span>
+            <span class="daycard-card-amount ${amtCls}">${amtSign}\xA5${fmt(Math.abs(dayNet))}</span>
+            <span class="daycard-dot ${dotCls}" style="display:inline-block;width:6px;height:6px;border-radius:50%;vertical-align:middle"></span>
+          </div>
+          <span class="daycard-card-collapse-hint">${dayTxs.length} \u7B14 \xB7 \u70B9\u51FB\u6536\u8D77</span>
+        </div>
+        <div class="daycard-tx-list">${sorted.map(_rowHtml).join("")}</div>
+      </div>`);
+    } else {
+      cards.push(`<div class="daycard-card" data-day="${dayKey}">
+        <div class="daycard-card-top">
+          <div>
+            <div class="daycard-card-date">${d}</div>
+            <div class="daycard-card-weekday">${weekday}</div>
+          </div>
+          <div>
+            <div class="daycard-card-amount ${amtCls}">${amtSign}\xA5${fmt(Math.abs(dayNet))}</div>
+          </div>
+        </div>
+        <div class="daycard-card-count">${dayTxs.length} \u7B14</div>
+        <div class="daycard-card-dots"><span class="daycard-dot ${dotCls}"></span></div>
+      </div>`);
+    }
+  }
+  gridEl.innerHTML = cards.join("");
+  gridEl.querySelectorAll(".daycard-card:not(.daycard-card--empty)").forEach((card) => {
+    card.addEventListener("click", () => {
+      const dayKey = card.dataset.day;
+      _expandedDay = _expandedDay === dayKey ? null : dayKey;
+      _renderDayCardView(txs);
+    });
+  });
+  gridEl.querySelectorAll("[data-tx-id]").forEach((row) => {
+    row.addEventListener("click", (e) => {
+      if (e.target.closest(".tx-edit-btn")) return;
+      if (e.target.closest(".tx-time-pill")) return;
+      openTxDetail(row.dataset.txId);
+    });
+  });
+  gridEl.querySelectorAll(".tx-edit-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openEditTx(btn.dataset.txId);
+    });
+  });
+  gridEl.querySelectorAll(".tx-time-pill").forEach((pill) => {
+    pill.addEventListener("click", (e) => {
+      e.stopPropagation();
+      _openTimePopover(pill);
+    });
+  });
+}
 function _initViewToggle() {
   document.querySelectorAll("#txViewSeg .seg-pill").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -5697,6 +6117,11 @@ function _initViewToggle() {
       document.querySelectorAll("#txViewSeg .seg-pill").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       if (_currentView === "calendar") _selectedCalDay = null;
+      if (_currentView === "daycard") {
+        _daycardYear = null;
+        _daycardMonth = null;
+        _expandedDay = null;
+      }
       render();
     });
   });
@@ -6584,7 +7009,7 @@ function _txHash(tx) {
   }
   return (hash >>> 0).toString(16).padStart(8, "0").toUpperCase();
 }
-var _filterType, _expandedMonths, _quickType, _keypadVal, _selectedCat, _isCustomCat, _currentView, _calYear, _calMonth, _selectedCalDay, _editingTxId, HEADER_MAP;
+var _filterType, _expandedMonths, _quickType, _keypadVal, _selectedCat, _isCustomCat, _currentView, _calYear, _calMonth, _selectedCalDay, _editingTxId, _daycardYear, _daycardMonth, _expandedDay, HEADER_MAP;
 var init_transactions = __esm({
   "src/js/pages/transactions.js"() {
     init_store();
@@ -6604,6 +7029,9 @@ var init_transactions = __esm({
     _currentView = "list";
     _selectedCalDay = null;
     _editingTxId = null;
+    _daycardYear = null;
+    _daycardMonth = null;
+    _expandedDay = null;
     HEADER_MAP = {
       date: ["\u65F6\u95F4", "\u65E5\u671F", "date", "time"],
       type: ["\u6536\u652F", "\u7C7B\u578B", "\u6536\u652F\u7C7B\u578B", "type"],
@@ -8567,6 +8995,10 @@ function _createAdapter(uid2) {
     },
     deleteAsset: async (id) => {
       await deleteDoc(doc(_db, COLLECTIONS.assets(uid2), id));
+    },
+    writeAssetSnapshot: async (assetId, snapshotId, data) => {
+      const { id: _id, ...rest } = data;
+      await setDoc(doc(_db, `${COLLECTIONS.assets(uid2)}/${assetId}/snapshots`, snapshotId), rest);
     }
   };
 }
