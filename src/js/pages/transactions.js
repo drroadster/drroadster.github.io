@@ -1234,10 +1234,6 @@ function _wireImportExport() {
   document.getElementById('loadSampleBtn')?.addEventListener('click', _loadSample);
   document.getElementById('clearDataBtn')?.addEventListener('click', _clearAll);
 
-  document.querySelectorAll('[data-export]').forEach(btn => {
-    btn.addEventListener('click', () => _exportCSV(btn.dataset.export));
-  });
-
   // Import tab switcher
   document.getElementById('importTabTx')?.addEventListener('click', () => _switchImportTab('tx'));
   document.getElementById('importTabAsset')?.addEventListener('click', () => _switchImportTab('asset'));
@@ -1382,35 +1378,6 @@ function _loadSample() {
   showToast('示例数据已填入，点击「解析并导入」');
 }
 
-// ── CSV export ─────────────────────────────────────────
-function _csvEscape(v) {
-  v = String(v ?? '');
-  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
-}
-function _download(filename, content, mime) {
-  const blob = new Blob([content], { type: mime });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function _exportCSV(kind) {
-  const today = new Date();
-  const stamp = `${today.getFullYear()}${pad2(today.getMonth()+1)}${pad2(today.getDate())}`;
-
-  if (kind === 'tx') {
-    const txs = getTransactions();
-    if (!txs.length) { showToast(t('toastNoData')); return; }
-    const rows = [['时间','收支','类别','金额','备注','智能分类','分类来源'].join(','),
-      ...[...txs].sort((a,b)=>new Date(a.date)-new Date(b.date))
-        .map(t => [t.date, t.type, t.category, t.amount, t.note || '', t.gCategory || '', t.source || ''].map(_csvEscape).join(','))];
-    _download(`Roadster_记账数据_${stamp}.csv`, '\uFEFF' + rows.join('\n'), 'text/csv;charset=utf-8');
-    showToast(t('toastExportDone'));
-  }
-  // asset-csv / asset-history-csv are handled in pages/assets.js
-}
 
 // ════════════════════════════════════════════════════
 //  AI 分类辅助函数

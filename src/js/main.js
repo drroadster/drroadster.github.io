@@ -72,6 +72,7 @@ initAnalysisPage();
 initFirePage();
 initSettingsPage();
 initBudgetPage();
+initCategoryManagePage();
 
 // Wire nav buttons (topbar + tabbar share [data-page] attribute)
 document.querySelectorAll('[data-page]').forEach(el => {
@@ -497,6 +498,7 @@ function renderAllPages() {
   if (currentPage() === 'analysis')     renderAnalysis();
   initSettingsPage();
   initBudgetPage();
+  initCategoryManagePage();
 }
 
 function _renderAuthButton(user) {
