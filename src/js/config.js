@@ -50,6 +50,8 @@ export const LS = {
   MIGRATED_V23: 'rdstr_migrated_v23',
   DRAFTS:       'rdstr_drafts',
   ASSETS_DRAFTS: 'rdstr_asset_drafts',
+  SNAPSHOT_DRAFTS: 'rdstr_snapshot_drafts',
+  BUDGETS:       'roadster_budgets',
 };
 
 // ── Chart.js palette ──────────────────────────────────
