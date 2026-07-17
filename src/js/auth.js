@@ -19,9 +19,9 @@ import { t } from './i18n.js';
 // Firebase SDK — loaded via importmap in index.html
 import { initializeApp, getApps }              from 'firebase/app';
 import {
-  initializeAuth,
+  getAuth,
+  setPersistence,
   browserLocalPersistence,
-  indexedDBLocalPersistence,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
@@ -34,14 +34,14 @@ import {
 // Guard against double-init when the module is hot-reloaded in dev.
 const _app  = getApps().length ? getApps()[0] : initializeApp(FIREBASE_CONFIG);
 
-// Use initializeAuth with explicit persistence chain so the session
-// survives page refresh / tab close / browser restart.
-// indexedDBLocalPersistence is the most durable; browserLocalPersistence
-// is a legacy alias but some browsers (Safari) behave better with the
-// explicit IndexedDB variant chained first.
-const _auth = initializeAuth(_app, {
-  persistence: [indexedDBLocalPersistence, browserLocalPersistence],
-});
+// Use the standard getAuth() + setPersistence() pattern (Firebase docs
+// recommendation for web). browserLocalPersistence stores the session in
+// IndexedDB so it survives page refresh, tab close, and browser restart.
+// Must be called before any sign-in operation — setPersistence is
+// fire-and-forget here because sign-in only happens on user click,
+// which always occurs well after this module has loaded.
+const _auth = getAuth(_app);
+setPersistence(_auth, browserLocalPersistence);
 
 // Export the app instance so db.js can reuse it.
 export { _app as firebaseApp };

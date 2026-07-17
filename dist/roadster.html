@@ -8860,9 +8860,9 @@ init_config();
 init_i18n();
 import { initializeApp, getApps } from "firebase/app";
 import {
-  initializeAuth,
+  getAuth,
+  setPersistence,
   browserLocalPersistence,
-  indexedDBLocalPersistence,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
@@ -8871,9 +8871,8 @@ import {
   updateProfile
 } from "firebase/auth";
 var _app = getApps().length ? getApps()[0] : initializeApp(FIREBASE_CONFIG);
-var _auth = initializeAuth(_app, {
-  persistence: [indexedDBLocalPersistence, browserLocalPersistence]
-});
+var _auth = getAuth(_app);
+setPersistence(_auth, browserLocalPersistence);
 var _user = null;
 var _subscribers2 = /* @__PURE__ */ new Set();
 onAuthStateChanged(_auth, (user) => {
