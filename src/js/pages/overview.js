@@ -4,11 +4,11 @@
 //  category lists, recent transactions list.
 // ═══════════════════════════════════════════════════════
 
-import { getTransactions, filterByPeriod, summarise, catTotals, getBudgetStats, subscribe } from '../store.js';
+import { getTransactions, filterByPeriod, summarise, catTotals } from '../store.js';
 import { buildLineChart, cssVar, hexToRgba, palette } from '../charts.js';
 import { fmt, fmtK, esc, formatTxDateTime, pad2 } from '../utils.js';
 import { t } from '../i18n.js';
-import { onNavigate, navigate } from '../router.js';
+import { onNavigate } from '../router.js';
 import { CAT_ICONS, getCatIcon } from '../config.js';
 
 let _period = 'month';
@@ -18,13 +18,6 @@ let _catDetailSort = 'time';
 // ── Public init ────────────────────────────────────────
 export function initOverviewPage() {
   _wireControls();
-  _wireBudgetLink();
-  // Auto-refresh budget when store data changes
-  subscribe('any', () => {
-    if (document.getElementById('page-overview')?.classList.contains('active')) {
-      if (_period === 'month') _renderBudget();
-    }
-  });
   onNavigate(page => { if (page === 'overview') render(); });
 }
 
@@ -40,7 +33,6 @@ export function render() {
 
   _renderHero(net, txs.length);
   _renderHeroStats(income, expense, saveRate, mom);
-  _renderBudget();
   _renderTrendChart(txs);
   _renderPies(txs);
   _renderRecent(txs);
@@ -114,103 +106,6 @@ function _renderHeroStats(income, expense, saveRate, mom) {
     }
     rateEl.innerHTML = `${currRate !== null ? Math.round(currRate * 100) + '%' : '—'}${momPart}`;
   }
-}
-
-// ── Budget ────────────────────────────────────────────
-let _budgetRingChart = null;
-
-function _wireBudgetLink() {
-  const link = document.querySelector('.budget-manage-link');
-  if (link) {
-    link.addEventListener('click', (e) => {
-      e.preventDefault();
-      navigate('settings');
-    });
-  }
-}
-
-function _renderBudget() {
-  const section = document.getElementById('budgetSection');
-  if (!section) return;
-
-  const now = new Date();
-  const monthYear = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const stats = getBudgetStats(monthYear);
-
-  if (!stats || stats.totalBudget === 0) {
-    section.style.display = 'none';
-    return;
-  }
-  section.style.display = '';
-
-  // ── Ring chart ──
-  const spent = stats.totalSpent;
-  const remaining = Math.max(stats.totalBudget - spent, 0);
-  const progress = stats.totalProgress;
-
-  const canvas = document.getElementById('budgetRingChart');
-  if (canvas) {
-    if (_budgetRingChart) { _budgetRingChart.destroy(); _budgetRingChart = null; }
-
-    const trackColor = cssVar('--glass-input');
-    const spentColor = progress >= 100
-      ? cssVar('--color-red')
-      : progress > 80
-        ? cssVar('--color-orange')
-        : cssVar('--color-green');
-
-    _budgetRingChart = new Chart(canvas, {
-      type: 'doughnut',
-      data: {
-        datasets: [{
-          data: remaining > 0 ? [spent, remaining] : [spent],
-          backgroundColor: [spentColor, trackColor],
-          borderWidth: 0,
-          borderRadius: spent > 0 && remaining > 0 ? 99 : 0,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        cutout: '72%',
-        plugins: {
-          legend: { display: false },
-          tooltip: { enabled: false },
-        },
-      },
-    });
-  }
-
-  // Center text
-  const pctEl = document.getElementById('budgetPercent');
-  const sumEl = document.getElementById('budgetSummary');
-  if (pctEl) pctEl.textContent = `${Math.min(progress, 999)}%`;
-  if (sumEl) sumEl.textContent = `¥${fmt(spent)} / ¥${fmt(stats.totalBudget)}`;
-
-  // ── Category progress bars ──
-  const listEl = document.getElementById('budgetCategoryList');
-  if (!listEl) return;
-
-  if (!stats.categories.length) {
-    listEl.innerHTML = '<div style="font-size:12px;color:var(--color-label-4);padding:8px 0;text-align:center">暂无分类预算</div>';
-    return;
-  }
-
-  listEl.innerHTML = stats.categories.map(c => {
-    const barProgress = Math.min(c.progress, 100);
-    let barCls = '';
-    if (c.progress > 100) barCls = 'over';
-    else if (c.progress > 80) barCls = 'warn';
-
-    return `<div class="budget-category-row">
-      <span class="budget-cat-icon">${esc(c.icon)}</span>
-      <span class="budget-cat-name">${esc(c.label)}</span>
-      <div class="budget-bar">
-        <div class="budget-bar-fill ${barCls}" style="width:${barProgress}%"></div>
-      </div>
-      <span class="budget-cat-amounts">¥${fmt(c.spent)} / ¥${fmt(c.budget)}</span>
-    </div>`;
-  }).join('');
 }
 
 // ── Month-over-Month helper ────────────────────────────
