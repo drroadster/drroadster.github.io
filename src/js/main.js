@@ -16,6 +16,7 @@ import { initTransactionsPage, render as renderTransactions, openTxModal } from 
 import { initAssetsPage,       render as renderAssets,       openAssetModal } from './pages/assets.js';
 import { initAnalysisPage,     render as renderAnalysis }     from './pages/analysis.js';
 import { initFirePage,         render as renderFire }         from './pages/fire.js';
+import { initSettingsPage }                                  from './pages/settings.js';
 
 import {
   onAuthChange, getCurrentUser, registerWithEmail, loginWithEmail,
@@ -68,6 +69,7 @@ initTransactionsPage();
 initAssetsPage();
 initAnalysisPage();
 initFirePage();
+initSettingsPage();
 
 // Wire nav buttons (topbar + tabbar share [data-page] attribute)
 document.querySelectorAll('[data-page]').forEach(el => {
@@ -491,6 +493,7 @@ function renderAllPages() {
   if (currentPage() === 'assets')       renderAssets();
   if (currentPage() === 'transactions') renderTransactions();
   if (currentPage() === 'analysis')     renderAnalysis();
+  initSettingsPage();
 }
 
 function _renderAuthButton(user) {
