@@ -773,10 +773,10 @@ export function initFirePage() {
     if (page === 'fire') render();
   });
 
-  // Subscribe to store changes — auto-refresh if fire page is active
+  // Subscribe to store changes — auto-refresh if fire panel is active
   subscribe('any', () => {
-    const firePage = document.getElementById('page-fire');
-    if (firePage && firePage.classList.contains('active')) {
+    const firePanel = document.querySelector('[data-analysis-panel="fire"].active');
+    if (firePanel) {
       render();
     }
   });

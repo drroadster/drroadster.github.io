@@ -65,6 +65,10 @@ function _createAdapter(uid) {
     deleteAsset: async (id) => {
       await deleteDoc(doc(_db, COLLECTIONS.assets(uid), id));
     },
+    writeAssetSnapshot: async (assetId, snapshotId, data) => {
+      const { id: _id, ...rest } = data;
+      await setDoc(doc(_db, `${COLLECTIONS.assets(uid)}/${assetId}/snapshots`, snapshotId), rest);
+    },
   };
 }
 

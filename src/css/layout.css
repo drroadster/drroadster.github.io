@@ -118,6 +118,22 @@ body::after {
 
 .topbar-controls { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
+/* Profile button in topbar */
+.profile-btn {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 1.5px solid var(--glass-border);
+  background: var(--glass-card);
+  color: var(--color-label-2);
+  font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+.profile-btn:hover {
+  background: var(--glass-card-strong);
+  border-color: var(--color-blue);
+  color: var(--color-label-1);
+}
+
 /* Mobile settings bar */
 .mobile-bar {
   display: none;
@@ -288,3 +304,21 @@ body::after {
 .mt-24 { margin-top: 24px; }
 .scroll-x { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
 .scroll-x::-webkit-scrollbar { display: none; }
+
+/* ── Analysis page internal tabs ── */
+.analysis-tabs {
+  display: flex; gap: 6px; margin-bottom: 20px;
+}
+.analysis-tab {
+  flex: 1; text-align: center; padding: 10px 0; border-radius: var(--r-pill);
+  border: none; background: var(--glass-card); color: var(--color-label-3);
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+.analysis-tab:hover { color: var(--color-label-2); }
+.analysis-tab.active {
+  background: var(--grad-brand); color: #fff;
+  box-shadow: var(--glow-brand);
+}
+.analysis-tab-panel { display: none; }
+.analysis-tab-panel.active { display: block; }
