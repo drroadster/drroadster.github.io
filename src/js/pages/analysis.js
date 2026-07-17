@@ -14,18 +14,7 @@ import { fmt, fmtK, esc, pad2, clamp } from '../utils.js';
 import { onNavigate } from '../router.js';
 
 export function initAnalysisPage() {
-  onNavigate(page => {
-    if (page === 'analysis') {
-      // Reset to "财务分析" tab
-      document.querySelectorAll('[data-analysis-tab]').forEach(t =>
-        t.classList.toggle('active', t.dataset.analysisTab === 'analysis')
-      );
-      document.querySelectorAll('[data-analysis-panel]').forEach(p =>
-        p.classList.toggle('active', p.dataset.analysisPanel === 'analysis')
-      );
-      render();
-    }
-  });
+  onNavigate(page => { if (page === 'analysis') render(); });
 }
 
 export function render() {

@@ -48,6 +48,7 @@ window.__rdstr_refreshChartsForTheme = function () {
   if (page === 'overview')     renderOverview();
   else if (page === 'assets')  renderAssets();
   else if (page === 'analysis') renderAnalysis();
+  else if (page === 'fire') renderFire();
   // transactions page has no charts
 };
 
@@ -83,34 +84,6 @@ document.getElementById('topAddBtn')?.addEventListener('click', fabAction);
 
 // Initial render of the landing page
 renderOverview();
-
-// ── Analysis page internal tab switching ──
-function resetAnalysisTabs() {
-  document.querySelectorAll('[data-analysis-tab]').forEach(t =>
-    t.classList.toggle('active', t.dataset.analysisTab === 'analysis')
-  );
-  document.querySelectorAll('[data-analysis-panel]').forEach(p =>
-    p.classList.toggle('active', p.dataset.analysisPanel === 'analysis')
-  );
-}
-
-document.getElementById('analysisTabs')?.addEventListener('click', (e) => {
-  const tab = e.target.closest('[data-analysis-tab]');
-  if (!tab) return;
-  const target = tab.dataset.analysisTab;
-  // Update tab active states
-  document.querySelectorAll('[data-analysis-tab]').forEach(t =>
-    t.classList.toggle('active', t.dataset.analysisTab === target)
-  );
-  // Update panel visibility
-  document.querySelectorAll('[data-analysis-panel]').forEach(p =>
-    p.classList.toggle('active', p.dataset.analysisPanel === target)
-  );
-  // FIRE panel: trigger render when switching to it
-  if (target === 'fire') {
-    renderFire();
-  }
-});
 
 // ════════════════════════════════════════════════════
 //  4. ADD-CHOICE MODAL (overview/analysis pages → pick tx or asset)
