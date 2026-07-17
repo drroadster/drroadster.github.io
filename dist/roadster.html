@@ -6013,32 +6013,18 @@ function _renderDayCardView(txs) {
       <span class="dc-sum-expense">\u652F\u51FA -\xA5${fmt(monthExpense)}</span>
       <span class="dc-sum-net ${netCls}">\u7ED3\u4F59 ${netSign}\xA5${fmt(Math.abs(net))}</span>`;
   }
-  if (_expandedDay === null && Object.keys(dayMap).length > 0) {
-    const days = Object.keys(dayMap).sort();
-    _expandedDay = days[days.length - 1];
-  }
-  const daysInMonth = new Date(_daycardYear, _daycardMonth, 0).getDate();
   const dayNames = ["\u5468\u65E5", "\u5468\u4E00", "\u5468\u4E8C", "\u5468\u4E09", "\u5468\u56DB", "\u5468\u4E94", "\u5468\u516D"];
+  const sortedDays = Object.keys(dayMap).sort().reverse();
+  if (_expandedDay === null && sortedDays.length > 0) {
+    _expandedDay = sortedDays[0];
+  }
   const cards = [];
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dayKey = `${monthPrefix}${pad2(d)}`;
-    const dayTxs = dayMap[dayKey] || [];
+  for (const dayKey of sortedDays) {
+    const dayTxs = dayMap[dayKey];
+    const d = parseInt(dayKey.slice(8, 10));
     const dayDate = new Date(_daycardYear, _daycardMonth - 1, d);
     const weekday = dayNames[dayDate.getDay()];
-    const isEmpty = dayTxs.length === 0;
     const isExpanded = dayKey === _expandedDay;
-    if (isEmpty) {
-      cards.push(`<div class="daycard-card daycard-card--empty" data-day="${dayKey}">
-        <div class="daycard-card-top">
-          <div>
-            <div class="daycard-card-date" style="color:var(--color-label-4)">${d}</div>
-            <div class="daycard-card-weekday">${weekday}</div>
-          </div>
-        </div>
-        <div class="daycard-card-count" style="color:var(--color-label-4)">\u65E0\u8BB0\u5F55</div>
-      </div>`);
-      continue;
-    }
     const income = dayTxs.filter((t2) => t2.type === "\u6536\u5165").reduce((s, t2) => s + t2.amount, 0);
     const expense = dayTxs.filter((t2) => t2.type === "\u652F\u51FA").reduce((s, t2) => s + t2.amount, 0);
     const dayNet = income - expense;

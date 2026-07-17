@@ -349,36 +349,23 @@ function _renderDayCardView(txs) {
       <span class="dc-sum-net ${netCls}">结余 ${netSign}¥${fmt(Math.abs(net))}</span>`;
   }
 
-  // Auto-expand latest day with records on first load
-  if (_expandedDay === null && Object.keys(dayMap).length > 0) {
-    const days = Object.keys(dayMap).sort();
-    _expandedDay = days[days.length - 1];
-  }
-
-  const daysInMonth = new Date(_daycardYear, _daycardMonth, 0).getDate();
   const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
+  // Only show dates with records, descending (latest first)
+  const sortedDays = Object.keys(dayMap).sort().reverse();
+
+  // Auto-expand latest day (first in sortedDays) on first load
+  if (_expandedDay === null && sortedDays.length > 0) {
+    _expandedDay = sortedDays[0];
+  }
+
   const cards = [];
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dayKey = `${monthPrefix}${pad2(d)}`;
-    const dayTxs = dayMap[dayKey] || [];
+  for (const dayKey of sortedDays) {
+    const dayTxs = dayMap[dayKey];
+    const d = parseInt(dayKey.slice(8, 10));
     const dayDate = new Date(_daycardYear, _daycardMonth - 1, d);
     const weekday = dayNames[dayDate.getDay()];
-    const isEmpty = dayTxs.length === 0;
     const isExpanded = dayKey === _expandedDay;
-
-    if (isEmpty) {
-      cards.push(`<div class="daycard-card daycard-card--empty" data-day="${dayKey}">
-        <div class="daycard-card-top">
-          <div>
-            <div class="daycard-card-date" style="color:var(--color-label-4)">${d}</div>
-            <div class="daycard-card-weekday">${weekday}</div>
-          </div>
-        </div>
-        <div class="daycard-card-count" style="color:var(--color-label-4)">无记录</div>
-      </div>`);
-      continue;
-    }
 
     const income  = dayTxs.filter(t => t.type === '收入').reduce((s, t) => s + t.amount, 0);
     const expense = dayTxs.filter(t => t.type === '支出').reduce((s, t) => s + t.amount, 0);
