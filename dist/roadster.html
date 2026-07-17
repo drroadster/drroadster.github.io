@@ -3216,8 +3216,7 @@ var init_config = __esm({
       MIGRATED_V2: "rdstr_migrated_v2",
       MIGRATED_V23: "rdstr_migrated_v23",
       DRAFTS: "rdstr_drafts",
-      ASSETS_DRAFTS: "rdstr_asset_drafts",
-      SNAPSHOT_DRAFTS: "rdstr_snapshot_drafts"
+      ASSETS_DRAFTS: "rdstr_asset_drafts"
     };
     EXPENSE_CATS = [
       { v: "Food", icon: "\u{1F35C}", label: "Food \u9910\u996E" },
@@ -3651,7 +3650,7 @@ var init_versionManager = __esm({
 });
 
 // src/js/store.js
-function _retryAndPersist(writeFn, record, label, type, assetId) {
+function _retryAndPersist(writeFn, record, label, type) {
   (async () => {
     for (let attempt = 1; attempt <= RETRY_MAX; attempt++) {
       try {
@@ -3670,9 +3669,6 @@ function _retryAndPersist(writeFn, record, label, type, assetId) {
     if (type === "tx") {
       _drafts.push(record);
       _persist(LS.DRAFTS, _drafts);
-    } else if (type === "snapshot") {
-      _snapshotDrafts.push({ assetId, ...record });
-      _persist(LS.SNAPSHOT_DRAFTS, _snapshotDrafts);
     } else {
       _assetDrafts.push(record);
       _persist(LS.ASSETS_DRAFTS, _assetDrafts);
@@ -3713,7 +3709,6 @@ function clearSyncAdapter() {
 function initStore() {
   _drafts = _read(LS.DRAFTS);
   _history = _read(LS.ASSET_HISTORY);
-  _snapshotDrafts = _read(LS.SNAPSHOT_DRAFTS);
   _migrateOldDataToDrafts();
   _transactions = [..._drafts];
   _assetDrafts = _read(LS.ASSETS_DRAFTS);
@@ -3835,8 +3830,6 @@ function switchToLocalMode() {
   _assetDrafts = _read(LS.ASSETS_DRAFTS);
   _assets = [..._assetDrafts];
   _history = _read(LS.ASSET_HISTORY);
-  _snapshotDrafts = _read(LS.SNAPSHOT_DRAFTS);
-  _snapshotCache.clear();
   _emit("transactions");
   _emit("assets");
   _emit("history");
@@ -4222,7 +4215,7 @@ function _persist(key, value) {
     console.warn("[store] localStorage write failed:", key, e);
   }
 }
-var _transactions, _assets, _history, _drafts, _assetDrafts, _snapshotDrafts, _snapshotCache, _isLoggedIn, _loading, RETRY_MAX, RETRY_BASE_DELAY, _syncAdapter, _subs, _fp;
+var _transactions, _assets, _history, _drafts, _assetDrafts, _isLoggedIn, _loading, RETRY_MAX, RETRY_BASE_DELAY, _syncAdapter, _subs, _fp;
 var init_store = __esm({
   "src/js/store.js"() {
     init_config();
@@ -4232,8 +4225,6 @@ var init_store = __esm({
     _history = [];
     _drafts = [];
     _assetDrafts = [];
-    _snapshotDrafts = [];
-    _snapshotCache = /* @__PURE__ */ new Map();
     _isLoggedIn = false;
     _loading = false;
     RETRY_MAX = 3;
@@ -8980,10 +8971,6 @@ function _createAdapter(uid2) {
     },
     deleteAsset: async (id) => {
       await deleteDoc(doc(_db, COLLECTIONS.assets(uid2), id));
-    },
-    writeAssetSnapshot: async (assetId, snapshotId, data) => {
-      const { id: _id, ...rest } = data;
-      await setDoc(doc(_db, `${COLLECTIONS.assets(uid2)}/${assetId}/snapshots`, snapshotId), rest);
     }
   };
 }
