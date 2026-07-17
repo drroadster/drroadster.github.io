@@ -16,7 +16,7 @@
 //
 // ═══════════════════════════════════════════════════════
 
-import { LS, ALL_CATS, CAT_KEYWORD_MAP, EXPENSE_CATS, getAllCategories, getCustomCategories } from './config.js';
+import { LS, ALL_CATS, CAT_KEYWORD_MAP, getAllCategories, getCustomCategories } from './config.js';
 import { generateTxId, generateAssetId, getDeviceId, nextVersion } from './sync/versionManager.js';
 
 // ── State ─────────────────────────────────────────────
@@ -31,13 +31,6 @@ let _history      = [];
 let _drafts = [];
 /** 资产本地草稿（未上传的资产） */
 let _assetDrafts = [];
-/** 快照本地草稿（未上传的快照） */
-let _snapshotDrafts = [];
-/** 内存中的快照缓存：assetId → Snapshot[] */
-const _snapshotCache = new Map();
-
-/** @type {Budget[]} */
-let _budgets = [];
 
 /** 是否已登录 */
 let _isLoggedIn = false;
@@ -57,7 +50,7 @@ const RETRY_BASE_DELAY = 2000;
  * @param {string} label    - 日志标签
  * @param {'tx'|'asset'} type - 记录类型
  */
-function _retryAndPersist(writeFn, record, label, type, assetId) {
+function _retryAndPersist(writeFn, record, label, type) {
   (async () => {
     for (let attempt = 1; attempt <= RETRY_MAX; attempt++) {
       try {
@@ -78,9 +71,6 @@ function _retryAndPersist(writeFn, record, label, type, assetId) {
     if (type === 'tx') {
       _drafts.push(record);
       _persist(LS.DRAFTS, _drafts);
-    } else if (type === 'snapshot') {
-      _snapshotDrafts.push({ assetId, ...record });
-      _persist(LS.SNAPSHOT_DRAFTS, _snapshotDrafts);
     } else {
       _assetDrafts.push(record);
       _persist(LS.ASSETS_DRAFTS, _assetDrafts);
@@ -102,7 +92,6 @@ const _subs = new Map([
   ['transactions', new Set()],
   ['assets',       new Set()],
   ['history',      new Set()],
-  ['budgets',      new Set()],
   ['any',          new Set()],
 ]);
 
@@ -155,7 +144,6 @@ export function clearSyncAdapter() {
 export function initStore() {
   _drafts   = _read(LS.DRAFTS);
   _history  = _read(LS.ASSET_HISTORY);
-  _snapshotDrafts = _read(LS.SNAPSHOT_DRAFTS);
 
   // 如果存在旧格式数据（rdstr_tx / rdstr_assets），迁移到 drafts
   _migrateOldDataToDrafts();
@@ -167,9 +155,6 @@ export function initStore() {
 
   // V2 类别标准化
   migrateDataV2();
-
-  // 加载预算数据
-  _budgets = _read(LS.BUDGETS);
 
   // 消费快捷指令添加队列（add.html 写入）
   _consumeShortcutQueue();
@@ -313,24 +298,6 @@ export function mergeAssetsFromCloud(cloudRecords) {
 }
 
 /**
- * 合并云端预算数据到内存。
- * @param {Budget[]} cloudRecords
- */
-export function mergeBudgetsFromCloud(cloudRecords) {
-  const inMemory = new Map(_budgets.map(r => [r.id, r]));
-  for (const cr of cloudRecords) {
-    if (cr.deleted) {
-      inMemory.delete(cr.id);
-    } else {
-      inMemory.set(cr.id, cr);
-    }
-  }
-  _budgets = [...inMemory.values()];
-  _persist(LS.BUDGETS, _budgets);
-  _emit('budgets');
-}
-
-/**
  * 切换到本地模式（退出登录时调用）。
  * 清空云端数据，恢复草稿。
  */
@@ -340,9 +307,6 @@ export function switchToLocalMode() {
   _assetDrafts = _read(LS.ASSETS_DRAFTS);
   _assets = [..._assetDrafts];
   _history = _read(LS.ASSET_HISTORY);
-  _snapshotDrafts = _read(LS.SNAPSHOT_DRAFTS);
-  _snapshotCache.clear();
-  _budgets = _read(LS.BUDGETS);
   _emit('transactions');
   _emit('assets');
   _emit('history');
@@ -564,177 +528,6 @@ export function clearTransactions() {
   }
 }
 
-// ── Budgets ───────────────────────────────────────────
-
-/**
- * 获取所有预算。
- * @returns {Budget[]}
- */
-export function getBudgets() {
-  return [..._budgets];
-}
-
-/**
- * 新增或更新预算（按 category + subCategory 去重）。
- * @param {Partial<Budget>} budget
- * @returns {Budget}
- */
-export function saveBudget(budget) {
-  const keyCat  = budget.category;
-  const keySub  = budget.subCategory || null;
-  const existingIdx = _budgets.findIndex(b =>
-    b.category === keyCat && (b.subCategory || null) === keySub
-  );
-
-  if (existingIdx !== -1) {
-    _budgets[existingIdx] = { ..._budgets[existingIdx], ...budget, updatedAt: new Date().toISOString() };
-  } else {
-    const now = new Date().toISOString();
-    _budgets.push({
-      id:         budget.id || ('budget_' + Date.now()),
-      category:   keyCat,
-      subCategory: budget.subCategory || null,
-      period:     budget.period || 'monthly',
-      amount:     Number(budget.amount) || 0,
-      createdAt:  budget.createdAt || now.slice(0, 10),
-      updatedAt:  now,
-    });
-  }
-
-  _persist(LS.BUDGETS, _budgets);
-
-  if (_syncAdapter && _isLoggedIn) {
-    const saved = _budgets.find(b => b.category === keyCat && (b.subCategory || null) === keySub);
-    if (saved) {
-      _retryAndPersist(
-        () => _syncAdapter.writeBudget ? _syncAdapter.writeBudget(saved.id, saved) : Promise.resolve(),
-        saved,
-        'writeBudget',
-        'tx' // 复用 tx 通道，仅影响草稿回退类型
-      );
-    }
-  }
-
-  _emit('budgets');
-  return _budgets.find(b => b.category === keyCat && (b.subCategory || null) === keySub);
-}
-
-/**
- * 删除指定预算。
- * @param {string} category
- * @param {string|null} [subCategory=null]
- * @returns {boolean}
- */
-export function deleteBudget(category, subCategory = null) {
-  const idx = _budgets.findIndex(b =>
-    b.category === category && (b.subCategory || null) === (subCategory || null)
-  );
-  if (idx === -1) return false;
-
-  const removed = _budgets[idx];
-  _budgets.splice(idx, 1);
-  _persist(LS.BUDGETS, _budgets);
-
-  if (_syncAdapter && _isLoggedIn) {
-    _retryAndPersist(
-      () => _syncAdapter.deleteBudget ? _syncAdapter.deleteBudget(removed.id) : Promise.resolve(),
-      removed,
-      'deleteBudget',
-      'tx'
-    );
-  }
-
-  _emit('budgets');
-  return true;
-}
-
-/**
- * 获取指定月份的预算统计。
- * @param {string} monthYear — 如 "2026-07"
- * @returns {BudgetStats}
- */
-export function getBudgetStats(monthYear) {
-  const [year, month] = monthYear.split('-').map(Number);
-  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-  const endYear   = month === 12 ? year + 1 : year;
-  const endMonth  = month === 12 ? 1 : month + 1;
-  const endDate   = `${endYear}-${String(endMonth).padStart(2, '0')}-01`;
-
-  // 当月所有支出交易
-  const txs = getTransactions().filter(t => {
-    if (t.type !== '支出') return false;
-    return t.date >= startDate && t.date < endDate;
-  });
-
-  // 按 category 汇总实际支出
-  const catSpent = {};
-  txs.forEach(t => {
-    const c = t.category || '其他';
-    catSpent[c] = (catSpent[c] || 0) + t.amount;
-  });
-
-  const budgets = getBudgets();
-
-  // 按 category 分组：main + subs
-  const budgetMap = {};
-  budgets.forEach(b => {
-    if (!budgetMap[b.category]) budgetMap[b.category] = { main: null, subs: [] };
-    if (b.subCategory) {
-      budgetMap[b.category].subs.push(b);
-    } else {
-      budgetMap[b.category].main = b;
-    }
-  });
-
-  const categories = [];
-  let totalBudget = 0;
-  let totalSpent  = 0;
-
-  for (const [cat, { main, subs }] of Object.entries(budgetMap)) {
-    const catInfo = EXPENSE_CATS.find(c => c.v === cat) || { icon: '📋', label: cat };
-    const spent = Math.round((catSpent[cat] || 0) * 100) / 100;
-
-    if (main) {
-      const monthlyBudget = main.period === 'yearly'
-        ? Math.round((main.amount / 12) * 100) / 100
-        : main.amount;
-      const progress = monthlyBudget > 0
-        ? Math.min(Math.round((spent / monthlyBudget) * 100), 999)
-        : 0;
-
-      totalBudget += monthlyBudget;
-      totalSpent  += spent;
-
-      const subBudgets = subs.map(s => {
-        const sSpent = Math.round(((catSpent[s.subCategory] || 0)) * 100) / 100;
-        const sProgress = s.amount > 0 ? Math.min(Math.round((sSpent / s.amount) * 100), 999) : 0;
-        return {
-          subCategory: s.subCategory,
-          budget: s.amount,
-          spent: sSpent,
-          progress: sProgress,
-        };
-      });
-
-      categories.push({
-        category: cat,
-        icon: catInfo.icon,
-        label: catInfo.label,
-        budget: monthlyBudget,
-        spent: spent,
-        progress: progress,
-        subBudgets: subBudgets,
-      });
-    }
-  }
-
-  totalBudget = Math.round(totalBudget * 100) / 100;
-  totalSpent  = Math.round(totalSpent * 100) / 100;
-  const totalProgress = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
-
-  return { totalBudget, totalSpent, totalProgress, categories };
-}
-
 // ── Assets ────────────────────────────────────────────
 
 /** @returns {Asset[]} */
@@ -839,101 +632,6 @@ export function upsertAsset(asset) {
   } else {
     updateAsset(asset.id, asset);
   }
-}
-
-// ── Asset Value Snapshots ─────────────────────────────
-
-/**
- * 更新资产价值并记录快照。
- * 仅在 value 发生变化时写入快照；可通过 options.skipSnapshot 跳过。
- * @param {string} id - 资产 ID
- * @param {number} newValue - 新价值
- * @param {string} [note=''] - 变动备注
- * @param {{ skipSnapshot?: boolean }} [options]
- * @returns {boolean}
- */
-export function updateAssetValue(id, newValue, note = '', options = {}) {
-  const idx = _assets.findIndex(a => a.id === id);
-  if (idx === -1) return false;
-
-  const oldValue = _assets[idx].value || 0;
-  const nv = Number(newValue) || 0;
-  const now = new Date().toISOString();
-
-  // 更新资产
-  _assets[idx] = {
-    ..._assets[idx],
-    value: nv,
-    updatedAt: now,
-    version: nextVersion(_assets[idx].version),
-  };
-
-  // 写入快照（value 变化且未跳过）
-  if (nv !== oldValue && !options.skipSnapshot) {
-    const snapId = generateAssetId();
-    const snapshot = {
-      id: snapId,
-      previousValue: oldValue,
-      newValue: nv,
-      note: note,
-      timestamp: now,
-      deviceId: getDeviceId(),
-    };
-
-    // 缓存到内存
-    if (!_snapshotCache.has(id)) _snapshotCache.set(id, []);
-    _snapshotCache.get(id).push(snapshot);
-    _snapshotCache.get(id).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-
-    if (_syncAdapter && _isLoggedIn) {
-      _retryAndPersist(
-        () => _syncAdapter.writeAssetSnapshot
-          ? _syncAdapter.writeAssetSnapshot(id, snapId, snapshot)
-          : Promise.resolve(),
-        snapshot,
-        'writeAssetSnapshot',
-        'snapshot',
-        id
-      );
-    }
-  }
-
-  // 持久化资产更新
-  if (_syncAdapter && _isLoggedIn) {
-    _emit('assets');
-    _retryAndPersist(
-      () => _syncAdapter.writeAsset(id, _assets[idx]),
-      _assets[idx],
-      'writeAsset(updateValue)',
-      'asset'
-    );
-  } else {
-    const dIdx = _assetDrafts.findIndex(d => d.id === id);
-    if (dIdx !== -1) _assetDrafts[dIdx] = _assets[idx];
-    else _assetDrafts.push(_assets[idx]);
-    _persist(LS.ASSETS_DRAFTS, _assetDrafts);
-    _emit('assets');
-  }
-
-  return true;
-}
-
-/**
- * 获取指定资产的快照列表（内存缓存），按时间倒序。
- * @param {string} assetId
- * @returns {SnapshotEntry[]}
- */
-export function getAssetSnapshots(assetId) {
-  return [...(_snapshotCache.get(assetId) || [])];
-}
-
-/**
- * 从适配器加载快照并合并到内存缓存。
- * @param {string} assetId
- * @param {SnapshotEntry[]} snapshots
- */
-export function cacheAssetSnapshots(assetId, snapshots) {
-  _snapshotCache.set(assetId, snapshots);
 }
 
 // ── Asset History ─────────────────────────────────────
@@ -1189,30 +887,4 @@ function _persist(key, value) {
  * }} Asset
  *
  * @typedef {{ ts:string, total:number, breakdown:Record<string,number> }} Snapshot
- *
- * @typedef {{
- *   id: string,
- *   previousValue: number,
- *   newValue: number,
- *   note: string,
- *   timestamp: string,
- *   deviceId: string
- * }} SnapshotEntry
- *
- * @typedef {{
- *   id: string,
- *   category: string,
- *   subCategory: string|null,
- *   period: 'monthly'|'yearly',
- *   amount: number,
- *   createdAt: string,
- *   updatedAt: string
- * }} Budget
- *
- * @typedef {{
- *   totalBudget: number,
- *   totalSpent: number,
- *   totalProgress: number,
- *   categories: Array<{category:string, icon:string, label:string, budget:number, spent:number, progress:number, subBudgets:Array<{subCategory:string, budget:number, spent:number, progress:number}>}>
- * }} BudgetStats
  */
