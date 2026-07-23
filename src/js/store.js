@@ -328,6 +328,7 @@ export function mergeFromCloud(cloudRecords) {
 
 /**
  * 合并云端资产数据到内存（由 syncManager onSnapshot 推送时调用）。
+ * 合并后自动清理不匹配标准 ID 格式的异常资产（内存 + Firestore + 草稿 + 历史）。
  * @param {Asset[]} cloudRecords
  */
 export function mergeAssetsFromCloud(cloudRecords) {
@@ -342,6 +343,48 @@ export function mergeAssetsFromCloud(cloudRecords) {
   }
 
   _assets = [...inMemory.values()];
+
+  // 清理云端同步回来的异常资产
+  const validIdRe = /^a\d{13}[a-z0-9]{6,8}$/;
+  const badAssets = _assets.filter(a => !validIdRe.test(a.id));
+  if (badAssets.length > 0) {
+    const badIds = new Set(badAssets.map(a => a.id));
+    console.warn('[store] 云端同步中发现异常资产，将清理:', badAssets.map(a => `${a.id} (${a.name || '无名称'})`).join(', '));
+
+    // 从内存中移除
+    _assets = _assets.filter(a => !badIds.has(a.id));
+
+    // 从 Firestore 中删除（异步，fire-and-forget）
+    if (_syncAdapter && _isLoggedIn) {
+      for (const bad of badAssets) {
+        _syncAdapter.deleteAsset(bad.id).catch(err => {
+          console.warn(`[store] 删除云端异常资产 ${bad.id} 失败:`, err);
+        });
+      }
+    }
+
+    // 清理资产草稿
+    _assetDrafts = _assetDrafts.filter(a => !badIds.has(a.id));
+    _persist(LS.ASSETS_DRAFTS, _assetDrafts);
+
+    // 清理历史快照中的异常资产引用
+    let historyChanged = false;
+    _history = _history.map(snap => {
+      const breakdown = { ...snap.breakdown };
+      let modified = false;
+      for (const id of Object.keys(breakdown)) {
+        if (badIds.has(id)) { delete breakdown[id]; modified = true; }
+      }
+      if (!modified) return snap;
+      historyChanged = true;
+      const total = Object.values(breakdown).reduce((s, v) => s + v, 0);
+      return { ...snap, total, breakdown };
+    });
+    if (historyChanged) _persist(LS.ASSET_HISTORY, _history);
+
+    console.log(`[store] 已从云端合并中清理 ${badAssets.length} 条异常资产`);
+  }
+
   _loading = false;
   _emit('assets');
 }

@@ -3856,6 +3856,39 @@ function mergeAssetsFromCloud(cloudRecords) {
     }
   }
   _assets = [...inMemory.values()];
+  const validIdRe = /^a\d{13}[a-z0-9]{6,8}$/;
+  const badAssets = _assets.filter((a) => !validIdRe.test(a.id));
+  if (badAssets.length > 0) {
+    const badIds = new Set(badAssets.map((a) => a.id));
+    console.warn("[store] \u4E91\u7AEF\u540C\u6B65\u4E2D\u53D1\u73B0\u5F02\u5E38\u8D44\u4EA7\uFF0C\u5C06\u6E05\u7406:", badAssets.map((a) => `${a.id} (${a.name || "\u65E0\u540D\u79F0"})`).join(", "));
+    _assets = _assets.filter((a) => !badIds.has(a.id));
+    if (_syncAdapter && _isLoggedIn) {
+      for (const bad of badAssets) {
+        _syncAdapter.deleteAsset(bad.id).catch((err) => {
+          console.warn(`[store] \u5220\u9664\u4E91\u7AEF\u5F02\u5E38\u8D44\u4EA7 ${bad.id} \u5931\u8D25:`, err);
+        });
+      }
+    }
+    _assetDrafts = _assetDrafts.filter((a) => !badIds.has(a.id));
+    _persist(LS.ASSETS_DRAFTS, _assetDrafts);
+    let historyChanged = false;
+    _history = _history.map((snap) => {
+      const breakdown = { ...snap.breakdown };
+      let modified = false;
+      for (const id of Object.keys(breakdown)) {
+        if (badIds.has(id)) {
+          delete breakdown[id];
+          modified = true;
+        }
+      }
+      if (!modified) return snap;
+      historyChanged = true;
+      const total = Object.values(breakdown).reduce((s, v) => s + v, 0);
+      return { ...snap, total, breakdown };
+    });
+    if (historyChanged) _persist(LS.ASSET_HISTORY, _history);
+    console.log(`[store] \u5DF2\u4ECE\u4E91\u7AEF\u5408\u5E76\u4E2D\u6E05\u7406 ${badAssets.length} \u6761\u5F02\u5E38\u8D44\u4EA7`);
+  }
   _loading = false;
   _emit("assets");
 }
