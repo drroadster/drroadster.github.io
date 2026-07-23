@@ -156,8 +156,57 @@ export function initStore() {
   // V2 类别标准化
   migrateDataV2();
 
+  // 清理异常资产数据（ID 不匹配标准格式的资产）
+  _cleanAbnormalAssets();
+
   // 消费快捷指令添加队列（add.html 写入）
   _consumeShortcutQueue();
+}
+
+/**
+ * 清理异常资产数据。
+ * 标准资产 ID 格式：a + 13位时间戳 + 6~8位随机字符（由 uid('a') 生成）。
+ * 不匹配该格式的资产将被移除，同时清理对应的历史快照和草稿。
+ */
+function _cleanAbnormalAssets() {
+  const validIdRe = /^a\d{13}[a-z0-9]{6,8}$/;
+  let cleaned = 0;
+
+  // 清理内存中的资产
+  const badAssets = _assets.filter(a => !validIdRe.test(a.id));
+  if (badAssets.length > 0) {
+    const badIds = new Set(badAssets.map(a => a.id));
+    console.warn('[store] 检测到异常资产，将清理:', badAssets.map(a => `${a.id} (${a.name})`).join(', '));
+
+    // 清理资产列表
+    _assets = _assets.filter(a => !badIds.has(a.id));
+    cleaned += badAssets.length;
+
+    // 清理资产草稿
+    _assetDrafts = _assetDrafts.filter(a => !badIds.has(a.id));
+    _persist(LS.ASSETS_DRAFTS, _assetDrafts);
+
+    // 清理历史快照中的异常资产引用
+    let historyChanged = false;
+    _history = _history.map(snap => {
+      const breakdown = { ...snap.breakdown };
+      let modified = false;
+      for (const id of Object.keys(breakdown)) {
+        if (badIds.has(id)) { delete breakdown[id]; modified = true; }
+      }
+      if (!modified) return snap;
+      historyChanged = true;
+      const total = Object.values(breakdown).reduce((s, v) => s + v, 0);
+      return { ...snap, total, breakdown };
+    });
+    if (historyChanged) _persist(LS.ASSET_HISTORY, _history);
+  }
+
+  if (cleaned > 0) {
+    console.log(`[store] 已清理 ${cleaned} 条异常资产`);
+    _emit('assets');
+    _emit('history');
+  }
 }
 
 /**

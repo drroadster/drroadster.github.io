@@ -3714,7 +3714,42 @@ function initStore() {
   _assetDrafts = _read(LS.ASSETS_DRAFTS);
   _assets = [..._assetDrafts];
   migrateDataV2();
+  _cleanAbnormalAssets();
   _consumeShortcutQueue();
+}
+function _cleanAbnormalAssets() {
+  const validIdRe = /^a\d{13}[a-z0-9]{6,8}$/;
+  let cleaned = 0;
+  const badAssets = _assets.filter((a) => !validIdRe.test(a.id));
+  if (badAssets.length > 0) {
+    const badIds = new Set(badAssets.map((a) => a.id));
+    console.warn("[store] \u68C0\u6D4B\u5230\u5F02\u5E38\u8D44\u4EA7\uFF0C\u5C06\u6E05\u7406:", badAssets.map((a) => `${a.id} (${a.name})`).join(", "));
+    _assets = _assets.filter((a) => !badIds.has(a.id));
+    cleaned += badAssets.length;
+    _assetDrafts = _assetDrafts.filter((a) => !badIds.has(a.id));
+    _persist(LS.ASSETS_DRAFTS, _assetDrafts);
+    let historyChanged = false;
+    _history = _history.map((snap) => {
+      const breakdown = { ...snap.breakdown };
+      let modified = false;
+      for (const id of Object.keys(breakdown)) {
+        if (badIds.has(id)) {
+          delete breakdown[id];
+          modified = true;
+        }
+      }
+      if (!modified) return snap;
+      historyChanged = true;
+      const total = Object.values(breakdown).reduce((s, v) => s + v, 0);
+      return { ...snap, total, breakdown };
+    });
+    if (historyChanged) _persist(LS.ASSET_HISTORY, _history);
+  }
+  if (cleaned > 0) {
+    console.log(`[store] \u5DF2\u6E05\u7406 ${cleaned} \u6761\u5F02\u5E38\u8D44\u4EA7`);
+    _emit("assets");
+    _emit("history");
+  }
 }
 function _consumeShortcutQueue() {
   try {
@@ -4649,7 +4684,7 @@ function formatTxDateTime(dateStr) {
 function fmtDateShort(iso) {
   const d = new Date(iso);
   if (isNaN(d)) return "";
-  return `${d.getMonth() + 1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 function nowAsDatetimeLocal() {
   const d = /* @__PURE__ */ new Date();

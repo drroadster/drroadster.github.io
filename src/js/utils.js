@@ -45,11 +45,11 @@ export function formatTxDateTime(dateStr) {
   return dateStr;
 }
 
-/** Short date for chart axis labels, e.g. "6/21 17:30". */
+/** Short date for chart axis labels, e.g. "07-15". */
 export function fmtDateShort(iso) {
   const d = new Date(iso);
   if (isNaN(d)) return '';
-  return `${d.getMonth() + 1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  return `${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
 /** Current moment as "YYYY-MM-DDTHH:mm:ss" for <input type=datetime-local>. */
