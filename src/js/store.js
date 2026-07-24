@@ -164,39 +164,23 @@ export function initStore() {
 }
 
 /**
- * 清理已知异常资产（仅针对已识别的异常模式，不过度匹配）。
+ * 清理结构性异常的资产（内存 + 草稿 + 历史）。
  *
- * 已知异常模式：
- *   - ID 含小数点（如 a17823702561070.25088001814070604）
- *   - ID 以 ast- 开头且含连字符（如 ast-mr8v2qmg-mrahw4x4-zmyr9d）
+ * 清理条件（仅两种明确的结构性问题）：
+ *   - 无 ID 或 ID 非字符串
  *   - name 为空/null
- *   - category 字段值为资产 ID 格式（如 a17823702561070.25088001814070604），即 category 不像分类标签
  *
- * 注意：不再使用通用正则过滤，避免误删正常资产。
+ * 不再以 ID 格式作为清理依据。Firestore 文档 ID 格式多变（旧版含小数点、新版 ast- 前缀等），
+ * ID 格式与内部数据有效性无关。category 字段也由页面 _normalizeCategory 兜底，不在存储层清理。
  */
 function _cleanAbnormalAssets() {
-  const VALID_ASSET_CATEGORIES = new Set([
-    '现金/储蓄', '基金/股票', '房产', '车辆', '加密货币', '固定资产', '其他投资',
-  ]);
-
-  const isAbnormalId = (id) => {
-    if (!id) return true;
-    if (typeof id !== 'string') return true;
-    if (id.includes('.')) return true;
-    if (/^ast-/.test(id) && id.includes('-', 4)) return true;
-    return false;
-  };
-
+  // 注意：资产 ID 可以是任意 Firestore 合法文档 ID，格式不固定。
+  // 仅清理明确的结构性异常：无 ID / 非字符串 / 空名称。
+  // 不以 ID 格式（如含小数点、ast- 前缀）作为清理依据——
+  // 这些是旧版 ID 或 Firestore 生成的合法 ID，内部数据完全有效。
   const badAssets = _assets.filter(a => {
-    if (isAbnormalId(a.id)) return true;
+    if (!a.id || typeof a.id !== 'string') return true;
     if (!a.name || String(a.name).trim() === '') return true;
-    // category 字段存储的是资产 ID 格式而非分类标签
-    if (a.category && !VALID_ASSET_CATEGORIES.has(a.category)) {
-      // 如果 category 看起来像资产 ID（a开头+数字），则标记为异常
-      if (/^a\d{10,}/.test(a.category) || a.category.includes('.')) {
-        return true;
-      }
-    }
     return false;
   });
 
@@ -205,9 +189,7 @@ function _cleanAbnormalAssets() {
   const badIds = new Set(badAssets.map(a => a.id));
   const reasons = badAssets.map(a => {
     const parts = [];
-    if (isAbnormalId(a.id)) parts.push('异常ID');
     if (!a.name || String(a.name).trim() === '') parts.push('空名称');
-    if (a.category && !VALID_ASSET_CATEGORIES.has(a.category)) parts.push(`异常分类(${a.category})`);
     return `${a.id} [${parts.join(',')}]`;
   });
   console.warn('[store] 检测到异常资产:', reasons.join('; '));
@@ -384,23 +366,11 @@ export function mergeAssetsFromCloud(cloudRecords) {
 
   _assets = [...inMemory.values()];
 
-  // 过滤已知异常资产模式（避免过度匹配导致正常数据丢失）
-  const VALID_ASSET_CATEGORIES = new Set([
-    '现金/储蓄', '基金/股票', '房产', '车辆', '加密货币', '固定资产', '其他投资',
-  ]);
-  const isAbnormalId = (id) => {
-    if (!id) return true;
-    if (typeof id !== 'string') return true;
-    if (id.includes('.')) return true;
-    if (/^ast-/.test(id) && id.includes('-', 4)) return true;
-    return false;
-  };
+  // 仅清理结构性异常：无 ID / 非字符串 ID / 空名称。
+  // 不以 ID 格式（小数点和 ast- 前缀等）作为清理依据。
   const badAssets = _assets.filter(a => {
-    if (isAbnormalId(a.id)) return true;
+    if (!a.id || typeof a.id !== 'string') return true;
     if (!a.name || String(a.name).trim() === '') return true;
-    if (a.category && !VALID_ASSET_CATEGORIES.has(a.category)) {
-      if (/^a\d{10,}/.test(a.category) || a.category.includes('.')) return true;
-    }
     return false;
   });
   if (badAssets.length > 0) {
