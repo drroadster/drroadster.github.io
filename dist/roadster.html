@@ -3718,39 +3718,16 @@ function initStore() {
   _consumeShortcutQueue();
 }
 function _cleanAbnormalAssets() {
-  const VALID_ASSET_CATEGORIES2 = /* @__PURE__ */ new Set([
-    "\u73B0\u91D1/\u50A8\u84C4",
-    "\u57FA\u91D1/\u80A1\u7968",
-    "\u623F\u4EA7",
-    "\u8F66\u8F86",
-    "\u52A0\u5BC6\u8D27\u5E01",
-    "\u56FA\u5B9A\u8D44\u4EA7",
-    "\u5176\u4ED6\u6295\u8D44"
-  ]);
-  const isAbnormalId = (id) => {
-    if (!id) return true;
-    if (typeof id !== "string") return true;
-    if (id.includes(".")) return true;
-    if (/^ast-/.test(id) && id.includes("-", 4)) return true;
-    return false;
-  };
   const badAssets = _assets.filter((a) => {
-    if (isAbnormalId(a.id)) return true;
+    if (!a.id || typeof a.id !== "string") return true;
     if (!a.name || String(a.name).trim() === "") return true;
-    if (a.category && !VALID_ASSET_CATEGORIES2.has(a.category)) {
-      if (/^a\d{10,}/.test(a.category) || a.category.includes(".")) {
-        return true;
-      }
-    }
     return false;
   });
   if (badAssets.length === 0) return;
   const badIds = new Set(badAssets.map((a) => a.id));
   const reasons = badAssets.map((a) => {
     const parts = [];
-    if (isAbnormalId(a.id)) parts.push("\u5F02\u5E38ID");
     if (!a.name || String(a.name).trim() === "") parts.push("\u7A7A\u540D\u79F0");
-    if (a.category && !VALID_ASSET_CATEGORIES2.has(a.category)) parts.push(`\u5F02\u5E38\u5206\u7C7B(${a.category})`);
     return `${a.id} [${parts.join(",")}]`;
   });
   console.warn("[store] \u68C0\u6D4B\u5230\u5F02\u5E38\u8D44\u4EA7:", reasons.join("; "));
@@ -3891,28 +3868,9 @@ function mergeAssetsFromCloud(cloudRecords) {
     }
   }
   _assets = [...inMemory.values()];
-  const VALID_ASSET_CATEGORIES2 = /* @__PURE__ */ new Set([
-    "\u73B0\u91D1/\u50A8\u84C4",
-    "\u57FA\u91D1/\u80A1\u7968",
-    "\u623F\u4EA7",
-    "\u8F66\u8F86",
-    "\u52A0\u5BC6\u8D27\u5E01",
-    "\u56FA\u5B9A\u8D44\u4EA7",
-    "\u5176\u4ED6\u6295\u8D44"
-  ]);
-  const isAbnormalId = (id) => {
-    if (!id) return true;
-    if (typeof id !== "string") return true;
-    if (id.includes(".")) return true;
-    if (/^ast-/.test(id) && id.includes("-", 4)) return true;
-    return false;
-  };
   const badAssets = _assets.filter((a) => {
-    if (isAbnormalId(a.id)) return true;
+    if (!a.id || typeof a.id !== "string") return true;
     if (!a.name || String(a.name).trim() === "") return true;
-    if (a.category && !VALID_ASSET_CATEGORIES2.has(a.category)) {
-      if (/^a\d{10,}/.test(a.category) || a.category.includes(".")) return true;
-    }
     return false;
   });
   if (badAssets.length > 0) {
