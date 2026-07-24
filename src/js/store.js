@@ -164,37 +164,84 @@ export function initStore() {
 }
 
 /**
- * 清理已知异常资产（仅针对已识别的异常 ID 模式，不过度匹配）。
+ * 清理已知异常资产（仅针对已识别的异常模式，不过度匹配）。
+ *
  * 已知异常模式：
  *   - ID 含小数点（如 a17823702561070.25088001814070604）
  *   - ID 以 ast- 开头且含连字符（如 ast-mr8v2qmg-mrahw4x4-zmyr9d）
+ *   - name 为空/null
+ *   - category 字段值为资产 ID 格式（如 a17823702561070.25088001814070604），即 category 不像分类标签
  *
  * 注意：不再使用通用正则过滤，避免误删正常资产。
  */
 function _cleanAbnormalAssets() {
-  const isAbnormal = (id) => {
+  const VALID_ASSET_CATEGORIES = new Set([
+    '现金/储蓄', '基金/股票', '房产', '车辆', '加密货币', '固定资产', '其他投资',
+  ]);
+
+  const isAbnormalId = (id) => {
+    if (!id) return true;
+    if (typeof id !== 'string') return true;
     if (id.includes('.')) return true;
     if (/^ast-/.test(id) && id.includes('-', 4)) return true;
     return false;
   };
 
-  const badAssets = _assets.filter(a => isAbnormal(a.id));
+  const badAssets = _assets.filter(a => {
+    if (isAbnormalId(a.id)) return true;
+    if (!a.name || String(a.name).trim() === '') return true;
+    // category 字段存储的是资产 ID 格式而非分类标签
+    if (a.category && !VALID_ASSET_CATEGORIES.has(a.category)) {
+      // 如果 category 看起来像资产 ID（a开头+数字），则标记为异常
+      if (/^a\d{10,}/.test(a.category) || a.category.includes('.')) {
+        return true;
+      }
+    }
+    return false;
+  });
+
   if (badAssets.length === 0) return;
 
   const badIds = new Set(badAssets.map(a => a.id));
-  console.warn('[store] 检测到已知异常资产:', badAssets.map(a => `${a.id}`).join(', '));
+  const reasons = badAssets.map(a => {
+    const parts = [];
+    if (isAbnormalId(a.id)) parts.push('异常ID');
+    if (!a.name || String(a.name).trim() === '') parts.push('空名称');
+    if (a.category && !VALID_ASSET_CATEGORIES.has(a.category)) parts.push(`异常分类(${a.category})`);
+    return `${a.id} [${parts.join(',')}]`;
+  });
+  console.warn('[store] 检测到异常资产:', reasons.join('; '));
 
-  // 只从内存移除，不写回 localStorage（避免覆盖正常数据）
+  // 从内存移除
   _assets = _assets.filter(a => !badIds.has(a.id));
 
-  // 同步清理草稿中的异常资产
+  // 同步清理草稿
   const draftBefore = _assetDrafts.length;
   _assetDrafts = _assetDrafts.filter(a => !badIds.has(a.id));
   if (_assetDrafts.length < draftBefore) {
     _persist(LS.ASSETS_DRAFTS, _assetDrafts);
   }
 
-  console.log(`[store] 已从内存中过滤 ${badAssets.length} 条已知异常资产`);
+  // 清理历史快照中异常资产的 breakdown 条目
+  let historyChanged = false;
+  _history = _history.map(h => {
+    const cleanBreakdown = { ...h.breakdown };
+    let removed = false;
+    for (const id of badIds) {
+      if (id in cleanBreakdown) { delete cleanBreakdown[id]; removed = true; }
+    }
+    if (removed) {
+      historyChanged = true;
+      const newTotal = Object.values(cleanBreakdown).reduce((s, v) => s + v, 0);
+      return { ...h, breakdown: cleanBreakdown, total: newTotal };
+    }
+    return h;
+  });
+  if (historyChanged) {
+    _persist(LS.ASSET_HISTORY, _history);
+  }
+
+  console.log(`[store] 已清理 ${badAssets.length} 条异常资产（内存+草稿+历史）`);
   _emit('assets');
   _emit('history');
 }
@@ -337,27 +384,29 @@ export function mergeAssetsFromCloud(cloudRecords) {
 
   _assets = [...inMemory.values()];
 
-  // 仅过滤已知异常资产模式（避免过度匹配导致正常数据丢失）
-  // 已知异常 ID 特征：含小数点 或 以 ast- 开头含连字符
-  const isAbnormal = (id) => {
+  // 过滤已知异常资产模式（避免过度匹配导致正常数据丢失）
+  const VALID_ASSET_CATEGORIES = new Set([
+    '现金/储蓄', '基金/股票', '房产', '车辆', '加密货币', '固定资产', '其他投资',
+  ]);
+  const isAbnormalId = (id) => {
+    if (!id) return true;
+    if (typeof id !== 'string') return true;
     if (id.includes('.')) return true;
     if (/^ast-/.test(id) && id.includes('-', 4)) return true;
     return false;
   };
-  const badAssets = _assets.filter(a => isAbnormal(a.id));
+  const badAssets = _assets.filter(a => {
+    if (isAbnormalId(a.id)) return true;
+    if (!a.name || String(a.name).trim() === '') return true;
+    if (a.category && !VALID_ASSET_CATEGORIES.has(a.category)) {
+      if (/^a\d{10,}/.test(a.category) || a.category.includes('.')) return true;
+    }
+    return false;
+  });
   if (badAssets.length > 0) {
     const badIds = new Set(badAssets.map(a => a.id));
-    console.warn('[store] 云端同步中发现异常资产:', badAssets.map(a => a.id).join(', '));
-
-    // 仅从内存中移除，不删除 Firestore 数据（保留远端作为备份）
+    console.warn('[store] 云端同步中发现异常资产:', badAssets.map(a => `${a.id}`).join(', '));
     _assets = _assets.filter(a => !badIds.has(a.id));
-  }
-
-  // 对不匹配标准 ID 格式的资产发出告警（不删除，仅日志）
-  const standardRe = /^a\d{13}[a-z0-9]{6,8}$/;
-  const nonStandard = _assets.filter(a => !standardRe.test(a.id) && !isAbnormal(a.id));
-  if (nonStandard.length > 0) {
-    console.warn('[store] 发现非标准 ID 格式资产（未删除，仅告警）:', nonStandard.map(a => a.id).join(', '));
   }
 
   _loading = false;

@@ -15,6 +15,25 @@ import { t } from '../i18n.js';
 import { showToast, onNavigate } from '../router.js';
 import { ASSET_GRADIENTS, ASSET_GRADIENT_DEFAULT, ASSET_ICONS } from '../config.js';
 
+// ── Valid asset categories (mirrored from config + HTML select) ──
+const VALID_ASSET_CATEGORIES = new Set([
+  '现金/储蓄', '基金/股票', '房产', '车辆', '加密货币', '固定资产', '其他投资',
+]);
+const DEFAULT_ASSET_CATEGORY = '其他投资';
+
+/**
+ * Normalize an asset category to a valid label.
+ * If the category is an abnormal ID or unknown string, fall back to default.
+ */
+function _normalizeCategory(cat) {
+  if (!cat || typeof cat !== 'string') return DEFAULT_ASSET_CATEGORY;
+  if (VALID_ASSET_CATEGORIES.has(cat)) return cat;
+  // Detect asset-ID-like strings (e.g. a17823702561070.25088001814070604)
+  if (/^a\d{10,}/.test(cat) || cat.includes('.')) return DEFAULT_ASSET_CATEGORY;
+  // Unknown string that doesn't look like an ID — still unknown, fall back
+  return DEFAULT_ASSET_CATEGORY;
+}
+
 let _timelineRange = 90; // days, 0 = all
 let _editingId = null;
 
@@ -32,7 +51,19 @@ export function initAssetsPage() {
 }
 
 export function render() {
-  const assets = getAssets();
+  let assets = getAssets();
+
+  // 防御性过滤：跳过 name 为空或 category 异常的资产
+  assets = assets.filter(a => {
+    if (!a.name || String(a.name).trim() === '') return false;
+    return true;
+  });
+  // 将异常 category 归一化，保证图表和数据区正常展示
+  assets = assets.map(a => ({
+    ...a,
+    category: _normalizeCategory(a.category),
+  }));
+
   const total  = assets.reduce((s, a) => s + (a.value || 0), 0);
 
   _renderHero(total, assets.length);
@@ -83,7 +114,7 @@ function _renderHero(total, count) {
 function _renderNetworthStats(total) {
   const wrap = document.getElementById('networthStats');
   if (!wrap) return;
-  const assets = getAssets();
+  const assets = getAssets().filter(a => a.deleted !== true);
   if (!assets.length) { wrap.innerHTML = ''; return; }
 
   const history = getAssetHistory();
@@ -96,7 +127,10 @@ function _renderNetworthStats(total) {
   }
 
   const catTotals = {};
-  assets.forEach(a => { catTotals[a.category] = (catTotals[a.category] || 0) + a.value; });
+  assets.forEach(a => {
+    const cat = _normalizeCategory(a.category);
+    catTotals[cat] = (catTotals[cat] || 0) + (a.value || 0);
+  });
   const topCat = Object.keys(catTotals).sort((a,b) => catTotals[b] - catTotals[a])[0];
 
   const pills = [
@@ -143,14 +177,17 @@ function _renderTimeline() {
 
   // Per-asset breakdown (only if 2+ assets have history)
   const allIds = [...new Set(hist.flatMap(h => Object.keys(h.breakdown || {})))];
-  const nameMap = Object.fromEntries(getAssets().map(a => [a.id, a.name]));
+  const allAssets = getAssets().filter(a => a.deleted !== true);
+  const nameMap = Object.fromEntries(allAssets.map(a => [a.id, a.name]));
+  // 过滤掉 name 为空的资产在 breakdown 中的条目
+  const validIds = allIds.filter(id => nameMap[id] && String(nameMap[id]).trim() !== '');
 
-  if (allIds.length > 1) {
+  if (validIds.length > 1) {
     if (bkCard) bkCard.style.display = '';
     if (bkEmpty) bkEmpty.style.display = 'none';
 
     const p = palette();
-    const datasets = allIds.map((id, i) => ({
+    const datasets = validIds.map((id, i) => ({
       label: nameMap[id] || id,
       data:  hist.map(h => h.breakdown?.[id] ?? 0),
       color: p[i % p.length],
@@ -160,7 +197,7 @@ function _renderTimeline() {
 
     const legEl = document.getElementById('timelineLegend');
     if (legEl) {
-      legEl.innerHTML = allIds.map((id, i) => `
+      legEl.innerHTML = validIds.map((id, i) => `
         <div class="legend-chip">
           <div class="legend-dot" style="background:${p[i % p.length]}"></div>
           ${esc(nameMap[id] || id)}
@@ -300,10 +337,12 @@ export function closeAssetModal() {
 
 function _saveAsset() {
   const name  = document.getElementById('assetName')?.value.trim();
-  const category = document.getElementById('assetCategory')?.value;
+  let category = document.getElementById('assetCategory')?.value;
   const value = parseFloat(document.getElementById('assetValue')?.value) || 0;
   const note  = document.getElementById('assetNote')?.value.trim();
   if (!name) { showToast('请填写资产名称'); return; }
+  // 防御：确保 category 是有效分类标签
+  category = _normalizeCategory(category);
 
   const asset = _editingId
     ? { id: _editingId, name, category, value, note, updatedAt: new Date().toISOString() }

@@ -3718,22 +3718,69 @@ function initStore() {
   _consumeShortcutQueue();
 }
 function _cleanAbnormalAssets() {
-  const isAbnormal = (id) => {
+  const VALID_ASSET_CATEGORIES2 = /* @__PURE__ */ new Set([
+    "\u73B0\u91D1/\u50A8\u84C4",
+    "\u57FA\u91D1/\u80A1\u7968",
+    "\u623F\u4EA7",
+    "\u8F66\u8F86",
+    "\u52A0\u5BC6\u8D27\u5E01",
+    "\u56FA\u5B9A\u8D44\u4EA7",
+    "\u5176\u4ED6\u6295\u8D44"
+  ]);
+  const isAbnormalId = (id) => {
+    if (!id) return true;
+    if (typeof id !== "string") return true;
     if (id.includes(".")) return true;
     if (/^ast-/.test(id) && id.includes("-", 4)) return true;
     return false;
   };
-  const badAssets = _assets.filter((a) => isAbnormal(a.id));
+  const badAssets = _assets.filter((a) => {
+    if (isAbnormalId(a.id)) return true;
+    if (!a.name || String(a.name).trim() === "") return true;
+    if (a.category && !VALID_ASSET_CATEGORIES2.has(a.category)) {
+      if (/^a\d{10,}/.test(a.category) || a.category.includes(".")) {
+        return true;
+      }
+    }
+    return false;
+  });
   if (badAssets.length === 0) return;
   const badIds = new Set(badAssets.map((a) => a.id));
-  console.warn("[store] \u68C0\u6D4B\u5230\u5DF2\u77E5\u5F02\u5E38\u8D44\u4EA7:", badAssets.map((a) => `${a.id}`).join(", "));
+  const reasons = badAssets.map((a) => {
+    const parts = [];
+    if (isAbnormalId(a.id)) parts.push("\u5F02\u5E38ID");
+    if (!a.name || String(a.name).trim() === "") parts.push("\u7A7A\u540D\u79F0");
+    if (a.category && !VALID_ASSET_CATEGORIES2.has(a.category)) parts.push(`\u5F02\u5E38\u5206\u7C7B(${a.category})`);
+    return `${a.id} [${parts.join(",")}]`;
+  });
+  console.warn("[store] \u68C0\u6D4B\u5230\u5F02\u5E38\u8D44\u4EA7:", reasons.join("; "));
   _assets = _assets.filter((a) => !badIds.has(a.id));
   const draftBefore = _assetDrafts.length;
   _assetDrafts = _assetDrafts.filter((a) => !badIds.has(a.id));
   if (_assetDrafts.length < draftBefore) {
     _persist(LS.ASSETS_DRAFTS, _assetDrafts);
   }
-  console.log(`[store] \u5DF2\u4ECE\u5185\u5B58\u4E2D\u8FC7\u6EE4 ${badAssets.length} \u6761\u5DF2\u77E5\u5F02\u5E38\u8D44\u4EA7`);
+  let historyChanged = false;
+  _history = _history.map((h) => {
+    const cleanBreakdown = { ...h.breakdown };
+    let removed = false;
+    for (const id of badIds) {
+      if (id in cleanBreakdown) {
+        delete cleanBreakdown[id];
+        removed = true;
+      }
+    }
+    if (removed) {
+      historyChanged = true;
+      const newTotal = Object.values(cleanBreakdown).reduce((s, v) => s + v, 0);
+      return { ...h, breakdown: cleanBreakdown, total: newTotal };
+    }
+    return h;
+  });
+  if (historyChanged) {
+    _persist(LS.ASSET_HISTORY, _history);
+  }
+  console.log(`[store] \u5DF2\u6E05\u7406 ${badAssets.length} \u6761\u5F02\u5E38\u8D44\u4EA7\uFF08\u5185\u5B58+\u8349\u7A3F+\u5386\u53F2\uFF09`);
   _emit("assets");
   _emit("history");
 }
@@ -3844,21 +3891,34 @@ function mergeAssetsFromCloud(cloudRecords) {
     }
   }
   _assets = [...inMemory.values()];
-  const isAbnormal = (id) => {
+  const VALID_ASSET_CATEGORIES2 = /* @__PURE__ */ new Set([
+    "\u73B0\u91D1/\u50A8\u84C4",
+    "\u57FA\u91D1/\u80A1\u7968",
+    "\u623F\u4EA7",
+    "\u8F66\u8F86",
+    "\u52A0\u5BC6\u8D27\u5E01",
+    "\u56FA\u5B9A\u8D44\u4EA7",
+    "\u5176\u4ED6\u6295\u8D44"
+  ]);
+  const isAbnormalId = (id) => {
+    if (!id) return true;
+    if (typeof id !== "string") return true;
     if (id.includes(".")) return true;
     if (/^ast-/.test(id) && id.includes("-", 4)) return true;
     return false;
   };
-  const badAssets = _assets.filter((a) => isAbnormal(a.id));
+  const badAssets = _assets.filter((a) => {
+    if (isAbnormalId(a.id)) return true;
+    if (!a.name || String(a.name).trim() === "") return true;
+    if (a.category && !VALID_ASSET_CATEGORIES2.has(a.category)) {
+      if (/^a\d{10,}/.test(a.category) || a.category.includes(".")) return true;
+    }
+    return false;
+  });
   if (badAssets.length > 0) {
     const badIds = new Set(badAssets.map((a) => a.id));
-    console.warn("[store] \u4E91\u7AEF\u540C\u6B65\u4E2D\u53D1\u73B0\u5F02\u5E38\u8D44\u4EA7:", badAssets.map((a) => a.id).join(", "));
+    console.warn("[store] \u4E91\u7AEF\u540C\u6B65\u4E2D\u53D1\u73B0\u5F02\u5E38\u8D44\u4EA7:", badAssets.map((a) => `${a.id}`).join(", "));
     _assets = _assets.filter((a) => !badIds.has(a.id));
-  }
-  const standardRe = /^a\d{13}[a-z0-9]{6,8}$/;
-  const nonStandard = _assets.filter((a) => !standardRe.test(a.id) && !isAbnormal(a.id));
-  if (nonStandard.length > 0) {
-    console.warn("[store] \u53D1\u73B0\u975E\u6807\u51C6 ID \u683C\u5F0F\u8D44\u4EA7\uFF08\u672A\u5220\u9664\uFF0C\u4EC5\u544A\u8B66\uFF09:", nonStandard.map((a) => a.id).join(", "));
   }
   _loading = false;
   _emit("assets");
@@ -7439,6 +7499,22 @@ init_utils();
 init_i18n();
 init_router();
 init_config();
+var VALID_ASSET_CATEGORIES = /* @__PURE__ */ new Set([
+  "\u73B0\u91D1/\u50A8\u84C4",
+  "\u57FA\u91D1/\u80A1\u7968",
+  "\u623F\u4EA7",
+  "\u8F66\u8F86",
+  "\u52A0\u5BC6\u8D27\u5E01",
+  "\u56FA\u5B9A\u8D44\u4EA7",
+  "\u5176\u4ED6\u6295\u8D44"
+]);
+var DEFAULT_ASSET_CATEGORY = "\u5176\u4ED6\u6295\u8D44";
+function _normalizeCategory(cat) {
+  if (!cat || typeof cat !== "string") return DEFAULT_ASSET_CATEGORY;
+  if (VALID_ASSET_CATEGORIES.has(cat)) return cat;
+  if (/^a\d{10,}/.test(cat) || cat.includes(".")) return DEFAULT_ASSET_CATEGORY;
+  return DEFAULT_ASSET_CATEGORY;
+}
 var _timelineRange = 90;
 var _editingId = null;
 function initAssetsPage() {
@@ -7454,7 +7530,15 @@ function initAssetsPage() {
   });
 }
 function render3() {
-  const assets = getAssets();
+  let assets = getAssets();
+  assets = assets.filter((a) => {
+    if (!a.name || String(a.name).trim() === "") return false;
+    return true;
+  });
+  assets = assets.map((a) => ({
+    ...a,
+    category: _normalizeCategory(a.category)
+  }));
   const total = assets.reduce((s, a) => s + (a.value || 0), 0);
   _renderHero2(total, assets.length);
   _renderTimeline();
@@ -7495,7 +7579,7 @@ function _renderHero2(total, count) {
 function _renderNetworthStats(total) {
   const wrap = document.getElementById("networthStats");
   if (!wrap) return;
-  const assets = getAssets();
+  const assets = getAssets().filter((a) => a.deleted !== true);
   if (!assets.length) {
     wrap.innerHTML = "";
     return;
@@ -7513,7 +7597,8 @@ function _renderNetworthStats(total) {
   }
   const catTotals2 = {};
   assets.forEach((a) => {
-    catTotals2[a.category] = (catTotals2[a.category] || 0) + a.value;
+    const cat = _normalizeCategory(a.category);
+    catTotals2[cat] = (catTotals2[cat] || 0) + (a.value || 0);
   });
   const topCat = Object.keys(catTotals2).sort((a, b) => catTotals2[b] - catTotals2[a])[0];
   const pills = [
@@ -7553,12 +7638,14 @@ function _renderTimeline() {
     { hideLegend: true }
   );
   const allIds = [...new Set(hist.flatMap((h) => Object.keys(h.breakdown || {})))];
-  const nameMap = Object.fromEntries(getAssets().map((a) => [a.id, a.name]));
-  if (allIds.length > 1) {
+  const allAssets = getAssets().filter((a) => a.deleted !== true);
+  const nameMap = Object.fromEntries(allAssets.map((a) => [a.id, a.name]));
+  const validIds = allIds.filter((id) => nameMap[id] && String(nameMap[id]).trim() !== "");
+  if (validIds.length > 1) {
     if (bkCard) bkCard.style.display = "";
     if (bkEmpty) bkEmpty.style.display = "none";
     const p = palette();
-    const datasets = allIds.map((id, i) => ({
+    const datasets = validIds.map((id, i) => ({
       label: nameMap[id] || id,
       data: hist.map((h) => h.breakdown?.[id] ?? 0),
       color: p[i % p.length],
@@ -7567,7 +7654,7 @@ function _renderTimeline() {
     buildLineChart("assetBreakdownChart", labels, datasets, { hideLegend: true });
     const legEl = document.getElementById("timelineLegend");
     if (legEl) {
-      legEl.innerHTML = allIds.map((id, i) => `
+      legEl.innerHTML = validIds.map((id, i) => `
         <div class="legend-chip">
           <div class="legend-dot" style="background:${p[i % p.length]}"></div>
           ${esc(nameMap[id] || id)}
@@ -7696,13 +7783,14 @@ function closeAssetModal() {
 }
 function _saveAsset() {
   const name = document.getElementById("assetName")?.value.trim();
-  const category = document.getElementById("assetCategory")?.value;
+  let category = document.getElementById("assetCategory")?.value;
   const value = parseFloat(document.getElementById("assetValue")?.value) || 0;
   const note = document.getElementById("assetNote")?.value.trim();
   if (!name) {
     showToast("\u8BF7\u586B\u5199\u8D44\u4EA7\u540D\u79F0");
     return;
   }
+  category = _normalizeCategory(category);
   const asset = _editingId ? { id: _editingId, name, category, value, note, updatedAt: (/* @__PURE__ */ new Date()).toISOString() } : { id: uid("a"), name, category, value, note, createdAt: (/* @__PURE__ */ new Date()).toISOString() };
   upsertAsset(asset);
   recordSnapshot();
