@@ -164,49 +164,39 @@ export function initStore() {
 }
 
 /**
- * 清理异常资产数据。
- * 标准资产 ID 格式：a + 13位时间戳 + 6~8位随机字符（由 uid('a') 生成）。
- * 不匹配该格式的资产将被移除，同时清理对应的历史快照和草稿。
+ * 清理已知异常资产（仅针对已识别的异常 ID 模式，不过度匹配）。
+ * 已知异常模式：
+ *   - ID 含小数点（如 a17823702561070.25088001814070604）
+ *   - ID 以 ast- 开头且含连字符（如 ast-mr8v2qmg-mrahw4x4-zmyr9d）
+ *
+ * 注意：不再使用通用正则过滤，避免误删正常资产。
  */
 function _cleanAbnormalAssets() {
-  const validIdRe = /^a\d{13}[a-z0-9]{6,8}$/;
-  let cleaned = 0;
+  const isAbnormal = (id) => {
+    if (id.includes('.')) return true;
+    if (/^ast-/.test(id) && id.includes('-', 4)) return true;
+    return false;
+  };
 
-  // 清理内存中的资产
-  const badAssets = _assets.filter(a => !validIdRe.test(a.id));
-  if (badAssets.length > 0) {
-    const badIds = new Set(badAssets.map(a => a.id));
-    console.warn('[store] 检测到异常资产，将清理:', badAssets.map(a => `${a.id} (${a.name})`).join(', '));
+  const badAssets = _assets.filter(a => isAbnormal(a.id));
+  if (badAssets.length === 0) return;
 
-    // 清理资产列表
-    _assets = _assets.filter(a => !badIds.has(a.id));
-    cleaned += badAssets.length;
+  const badIds = new Set(badAssets.map(a => a.id));
+  console.warn('[store] 检测到已知异常资产:', badAssets.map(a => `${a.id}`).join(', '));
 
-    // 清理资产草稿
-    _assetDrafts = _assetDrafts.filter(a => !badIds.has(a.id));
+  // 只从内存移除，不写回 localStorage（避免覆盖正常数据）
+  _assets = _assets.filter(a => !badIds.has(a.id));
+
+  // 同步清理草稿中的异常资产
+  const draftBefore = _assetDrafts.length;
+  _assetDrafts = _assetDrafts.filter(a => !badIds.has(a.id));
+  if (_assetDrafts.length < draftBefore) {
     _persist(LS.ASSETS_DRAFTS, _assetDrafts);
-
-    // 清理历史快照中的异常资产引用
-    let historyChanged = false;
-    _history = _history.map(snap => {
-      const breakdown = { ...snap.breakdown };
-      let modified = false;
-      for (const id of Object.keys(breakdown)) {
-        if (badIds.has(id)) { delete breakdown[id]; modified = true; }
-      }
-      if (!modified) return snap;
-      historyChanged = true;
-      const total = Object.values(breakdown).reduce((s, v) => s + v, 0);
-      return { ...snap, total, breakdown };
-    });
-    if (historyChanged) _persist(LS.ASSET_HISTORY, _history);
   }
 
-  if (cleaned > 0) {
-    console.log(`[store] 已清理 ${cleaned} 条异常资产`);
-    _emit('assets');
-    _emit('history');
-  }
+  console.log(`[store] 已从内存中过滤 ${badAssets.length} 条已知异常资产`);
+  _emit('assets');
+  _emit('history');
 }
 
 /**
@@ -267,10 +257,13 @@ function _migrateOldDataToDrafts() {
   if (cleanedTx.length > 0 || cleanedAssets.length > 0) {
     _drafts = cleanedTx;
     _persist(LS.DRAFTS, _drafts);
+    // 资产迁移到 rdstr_asset_drafts（修复：之前遗漏了资产持久化）
+    _assetDrafts = cleanedAssets;
+    _persist(LS.ASSETS_DRAFTS, _assetDrafts);
     console.log(`[store] 已迁移旧数据到 drafts：${cleanedTx.length} 条交易, ${cleanedAssets.length} 个资产`);
   }
 
-  // 清理旧 key
+  // 清理旧 key（仅在资产已成功持久化后才删除）
   try { localStorage.removeItem('rdstr_tx'); } catch {}
   try { localStorage.removeItem('rdstr_assets'); } catch {}
   try { localStorage.setItem(LS.MIGRATED_V23, '1'); } catch {}
@@ -344,45 +337,27 @@ export function mergeAssetsFromCloud(cloudRecords) {
 
   _assets = [...inMemory.values()];
 
-  // 清理云端同步回来的异常资产
-  const validIdRe = /^a\d{13}[a-z0-9]{6,8}$/;
-  const badAssets = _assets.filter(a => !validIdRe.test(a.id));
+  // 仅过滤已知异常资产模式（避免过度匹配导致正常数据丢失）
+  // 已知异常 ID 特征：含小数点 或 以 ast- 开头含连字符
+  const isAbnormal = (id) => {
+    if (id.includes('.')) return true;
+    if (/^ast-/.test(id) && id.includes('-', 4)) return true;
+    return false;
+  };
+  const badAssets = _assets.filter(a => isAbnormal(a.id));
   if (badAssets.length > 0) {
     const badIds = new Set(badAssets.map(a => a.id));
-    console.warn('[store] 云端同步中发现异常资产，将清理:', badAssets.map(a => `${a.id} (${a.name || '无名称'})`).join(', '));
+    console.warn('[store] 云端同步中发现异常资产:', badAssets.map(a => a.id).join(', '));
 
-    // 从内存中移除
+    // 仅从内存中移除，不删除 Firestore 数据（保留远端作为备份）
     _assets = _assets.filter(a => !badIds.has(a.id));
+  }
 
-    // 从 Firestore 中删除（异步，fire-and-forget）
-    if (_syncAdapter && _isLoggedIn) {
-      for (const bad of badAssets) {
-        _syncAdapter.deleteAsset(bad.id).catch(err => {
-          console.warn(`[store] 删除云端异常资产 ${bad.id} 失败:`, err);
-        });
-      }
-    }
-
-    // 清理资产草稿
-    _assetDrafts = _assetDrafts.filter(a => !badIds.has(a.id));
-    _persist(LS.ASSETS_DRAFTS, _assetDrafts);
-
-    // 清理历史快照中的异常资产引用
-    let historyChanged = false;
-    _history = _history.map(snap => {
-      const breakdown = { ...snap.breakdown };
-      let modified = false;
-      for (const id of Object.keys(breakdown)) {
-        if (badIds.has(id)) { delete breakdown[id]; modified = true; }
-      }
-      if (!modified) return snap;
-      historyChanged = true;
-      const total = Object.values(breakdown).reduce((s, v) => s + v, 0);
-      return { ...snap, total, breakdown };
-    });
-    if (historyChanged) _persist(LS.ASSET_HISTORY, _history);
-
-    console.log(`[store] 已从云端合并中清理 ${badAssets.length} 条异常资产`);
+  // 对不匹配标准 ID 格式的资产发出告警（不删除，仅日志）
+  const standardRe = /^a\d{13}[a-z0-9]{6,8}$/;
+  const nonStandard = _assets.filter(a => !standardRe.test(a.id) && !isAbnormal(a.id));
+  if (nonStandard.length > 0) {
+    console.warn('[store] 发现非标准 ID 格式资产（未删除，仅告警）:', nonStandard.map(a => a.id).join(', '));
   }
 
   _loading = false;
